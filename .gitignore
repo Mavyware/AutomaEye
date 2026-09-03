@@ -1,0 +1,46 @@
+# ===== AutomaEyes =====
+# Repo ini PUBLIK. Semua yang berisi kunci, data pabrik, atau hasil build
+# TIDAK boleh masuk ke sini.
+
+# ---- Kunci & kredensial (paling kritis) ----
+**/config.yaml               # kunci per-device app; template: config.example.yaml
+**/config.local.php          # kredensial server web (DB, mail, OAuth secret)
+**/.env
+**/.env.*
+!**/.env.*.contoh
+**/deploy/.env.deploy        # host/user/password FTP
+**/deploy/backup-*/          # salinan config server - berisi rahasia
+**/storage/app_secret.key
+**/*.pem
+**/*.key
+!**/*.example.key
+
+# ---- Data & hasil kerja (bukan kode) ----
+# Dataset dan model tersimpan di repo GitHub milik masing-masing user
+# (Documents/AutomaEyes/<akun>), bukan di repo aplikasi ini.
+projects/
+**/dataset/images/
+**/dataset/labels/
+**/weights/
+**/versions/
+**/runs/
+**/outputs/
+**/self_learning/
+*.onnx
+*.pt.bak
+
+# ---- Dependensi & build (bisa dibuat ulang) ----
+node_modules/
+vendor/
+**/__pycache__/
+*.pyc
+dist/
+build/
+
+# ---- Basis data lokal & log ----
+**/storage/*.sqlite
+*.log
+
+# ---- Sampah OS ----
+Thumbs.db
+.DS_Store

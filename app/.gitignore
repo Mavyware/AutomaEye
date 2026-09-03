@@ -1,0 +1,22 @@
+# ===== AutomaEyes — .gitignore =====
+# Hanya kecualikan yang bisa di-install / dihasilkan ulang di tiap device.
+# Model (.pt), dataset, label, dan folder projects/ SENGAJA diikutkan
+# supaya beda user/device bisa langsung lanjut tanpa training & upload ulang.
+
+# Dependensi Node — regenerate: npm install
+node_modules/
+
+# Virtual-env Label Studio — regenerate: setup.bat  (besar, ~700 MB)
+python/ls-venv/
+
+# Cache Python
+**/__pycache__/
+*.pyc
+
+# Kunci/secret per-device — JANGAN di-commit. Template ada di config.example.yaml
+config.yaml
+
+# Log & sampah OS
+*.log
+Thumbs.db
+.DS_Store

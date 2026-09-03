@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>Settings — AutomaEyes</title>
+<link rel="stylesheet" href="../css/style.css">
+<script>window.LAYOUT_OPTS = { title: 'Global Settings', subtitle: 'Runtime configuration', mode: 'setting', showTotalStatus: false };</script>
+</head>
+<body>
+
+<main>
+    <a class="back" onclick="window.api.goTo('projects.html')">← Projects</a>
+    <h1>Settings</h1>
+
+    <div class="card">
+        <div class="section-title">Akun &amp; Penyimpanan GitHub</div>
+        <div style="padding:12px">
+            <p class="muted" id="acctStatus" style="margin-top:0"></p>
+            <label>Website (untuk login akun)
+                <input type="text" id="websiteUrl" placeholder="https://automaeyes.my.id" style="width:340px">
+            </label>
+            <p class="muted" style="font-size:11px;line-height:1.7">
+                Penyimpanan project memakai akun GitHub Anda. Izin diberikan lewat browser
+                saat menekan "Sambungkan dengan GitHub" — tidak ada kunci apa pun yang perlu
+                diisi di sini.
+            </p>
+            <div class="row">
+                <button class="btn" onclick="doLogout()">Keluar dari akun</button>
+                <button class="btn" onclick="doDisconnectGithub()">Putuskan koneksi GitHub</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="section-title">Inference Parameter</div>
+        <div style="padding:12px">
+            <div class="grid-3">
+                <label>Confidence threshold <input type="number" step="0.01" id="confidence"></label>
+                <label>IoU threshold <input type="number" step="0.01" id="iou"></label>
+                <label>Image size <input type="number" id="imgsz"></label>
+            </div>
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="section-title">Python Runtime</div>
+        <div style="padding:12px">
+            <label>Python exe <input type="text" id="pythonExe" placeholder="python atau python3"></label>
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="section-title">Arduino / Serial (Slide Gate + PLC Signal)</div>
+        <div style="padding:12px">
+            <div class="grid-2">
+                <label>Serial port <input type="text" id="arduinoPort" placeholder="COM3 atau /dev/ttyUSB0"></label>
+                <label>Baud rate <input type="number" id="arduinoBaud"></label>
+                <label>OK signal (byte) <input type="text" id="okSignal"></label>
+                <label>NG signal (byte) <input type="text" id="ngSignal"></label>
+            </div>
+            <label><input type="checkbox" id="signalOnOk"> Kirim sinyal saat OK juga (default hanya NG)</label>
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="section-title">Auto-Calibration</div>
+        <div style="padding:12px">
+            <label><input type="checkbox" id="calibEnabled"> Aktifkan Auto-Calibration (sweep confidence threshold via F1 pada val set)</label>
+            <p class="muted" style="font-size:11px">Perhitungan murni statistik pada val set — tidak memakai layanan AI eksternal, jadi tidak perlu API key. Dijalankan dari halaman <strong>Model &rarr; Train</strong> (tombol "Auto-Calibrate").</p>
+        </div>
+    </div>
+
+    
+
+    <div class="row">
+        <button class="btn primary" onclick="save()">💾 Save (runtime only)</button>
+    </div>
+    <p class="muted">✓ Save otomatis persist ke <code>config.yaml</code> — akan tetap ada di sesi berikutnya.</p>
+</main>
+
+<script src="../js/common.js"></script>
+<script>
+let cfg;
+
+async function load() {
+    cfg = await window.api.getConfig();
+    document.getElementById('confidence').value = cfg.model.confidence;
+    document.getElementById('iou').value = cfg.model.iou;
+    document.getElementById('imgsz').value = cfg.model.imgsz;
+    document.getElementById('pythonExe').value = cfg.python.exe || 'python';
+    document.getElementById('websiteUrl').value = (cfg.website && cfg.website.url) || 'https://automaeyes.my.id';
+    document.getElementById('arduinoPort').value = cfg.arduino.port || '';
+    document.getElementById('arduinoBaud').value = cfg.arduino.baud || 9600;
+    document.getElementById('okSignal').value = cfg.arduino.ok_signal || '0\n';
+    document.getElementById('ngSignal').value = cfg.arduino.ng_signal || '1\n';
+    document.getElementById('signalOnOk').checked = !!cfg.arduino.signal_on_ok;
+    document.getElementById('calibEnabled').checked = !!cfg.auto_calibration.enabled;
+}
+
+async function save() {
+    const patch = {
+        model: {
+            ...cfg.model,
+            confidence: parseFloat(document.getElementById('confidence').value),
+            iou: parseFloat(document.getElementById('iou').value),
+            imgsz: parseInt(document.getElementById('imgsz').value),
+        },
+        python: { ...cfg.python, exe: document.getElementById('pythonExe').value || 'python' },
+        website: { ...cfg.website, url: document.getElementById('websiteUrl').value.trim() || 'https://automaeyes.my.id' },
+        arduino: {
+            ...cfg.arduino,
+            port: document.getElementById('arduinoPort').value,
+            baud: parseInt(document.getElementById('arduinoBaud').value) || 9600,
+            ok_signal: document.getElementById('okSignal').value,
+            ng_signal: document.getElementById('ngSignal').value,
+            signal_on_ok: document.getElementById('signalOnOk').checked,
+        },
+        auto_calibration: {
+            ...cfg.auto_calibration,
+            enabled: document.getElementById('calibEnabled').checked,
+        },
+    };
+    const res = await window.api.setConfig(patch);
+    if (res && !res.__error) cfg = res;
+    const saved = !res || !res.__save || res.__save.ok;
+    alert(saved ? '✓ Settings tersimpan ke config.yaml' : 'Gagal simpan: ' + (res.__save && res.__save.error));
+}
+
+load();
+
+// Status akun & koneksi GitHub, plus aksi keluar/putus koneksi.
+async function refreshAccount() {
+    const st = await window.api.authStatus();
+    const el = document.getElementById('acctStatus');
+    const akun = st.session ? `Masuk sebagai <strong>${st.session.user.name}</strong> (${st.session.user.email})` : 'Belum login';
+    const gh = st.github
+        ? `Tersambung ke <strong>${st.github.repo}</strong> &middot; folder: ${st.projectsRoot}`
+        : 'GitHub belum tersambung';
+    el.innerHTML = `${akun}<br>${gh}`;
+}
+
+async function doLogout() {
+    if (!confirm('Keluar dari akun? Koneksi GitHub juga dilepas.')) return;
+    await window.api.authLogout();
+}
+
+async function doDisconnectGithub() {
+    if (!confirm('Putuskan koneksi GitHub? Project yang sudah ter-push tetap aman di repo Anda.')) return;
+    await window.api.githubDisconnect();
+    refreshAccount();
+}
+
+refreshAccount();
+</script>
+</body>
+</html>

@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>Masuk — AutomaEyes</title>
+<link rel="stylesheet" href="../css/style.css">
+<style>
+  /* Halaman gate: sengaja tanpa menu bar/toolbar, karena belum ada sesi
+     dan belum ada repo tujuan — semua aksi lain memang belum boleh dipakai. */
+  body { display: flex; align-items: center; justify-content: center; height: 100vh; margin: 0; }
+  .gate { width: 460px; text-align: center; }
+  .gate .logo { font-size: 26px; font-weight: 700; margin-bottom: 6px; }
+  .gate .sub { color: #666; font-size: 13px; margin-bottom: 22px; }
+  .gate .card { text-align: left; }
+  .gate .steps { font-size: 12px; color: #555; line-height: 1.8; margin: 0; padding-left: 18px; }
+  .status { margin-top: 14px; font-size: 12px; min-height: 18px; }
+  .status.err { color: #dc2626; }
+  .status.wait { color: #f59e0b; }
+</style>
+</head>
+<body>
+
+<div class="gate">
+    <div class="logo">AutomaEyes</div>
+    <div class="sub">Quality Control berbasis YOLOv11</div>
+
+    <div class="card">
+        <div class="section-title">Masuk ke akun Anda</div>
+        <div style="padding:14px">
+            <ol class="steps">
+                <li>Klik tombol di bawah — browser akan terbuka.</li>
+                <li>Login pakai email, Google, atau GitHub.</li>
+                <li>Halaman itu otomatis kembali ke aplikasi ini.</li>
+            </ol>
+            <div class="row" style="margin-top:14px">
+                <button class="btn primary" id="loginBtn" onclick="login()">Masuk lewat Browser</button>
+                <button class="btn" onclick="recheck()">Sudah login? Cek lagi</button>
+            </div>
+            <div class="status" id="status"></div>
+        </div>
+    </div>
+</div>
+
+<script>
+const statusEl = document.getElementById('status');
+
+function setStatus(msg, cls = '') {
+    statusEl.textContent = msg;
+    statusEl.className = 'status ' + cls;
+}
+
+async function login() {
+    setStatus('Menunggu login diselesaikan di browser...', 'wait');
+    const res = await window.api.authLogin();
+    if (!res.ok) setStatus('Gagal membuka browser.', 'err');
+}
+
+// Fallback kalau deep link automaeye:// tidak sampai (mis. skema belum
+// terdaftar di OS saat mode dev): user bisa cek manual setelah login.
+async function recheck() {
+    const st = await window.api.authStatus();
+    if (st.session) {
+        window.api.goTo(st.github ? 'projects.html' : 'connect-github.html');
+    } else {
+        setStatus('Belum ada sesi. Selesaikan login di browser dulu.', 'err');
+    }
+}
+
+window.api.onAuthFailed((msg) => setStatus(msg, 'err'));
+</script>
+</body>
+</html>

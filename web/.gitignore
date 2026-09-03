@@ -1,0 +1,4 @@
+/config.local.php
+/storage/*.sqlite
+/storage/app_secret.key
+/deploy/.env.deploy

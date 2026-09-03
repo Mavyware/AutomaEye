@@ -1,0 +1,12 @@
+# ===== AutomaEyes — TEMPLATE config =====
+# Salin otomatis jadi config.yaml saat app pertama jalan (kalau config.yaml belum ada).
+# Pengaturan per-device diisi lewat menu Settings di aplikasi.
+# Catatan: sesi login & token GitHub TIDAK disimpan di sini, melainkan di
+# folder userData milik OS (terenkripsi), supaya tidak ikut ter-push.
+app:
+  name: AutomaEyes — Socket Holder Inspector
+  version: 0.1.0
+# Website AutomaEyes — dipakai untuk login akun (app membuka
+# <url>/login.php?redirect=automaeye://auth lalu menukar token balikannya).
+website:
+  url: https://automaeyes.my.id

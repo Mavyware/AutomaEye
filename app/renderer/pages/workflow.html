@@ -1,0 +1,307 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>Workflow — AutomaEyes</title>
+<link rel="stylesheet" href="../css/style.css">
+<script>window.LAYOUT_OPTS = { title: 'Palette (Task View)', subtitle: 'AutomaEyes', mode: 'setting', showTotalStatus: false };</script>
+</head>
+<body>
+
+<main>
+    <div class="page-header">
+        <a class="back" id="backLink">← Project</a>
+        <button class="btn primary" onclick="saveWorkflow()">💾 Simpan Workflow</button>
+    </div>
+
+    <div class="workflow-layout">
+        <div class="palette" id="palette"></div>
+        <div class="props" id="props">
+            <div class="props-header">Properties</div>
+            <div class="props-body" id="propsBody">
+                <p class="muted">Pilih step di Palette (kiri) untuk edit properties.</p>
+                <hr style="margin: 12px 0; border: none; border-top: 1px solid var(--border);">
+                <label>Saat step NG pertama:
+                    <select id="onFirstNG">
+                        <option value="stop_and_report">stop_and_report</option>
+                        <option value="continue">continue</option>
+                    </select>
+                </label>
+            </div>
+        </div>
+    </div>
+</main>
+
+<script src="../js/common.js"></script>
+<script>
+const projectName = param('project');
+document.getElementById('backLink').onclick = () => window.api.goTo(`project.html?name=${encodeURIComponent(projectName)}`);
+
+const CATEGORIES = ['Capture', 'Positioning', 'Inspection', 'Communication', 'Options'];
+// Kategori yang memakai MODEL AI (butuh model terlatih). Lainnya pakai "tool".
+const MODEL_CATS = ['Inspection', 'Positioning'];
+// Katalog tool non-AI per kategori (Capture/Communication/Options).
+const TOOLS = {
+    Capture: [
+        { tool: 'camera', label: 'Kamera / Webcam', config: { source: 'kamera', minKB: 0 } },
+        { tool: 'file', label: 'Muat dari File', config: { source: 'file', minKB: 0 } },
+    ],
+    Communication: [
+        { tool: 'arduino', label: 'Sinyal Arduino/PLC', config: { signalOK: '0', signalNG: '1', onlyOnNG: true } },
+        { tool: 'log', label: 'Catat Log CSV', config: {} },
+    ],
+    Options: [
+        { tool: 'save', label: 'Simpan Gambar', config: { saveOK: false, saveNG: true } },
+    ],
+};
+let steps = [];
+let availableModels = [];
+let selectedIdx = -1;
+
+async function init() {
+    const p = await window.api.loadProject(projectName);
+    steps = (p.workflow.steps || []).map(s => ({ ...s }));
+    availableModels = p.models || [];
+    document.getElementById('onFirstNG').value = p.workflow.onFirstNG || 'stop_and_report';
+    render();
+}
+
+function render() {
+    const palette = document.getElementById('palette');
+    palette.innerHTML = CATEGORIES.map(cat => {
+        const catSteps = steps.filter(s => s.category === cat);
+        return `
+            <div class="palette-cat">
+                <div class="palette-header">
+                    <div><span class="cat-icon"></span>${esc(cat)}</div>
+                    <button class="palette-add-btn" onclick="addStep('${esc(cat)}')" title="Tambah step">+</button>
+                </div>
+                <div class="palette-body">
+                    ${catSteps.length ? catSteps.map(s => {
+                        const idx = steps.indexOf(s);
+                        return `<div class="palette-step ${idx === selectedIdx ? 'selected' : ''}" onclick="selectStep(${idx})">
+                            <span class="step-num">${idx + 1}</span>
+                            <span>${esc(s.modelName || s.label || s.tool || s.category)}</span>
+                            <span class="verdict-dot"></span>
+                        </div>`;
+                    }).join('') : '<div class="palette-empty">(kosong)</div>'}
+                </div>
+            </div>
+        `;
+    }).join('');
+
+    renderProps();
+}
+
+function renderProps() {
+    const body = document.getElementById('propsBody');
+    if (selectedIdx < 0) {
+        body.innerHTML = `<p class="muted">Pilih step di Palette (kiri) untuk edit properties.</p>
+            <hr style="margin:12px 0; border:none; border-top:1px solid var(--border);">
+            <label>Saat step NG pertama:
+                <select id="onFirstNG">
+                    <option value="stop_and_report">stop_and_report</option>
+                    <option value="continue">continue</option>
+                </select>
+            </label>`;
+        return;
+    }
+    const s = steps[selectedIdx];
+    const isModel = !!s.modelName;
+    let head, configHtml = '';
+    if (isModel) {
+        const m = availableModels.find(x => x.name === s.modelName);
+        const trained = m && m.trained ? (m.lastMAP != null ? `mAP=${m.lastMAP.toFixed(3)}` : 'terlatih') : 'belum trained';
+        head = `<h3>Step [${selectedIdx + 1}] — ${esc(s.modelName)}</h3>
+            <p class="muted">Type: <strong>${m ? esc(m.type) : '?'}</strong> · Status: ${trained}<br>
+            ${s.category === 'Positioning' ? 'Peran: mengunci lokasi part (bukan menilai).' : 'Peran: menilai OK/NG lewat add-on.'}</p>`;
+        // Pilih VERSI model (v1, v2, …) untuk step ini. Kosong = pakai versi aktif.
+        let verHtml = '';
+        if (m && m.versions && m.versions.length) {
+            verHtml = `<label style="display:block;margin-bottom:6px">Versi model
+                <select onchange="updateStep('version', this.value ? (parseInt(this.value) || null) : null)">
+                    <option value="" ${!s.version ? 'selected' : ''}>Aktif (v${m.activeVersion || '?'})</option>
+                    ${m.versions.slice().reverse().map(v => `<option value="${v.id}" ${s.version === v.id ? 'selected' : ''}>v${v.id}${v.id === m.activeVersion ? ' · aktif' : ''}</option>`).join('')}
+                </select></label>`;
+        }
+        const pass = (s.config && s.config.passOnNoDetect) ? 'checked' : '';
+        configHtml = verHtml + `<label style="display:block;margin-bottom:6px"><input type="checkbox" ${pass} onchange="updateStepConfig('passOnNoDetect', this.checked)"> Anggap <strong>OK</strong> bila tidak ada objek terdeteksi (lanjut ke step berikutnya)</label>`;
+    } else {
+        head = `<h3>Step [${selectedIdx + 1}] — ${esc(s.label || s.tool)}</h3>
+            <p class="muted">Tool ${esc(s.category)}.</p>`;
+        configHtml = renderStepConfig(s);
+    }
+    body.innerHTML = `${head}
+        <hr style="margin:12px 0; border:none; border-top:1px solid var(--border);">
+        ${configHtml}
+        <label>Continue on
+            <select onchange="updateStep('continueOn', this.value)">
+                <option ${s.continueOn === 'always' ? 'selected' : ''}>always</option>
+                <option ${s.continueOn === 'on_ok' ? 'selected' : ''}>on_ok</option>
+                <option ${s.continueOn === 'on_ng' ? 'selected' : ''}>on_ng</option>
+            </select>
+        </label>
+        <div class="row">
+            <button class="btn small" onclick="move(-1)">↑ Up</button>
+            <button class="btn small" onclick="move(1)">↓ Down</button>
+            <button class="btn small danger" onclick="removeStep()">🗑 Delete</button>
+        </div>
+        <hr style="margin:12px 0; border:none; border-top:1px solid var(--border);">
+        <label>Saat step NG pertama:
+            <select id="onFirstNG">
+                <option value="stop_and_report">stop_and_report</option>
+                <option value="continue">continue</option>
+            </select>
+        </label>`;
+}
+
+// Editor konfigurasi untuk step non-model (Capture/Communication/Options).
+function renderStepConfig(s) {
+    const c = s.config || {};
+    if (s.category === 'Capture') {
+        return `<label>Sumber
+                <select onchange="updateStepConfig('source', this.value)">
+                    <option value="kamera" ${c.source === 'kamera' ? 'selected' : ''}>Kamera / Webcam</option>
+                    <option value="file" ${c.source === 'file' ? 'selected' : ''}>Muat dari File</option>
+                </select></label>
+            <label>Min. ukuran gambar (KB) — 0 = mati
+                <input type="number" min="0" value="${c.minKB || 0}" onchange="updateStepConfig('minKB', parseInt(this.value)||0)"></label>
+            <p class="muted" style="font-size:11px">Gate opsional: tolak gambar terlalu kecil/kosong (indikasi gagal capture).</p>`;
+    }
+    if (s.category === 'Communication') {
+        if (s.tool === 'log') return `<p class="muted" style="font-size:12px">Menulis hasil ke daily_summary.csv (otomatis). Tidak ada parameter.</p>`;
+        return `<label>Sinyal saat OK <input type="text" value="${esc(c.signalOK != null ? c.signalOK : '0')}" onchange="updateStepConfig('signalOK', this.value)"></label>
+            <label>Sinyal saat NG <input type="text" value="${esc(c.signalNG != null ? c.signalNG : '1')}" onchange="updateStepConfig('signalNG', this.value)"></label>
+            <label style="display:block"><input type="checkbox" ${c.onlyOnNG !== false ? 'checked' : ''} onchange="updateStepConfig('onlyOnNG', this.checked)"> Kirim hanya saat NG</label>
+            <p class="muted" style="font-size:11px">Butuh Arduino terhubung (Settings → COM port).</p>`;
+    }
+    if (s.category === 'Options') {
+        return `<label style="display:block"><input type="checkbox" ${c.saveOK ? 'checked' : ''} onchange="updateStepConfig('saveOK', this.checked)"> Simpan gambar OK</label>
+            <label style="display:block"><input type="checkbox" ${c.saveNG !== false ? 'checked' : ''} onchange="updateStepConfig('saveNG', this.checked)"> Simpan gambar NG</label>
+            <p class="muted" style="font-size:11px">Gambar tersimpan di folder outputs/ project.</p>`;
+    }
+    return '';
+}
+
+function updateStepConfig(key, value) {
+    if (selectedIdx < 0) return;
+    const s = steps[selectedIdx];
+    s.config = s.config || {};
+    s.config[key] = value;
+}
+
+// Pemilih step berbasis modal (prompt() TIDAK didukung di Electron).
+// Inspection & Positioning → pilih MODEL AI. Capture/Communication/Options → pilih TOOL.
+function addStep(cat) {
+    closePicker();
+    const isModelCat = MODEL_CATS.includes(cat);
+    const overlay = document.createElement('div');
+    overlay.id = 'modelPicker';
+    overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.5);display:flex;align-items:center;justify-content:center;z-index:1000';
+    const box = document.createElement('div');
+    box.style.cssText = 'background:var(--panel,#fff);color:var(--text,inherit);border:1px solid var(--border,#ccc);border-radius:8px;padding:18px;min-width:340px;max-width:90%;max-height:80vh;overflow:auto';
+
+    if (isModelCat && !availableModels.length) {
+        box.innerHTML = `<h3 style="margin-top:0">Tambah step — ${esc(cat)}</h3>
+            <p class="muted">Belum ada model di project ini. Buat &amp; latih model dulu:
+            <strong>Project → + New Model → Dataset → Annotate → Train</strong>.</p>
+            <div class="row" style="justify-content:flex-end"><button class="btn" id="pkClose">Tutup</button></div>`;
+    } else {
+        const hint = isModelCat
+            ? 'Pilih model AI yang dijalankan pada langkah ini:'
+            : 'Pilih tool untuk langkah ini:';
+        box.innerHTML = `<h3 style="margin-top:0">Tambah step ke <em>${esc(cat)}</em></h3>
+            <p class="muted">${hint}</p>
+            <div id="pkList" style="display:flex;flex-direction:column;gap:6px;margin:10px 0"></div>
+            <div class="row" style="justify-content:flex-end"><button class="btn" id="pkClose">Tutup</button></div>`;
+    }
+    overlay.appendChild(box);
+    document.body.appendChild(overlay);
+    overlay.addEventListener('click', (e) => { if (e.target === overlay) closePicker(); });
+    const closeBtn = box.querySelector('#pkClose');
+    if (closeBtn) closeBtn.onclick = closePicker;
+
+    const list = box.querySelector('#pkList');
+    if (!list) return;
+
+    if (isModelCat) {
+        availableModels.forEach(m => {
+            const btn = document.createElement('button');
+            btn.className = 'btn';
+            btn.style.cssText = 'text-align:left;justify-content:flex-start';
+            btn.innerHTML = `<strong>${esc(m.name)}</strong> ` +
+                `<span class="muted" style="font-size:11px">— ${esc(m.type)}${m.trained ? ' · trained' : ' · belum trained'}</span>`;
+            btn.onclick = () => {
+                steps.push({ modelName: m.name, category: cat, continueOn: 'always' });
+                selectedIdx = steps.length - 1;
+                closePicker();
+                render();
+            };
+            list.appendChild(btn);
+        });
+    } else {
+        (TOOLS[cat] || []).forEach(t => {
+            const btn = document.createElement('button');
+            btn.className = 'btn';
+            btn.style.cssText = 'text-align:left;justify-content:flex-start';
+            btn.innerHTML = `<strong>${esc(t.label)}</strong>`;
+            btn.onclick = () => {
+                steps.push({ category: cat, tool: t.tool, label: t.label, config: { ...t.config }, continueOn: 'always' });
+                selectedIdx = steps.length - 1;
+                closePicker();
+                render();
+            };
+            list.appendChild(btn);
+        });
+    }
+}
+
+function closePicker() {
+    const ex = document.getElementById('modelPicker');
+    if (ex) ex.remove();
+}
+
+function selectStep(idx) {
+    selectedIdx = idx;
+    render();
+}
+
+function updateStep(key, value) {
+    if (selectedIdx < 0) return;
+    steps[selectedIdx][key] = value;
+    render();
+}
+
+function move(dir) {
+    if (selectedIdx < 0) return;
+    const ni = selectedIdx + dir;
+    if (ni < 0 || ni >= steps.length) return;
+    const tmp = steps[selectedIdx];
+    steps[selectedIdx] = steps[ni];
+    steps[ni] = tmp;
+    selectedIdx = ni;
+    render();
+}
+
+function removeStep() {
+    if (selectedIdx < 0) return;
+    steps.splice(selectedIdx, 1);
+    selectedIdx = -1;
+    render();
+}
+
+async function saveWorkflow() {
+    const sel = document.getElementById('onFirstNG');
+    const onFirstNG = sel ? sel.value : 'stop_and_report';
+    try {
+        await window.api.saveWorkflow(projectName, steps, onFirstNG);
+        alert('✓ Workflow tersimpan');
+    } catch (e) {
+        alert('Gagal simpan workflow: ' + e.message);
+    }
+}
+
+init();
+</script>
+</body>
+</html>

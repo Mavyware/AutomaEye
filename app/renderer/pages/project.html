@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>Project — AutomaEyes</title>
+<link rel="stylesheet" href="../css/style.css">
+<script>window.LAYOUT_OPTS = { title: 'Project Dashboard', subtitle: 'AutomaEyes', mode: 'setting', showTotalStatus: false };</script>
+</head>
+<body>
+
+<main>
+    <a class="back" onclick="window.api.goTo('projects.html')">← Projects</a>
+    <div class="page-header">
+        <h1 id="pTitle">…</h1>
+        <div class="row">
+            <button class="btn primary" onclick="newModel()">+ New Model</button>
+            <button class="btn" onclick="openOutput()">⚡ Output</button>
+            <button class="btn" onclick="exportDaily()">📊 Laporan Harian (XLSX)</button>
+            <button class="btn" onclick="exportDetections()">📐 Data Deteksi (XLSX)</button>
+            <button class="btn danger" onclick="deleteProject()">🗑 Hapus</button>
+        </div>
+    </div>
+    <p class="muted" id="desc"></p>
+
+    <section>
+        <div class="section-title">Models</div>
+        <div id="modelsList" style="background:var(--panel); border:1px solid var(--border); border-top:none;"></div>
+    </section>
+
+    <section style="margin-top: 16px;">
+        <div class="section-title">Workflow (Palette Task View)</div>
+        <div style="background:var(--panel); border:1px solid var(--border); border-top:none; padding:10px;">
+            <div id="workflowView"></div>
+            <div class="row">
+                <button class="btn" onclick="editWorkflow()">✏️ Edit Workflow</button>
+                <button class="btn primary" onclick="runWorkflow()">▶ Run Workflow</button>
+            </div>
+        </div>
+    </section>
+</main>
+
+<script src="../js/common.js"></script>
+<script>
+const projectName = param('name');
+let currentProject = null;
+
+async function render() {
+    if (!projectName) { window.api.goTo('projects.html'); return; }
+    currentProject = await window.api.loadProject(projectName);
+    document.getElementById('pTitle').textContent = currentProject.name;
+    document.getElementById('desc').textContent = currentProject.description || '';
+
+    const models = currentProject.models;
+    const mList = document.getElementById('modelsList');
+    if (!models.length) {
+        mList.innerHTML = '<div style="padding:14px" class="muted">Belum ada model. Klik <strong>+ New Model</strong>.</div>';
+    } else {
+        const rows = await Promise.all(models.map(async m => {
+            const stats = await window.api.modelStats(projectName, m.name);
+            const trained = m.trained
+                ? `<span class="badge ok">${m.lastMAP != null ? 'mAP ' + m.lastMAP.toFixed(2) : 'terlatih'}</span>`
+                : '<span class="badge">untrained</span>';
+            const addons = (m.addons || []).map(a => `<span class="tag">${esc(a)}</span>`).join('') || '<span class="muted">—</span>';
+            const classes = m.classes.map(c => `<span class="tag">${esc(c)}</span>`).join('');
+            return `<tr data-model="${esc(m.name)}" oncontextmenu="showModelMenu(event, this)" style="cursor:context-menu">
+                <td><strong>${esc(m.name)}</strong></td>
+                <td>${esc(m.type)}</td>
+                <td>${addons}</td>
+                <td>${classes}</td>
+                <td>${stats.train} / ${stats.annotated}</td>
+                <td>${trained}</td>
+                <td><button class="btn small" onclick="openModel('${esc(m.name)}')">Buka</button></td>
+            </tr>`;
+        }));
+        mList.innerHTML = `<table class="table" style="border:0">
+            <thead><tr><th>Nama</th><th>Type</th><th>Add-ons</th><th>Classes</th><th>Train / Anot</th><th>Status</th><th></th></tr></thead>
+            <tbody>${rows.join('')}</tbody>
+        </table>
+        <p class="muted" style="font-size:11px;margin:6px 2px 0">Klik kanan baris model untuk menu (Buka · Hapus).</p>`;
+    }
+
+    const wf = document.getElementById('workflowView');
+    if (!currentProject.workflow.steps.length) {
+        wf.innerHTML = '<p class="muted">Workflow kosong. Buat model dulu lalu klik Edit Workflow.</p>';
+    } else {
+        const chain = currentProject.workflow.steps.map((s, i) => {
+            const arrow = i < currentProject.workflow.steps.length - 1 ? '<span class="chain-arrow">→</span>' : '';
+            return `<span class="chain-step">[${s.stepIndex}] ${esc(s.modelName)} <small>(${esc(s.category || 'Inspection')})</small></span> ${arrow}`;
+        }).join('');
+        wf.innerHTML = `<div class="chain">${chain}</div><p class="muted" style="font-size:11px">Aksi saat NG pertama: <strong>${currentProject.workflow.onFirstNG}</strong></p>`;
+    }
+}
+
+function newModel() { window.api.goTo(`new_model.html?project=${encodeURIComponent(projectName)}`); }
+function openModel(name) { window.api.goTo(`model.html?project=${encodeURIComponent(projectName)}&model=${encodeURIComponent(name)}`); }
+
+// ==== Menu klik-kanan pada baris model (Buka / Hapus) ====
+function showModelMenu(e, tr) {
+    e.preventDefault();
+    hideModelMenu();
+    const name = tr.dataset.model;
+    const menu = document.createElement('div');
+    menu.id = 'modelCtxMenu';
+    menu.style.cssText = `position:fixed;left:${e.clientX}px;top:${e.clientY}px;z-index:3000;background:var(--panel,#fff);color:var(--text,inherit);border:1px solid var(--border,#ccc);border-radius:6px;box-shadow:0 4px 16px rgba(0,0,0,.3);padding:4px;min-width:160px`;
+    const item = 'display:block;width:100%;text-align:left;background:none;border:none;color:inherit;padding:8px 12px;font-size:13px;border-radius:4px;cursor:pointer';
+    menu.innerHTML = `
+        <button style="${item}">📂 Buka</button>
+        <button style="${item};color:#ef4444">🗑 Hapus Model</button>`;
+    document.body.appendChild(menu);
+    const btns = menu.querySelectorAll('button');
+    btns.forEach(b => b.onmouseenter = () => b.style.background = 'var(--panel-alt, rgba(128,128,128,.15))');
+    btns.forEach(b => b.onmouseleave = () => b.style.background = 'none');
+    btns[0].onclick = () => { hideModelMenu(); openModel(name); };
+    btns[1].onclick = () => { hideModelMenu(); confirmDeleteModel(name); };
+}
+function hideModelMenu() { const m = document.getElementById('modelCtxMenu'); if (m) m.remove(); }
+document.addEventListener('click', hideModelMenu);
+window.addEventListener('scroll', hideModelMenu, true);
+
+function confirmDeleteModel(name) {
+    const overlay = document.createElement('div');
+    overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:3100;display:flex;align-items:center;justify-content:center;padding:14px';
+    const box = document.createElement('div');
+    box.style.cssText = 'background:var(--panel,#fff);color:var(--text,inherit);border:1px solid var(--border,#ccc);border-radius:8px;padding:20px;max-width:440px';
+    box.innerHTML = `<h3 style="margin-top:0">Hapus model "${esc(name)}"?</h3>
+        <p class="muted" style="font-size:13px">Ini menghapus permanen folder model tersebut: dataset, anotasi, dan bobot (.pt). Step Workflow yang memakainya juga akan dilepas. Tidak bisa dibatalkan.</p>
+        <div class="row" style="justify-content:flex-end;gap:8px">
+            <button class="btn" id="dmCancel">Batal</button>
+            <button class="btn danger" id="dmOk">🗑 Hapus</button>
+        </div>`;
+    overlay.appendChild(box);
+    document.body.appendChild(overlay);
+    overlay.addEventListener('click', e => { if (e.target === overlay) overlay.remove(); });
+    box.querySelector('#dmCancel').onclick = () => overlay.remove();
+    box.querySelector('#dmOk').onclick = async () => {
+        try {
+            await window.api.deleteModel(projectName, name);
+            overlay.remove();
+            render();
+        } catch (e2) { alert('Gagal hapus: ' + e2.message); }
+    };
+}
+function openOutput() { window.api.goTo(`output.html?project=${encodeURIComponent(projectName)}`); }
+
+// Laporan dihitung dari outputs/ project (CSV harian + JSON per-frame).
+// Murni statistik/pengukuran — tidak ada LLM di jalur ini.
+function todayKey() { return new Date().toISOString().slice(0, 10); }
+
+async function exportDaily() {
+    const date = prompt('Tanggal laporan (YYYY-MM-DD):', todayKey());
+    if (!date) return;
+    const r = await window.api.reportDailyXlsx(projectName, date);
+    if (!r.ok) { alert('Gagal: ' + r.error); return; }
+    if (confirm(`Laporan tersimpan:\n${r.xlsxPath}\n\nBuka sekarang?`)) window.api.openPath(r.xlsxPath);
+}
+
+async function exportDetections() {
+    const date = prompt('Tanggal data deteksi (YYYY-MM-DD):', todayKey());
+    if (!date) return;
+    const r = await window.api.reportDetectionXlsx(projectName, date);
+    if (!r.ok) { alert('Gagal: ' + r.error); return; }
+    if (confirm(`${r.count} baris tersimpan:\n${r.xlsxPath}\n\nBuka sekarang?`)) window.api.openPath(r.xlsxPath);
+}
+function editWorkflow() {
+    if (!currentProject.models.length) { alert('Buat model dulu'); return; }
+    window.api.goTo(`workflow.html?project=${encodeURIComponent(projectName)}`);
+}
+function runWorkflow() {
+    if (!currentProject.workflow.steps.length) { alert('Workflow kosong'); return; }
+    window.api.goTo(`run.html?project=${encodeURIComponent(projectName)}`);
+}
+async function deleteProject() {
+    if (!confirm(`Hapus project "${projectName}"?`)) return;
+    await window.api.deleteProject(projectName);
+    window.api.goTo('projects.html');
+}
+
+render();
+</script>
+<script src="../js/layout.js"></script>
+</body>
+</html>

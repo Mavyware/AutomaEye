@@ -1,0 +1,31 @@
+<?php
+// Copy this file to config.local.php (outside version control) and fill in real values.
+// It is loaded before any defaults in src/bootstrap.php.
+
+define('APP_NAME', 'AutomaEye');
+define('APP_URL', 'https://automaeyes.example.com'); // no trailing slash
+define('APP_SCHEME', 'automaeye'); // must match the custom URI scheme registered by the desktop app
+define('DOWNLOAD_URL', 'https://automaeyes.example.com/downloads/AutomaEye-Setup.exe');
+
+// Leave DB_HOST blank to use a local SQLite file instead (handy for dev).
+define('DB_HOST', 'localhost');
+define('DB_NAME', '');
+define('DB_USER', '');
+define('DB_PASS', '');
+
+// Leave blank to hide the corresponding social login button.
+define('GOOGLE_CLIENT_ID', '');
+define('GOOGLE_CLIENT_SECRET', '');
+define('GITHUB_CLIENT_ID', '');
+define('GITHUB_CLIENT_SECRET', '');
+
+// Hosting mailbox SMTP (same pattern as our other client sites: a mailbox
+// created in cPanel at mail.<yourdomain>, port 587, STARTTLS).
+define('MAIL_MAILER', 'smtp'); // 'smtp' to actually send, 'log' to just error_log() the message
+define('MAIL_HOST', 'mail.automaeyes.example.com');
+define('MAIL_PORT', 587);
+define('MAIL_USERNAME', 'noreply@automaeyes.example.com');
+define('MAIL_PASSWORD', '');
+define('MAIL_ENCRYPTION', 'tls');
+define('MAIL_FROM_ADDRESS', 'noreply@automaeyes.example.com');
+define('MAIL_FROM_NAME', 'AutomaEye');

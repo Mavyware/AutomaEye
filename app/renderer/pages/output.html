@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>Output — AutomaEyes</title>
+<link rel="stylesheet" href="../css/style.css">
+<script>window.LAYOUT_OPTS = { title: 'Output', subtitle: 'Cara hasil OK/NG dikirim keluar', mode: 'setting', showTotalStatus: false };</script>
+<style>
+  .mode-btn.active { background: #0066cc; color: #fff; border-color: #0066cc; }
+  #script { width: 100%; height: 320px; font-family: Consolas, monospace; font-size: 12px; }
+  .helper { font-size: 11px; color: #555; line-height: 1.7; }
+  .test-out { font-family: Consolas, monospace; font-size: 11px; white-space: pre-wrap; margin-top: 8px; }
+  .test-out.err { color: #dc2626; } .test-out.ok { color: #22a34c; }
+</style>
+</head>
+<body>
+
+<main>
+    <a class="back" onclick="back()">← Project</a>
+    <div class="page-header"><h1 id="pTitle">Output</h1></div>
+
+    <div class="card">
+        <div class="section-title">Mode Output</div>
+        <div style="padding:12px">
+            <div class="row">
+                <button class="btn mode-btn" id="modeSignal" onclick="setMode('signal')">Sinyal Arduino bawaan (0 = OK, 1 = NG)</button>
+                <button class="btn mode-btn" id="modeScript" onclick="setMode('script')">Custom code</button>
+            </div>
+            <p class="muted" id="modeHint" style="margin-top:10px"></p>
+        </div>
+    </div>
+
+    <div class="card" id="scriptCard" style="display:none">
+        <div class="section-title">Kode Output</div>
+        <div style="padding:12px">
+            <p class="helper">
+                Script wajib punya fungsi <code>onResult(result)</code>. Dipanggil sekali tiap hasil inspeksi.<br>
+                <code>result</code> = <code>{ verdict, confidence, totalMS, steps[] }</code>.
+                Helper: <code>serial_write(str)</code>, <code>http_post(url, body)</code>,
+                <code>log(str)</code>, <code>sleep_ms(n)</code>.
+            </p>
+            <textarea id="script" spellcheck="false"></textarea>
+            <div class="row" style="margin-top:10px">
+                <button class="btn" onclick="test('OK')">Test (hasil OK)</button>
+                <button class="btn" onclick="test('NG')">Test (hasil NG)</button>
+            </div>
+            <div class="test-out" id="testOut"></div>
+        </div>
+    </div>
+
+    <div class="row" style="margin-top:14px">
+        <button class="btn primary" onclick="save()">💾 Simpan</button>
+        <span class="muted" id="saved" style="display:none">Tersimpan ✓</span>
+    </div>
+</main>
+
+<script src="../js/common.js"></script>
+<script>
+const params = new URLSearchParams(location.search);
+const projectName = params.get('project') || '';
+let mode = 'signal';
+
+function back() { window.api.goTo(`project.html?name=${encodeURIComponent(projectName)}`); }
+
+function setMode(m) {
+    mode = m;
+    document.getElementById('modeSignal').classList.toggle('active', m === 'signal');
+    document.getElementById('modeScript').classList.toggle('active', m === 'script');
+    document.getElementById('scriptCard').style.display = m === 'script' ? '' : 'none';
+    document.getElementById('modeHint').textContent = m === 'script'
+        ? 'Kode Anda yang menentukan output — sinyal 0/1 bawaan tidak dikirim lagi.'
+        : 'Sinyal dikirim otomatis ke Arduino/PLC sesuai pengaturan di Settings.';
+}
+
+async function init() {
+    document.getElementById('pTitle').textContent = `Output — ${projectName}`;
+    const cfg = await window.api.getOutputConfig(projectName);
+    document.getElementById('script').value = cfg.script;
+    setMode(cfg.mode);
+}
+
+async function test(verdict) {
+    const out = document.getElementById('testOut');
+    const r = await window.api.testOutputScript(document.getElementById('script').value, verdict);
+    if (r.ok) {
+        out.className = 'test-out ok';
+        out.textContent = `Script jalan tanpa error.\n${r.logs.join('\n')}`;
+    } else {
+        out.className = 'test-out err';
+        out.textContent = `Error: ${r.error}\n${r.logs.join('\n')}`;
+    }
+}
+
+async function save() {
+    await window.api.saveOutputConfig(projectName, mode, document.getElementById('script').value);
+    const el = document.getElementById('saved');
+    el.style.display = '';
+    setTimeout(() => { el.style.display = 'none'; }, 1800);
+}
+
+init();
+</script>
+</body>
+</html>

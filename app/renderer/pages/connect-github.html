@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>Connect GitHub — AutomaEyes</title>
+<link rel="stylesheet" href="../css/style.css">
+<style>
+  body { display: flex; align-items: center; justify-content: center; min-height: 100vh; margin: 0; }
+  .gate { width: 520px; }
+  .gate h1 { font-size: 18px; margin: 0 0 4px; }
+  .gate .sub { color: #666; font-size: 12px; margin-bottom: 18px; }
+  .code {
+    font-family: Consolas, monospace; font-size: 30px; font-weight: 700; letter-spacing: 5px;
+    text-align: center; padding: 14px; background: #f5f5f5; border: 1px solid #d0d7de; border-radius: 4px;
+    user-select: all; margin: 10px 0;
+  }
+  .steps { font-size: 12px; color: #555; line-height: 1.8; margin: 0; padding-left: 18px; }
+  .status { font-size: 12px; margin-top: 10px; min-height: 18px; }
+  .status.err { color: #dc2626; } .status.wait { color: #f59e0b; } .status.ok { color: #22a34c; }
+  .whoami { font-size: 12px; color: #666; margin-bottom: 10px; }
+  .repo-row { display: flex; gap: 8px; align-items: center; margin-top: 8px; }
+  .repo-row select, .repo-row input { flex: 1; }
+</style>
+</head>
+<body>
+
+<div class="gate">
+    <h1>Sambungkan akun GitHub</h1>
+    <div class="sub">
+        Project, dataset, dan model Anda disimpan di repo GitHub milik Anda sendiri —
+        bukan di repo aplikasi. Sambungkan dulu sebelum membuat project.
+    </div>
+    <div class="whoami" id="whoami"></div>
+
+    <!-- Langkah 1: otorisasi lewat browser (OAuth) -->
+    <div class="card" id="stepAuth">
+        <div class="section-title">1 — Izinkan akses di GitHub</div>
+        <div style="padding:14px">
+            <p class="steps" style="margin:0 0 12px">
+                Browser akan terbuka ke halaman GitHub. Cukup tekan
+                <strong>Authorize</strong>, lalu Anda otomatis kembali ke sini.
+            </p>
+            <button class="btn primary" id="startBtn" onclick="start()">Sambungkan dengan GitHub</button>
+            <div class="status" id="authStatus"></div>
+        </div>
+    </div>
+
+    <!-- Langkah 2: pilih repo tujuan -->
+    <div class="card" id="stepRepo" style="display:none; margin-top:14px">
+        <div class="section-title">2 — Pilih repo penyimpanan</div>
+        <div style="padding:14px">
+            <label style="font-size:12px">
+                <input type="radio" name="mode" value="new" checked onchange="switchMode()"> Buat repo baru (privat)
+            </label>
+            <div class="repo-row" id="newRow">
+                <input type="text" id="newRepoName" value="automaeyes-projects">
+            </div>
+
+            <label style="font-size:12px; display:block; margin-top:12px">
+                <input type="radio" name="mode" value="existing" onchange="switchMode()"> Pakai repo yang sudah ada
+            </label>
+            <div class="repo-row" id="existingRow" style="display:none">
+                <select id="repoSelect"></select>
+            </div>
+
+            <div class="row" style="margin-top:14px">
+                <button class="btn primary" id="connectBtn" onclick="connect()">Sambungkan</button>
+            </div>
+            <div class="status" id="repoStatus"></div>
+        </div>
+    </div>
+</div>
+
+<script>
+function setStatus(el, msg, cls = '') {
+    const e = document.getElementById(el);
+    e.textContent = msg;
+    e.className = 'status ' + cls;
+}
+
+async function init() {
+    const st = await window.api.authStatus();
+    if (st.session) {
+        document.getElementById('whoami').textContent =
+            `Masuk sebagai ${st.session.user.name} (${st.session.user.email})`;
+    }
+}
+
+// Membuka browser ke OAuth GitHub lewat website. Hasilnya kembali lewat deep
+// link automaeye://github dan diterima oleh onGithubAuthorized di bawah —
+// tidak ada kode yang perlu diketik user.
+async function start() {
+    document.getElementById('startBtn').disabled = true;
+    setStatus('authStatus', 'Menunggu izin diberikan di browser...', 'wait');
+    const r = await window.api.githubAuthorize();
+    if (!r.ok) {
+        setStatus('authStatus', 'Gagal membuka browser.', 'err');
+        document.getElementById('startBtn').disabled = false;
+    }
+}
+
+window.api.onGithubAuthorized((d) => {
+    document.getElementById('startBtn').disabled = false;
+    if (d.error) { setStatus('authStatus', d.error, 'err'); return; }
+
+    setStatus('authStatus', `Terhubung sebagai @${d.login}.`, 'ok');
+    const sel = document.getElementById('repoSelect');
+    sel.innerHTML = (d.repos || [])
+        .map((r) => `<option value="${r.name}">${r.fullName}${r.private ? ' (privat)' : ''}</option>`)
+        .join('');
+    if (d.reposError) setStatus('repoStatus', 'Daftar repo gagal dimuat: ' + d.reposError, 'err');
+    document.getElementById('stepRepo').style.display = '';
+});
+
+function switchMode() {
+    const isNew = document.querySelector('input[name=mode]:checked').value === 'new';
+    document.getElementById('newRow').style.display = isNew ? '' : 'none';
+    document.getElementById('existingRow').style.display = isNew ? 'none' : '';
+}
+
+async function connect() {
+    const isNew = document.querySelector('input[name=mode]:checked').value === 'new';
+    const name = isNew
+        ? document.getElementById('newRepoName').value.trim()
+        : document.getElementById('repoSelect').value;
+    if (!name) { setStatus('repoStatus', 'Nama repo tidak boleh kosong.', 'err'); return; }
+
+    document.getElementById('connectBtn').disabled = true;
+    setStatus('repoStatus', 'Menyiapkan repo dan folder projects...', 'wait');
+
+    const res = await window.api.githubConnect(name, isNew, true);
+    if (!res.ok) {
+        setStatus('repoStatus', res.error, 'err');
+        document.getElementById('connectBtn').disabled = false;
+        return;
+    }
+    setStatus('repoStatus', `Tersambung ke ${res.repo}. Membuka daftar project...`, 'ok');
+    setTimeout(() => window.api.goTo('projects.html'), 800);
+}
+
+init();
+</script>
+</body>
+</html>
