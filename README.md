@@ -54,5 +54,6 @@ latih → susun alur inspeksi → jalankan**.
 Kode ini terbuka agar bisa diaudit dan disesuaikan. Laporan bug dan usulan
 perbaikan dipersilakan lewat Issues.
 
-Menemukan celah keamanan? Mohon laporkan lewat email ke pemilik repositori,
-jangan melalui Issue publik, agar bisa diperbaiki lebih dulu.
+Menemukan celah keamanan? Mohon laporkan ke **mavyware@automaeyes.my.id**,
+jangan melalui Issue publik, agar bisa diperbaiki lebih dulu sebelum
+diketahui umum. Lihat [SECURITY.md](SECURITY.md).
