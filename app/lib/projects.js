@@ -47,11 +47,50 @@ exports.CATEGORIES = CATEGORIES;
 function sanitize(s) {
     return String(s).trim().replace(/[\/\\:*?"<>|]/g, '_');
 }
-function projectDir(root, name) { return path.join(root, name); }
+function projectDir(root, name) {
+    return safeJoin(root, safeSegment(name, 'project'));
+}
 function modelDir(root, projectName, modelName) {
-    return path.join(root, projectName, MODELS_DIR, modelName);
+    return safeJoin(root, safeSegment(projectName, 'project'), MODELS_DIR, safeSegment(modelName, 'model'));
 }
 function ensureDir(p) { if (!fs.existsSync(p)) fs.mkdirSync(p, { recursive: true }); }
+
+// ---- Pembatas path ----
+// Nama project/model/berkas datang dari renderer. Tanpa penjagaan, nama
+// berisi "../" akan keluar dari folder aplikasi: annot:image bisa membaca
+// berkas mana pun di disk, dan projects:delete bisa menghapus folder lain.
+// Semua path hasil input luar WAJIB lewat sini.
+function safeJoin(base, ...parts) {
+    const root = path.resolve(base);
+    const target = path.resolve(root, ...parts);
+    if (target !== root && !target.startsWith(root + path.sep)) {
+        throw new Error('Ditolak: path di luar folder yang diizinkan');
+    }
+    return target;
+}
+
+/** Satu segmen nama (project/model): tanpa pemisah path, tanpa "..". */
+function safeSegment(name, label) {
+    const n = String(name == null ? '' : name).trim();
+    if (!n || n === '.' || n === '..' || /[\\/]/.test(n) || /\0/.test(n)) {
+        throw new Error(`Nama ${label} tidak valid: ${JSON.stringify(name)}`);
+    }
+    return n;
+}
+
+/** Nama berkas: dipaksa jadi basename saja, jadi "../x" tidak bisa lolos. */
+function safeFileName(name) {
+    const b = path.basename(String(name == null ? '' : name));
+    if (!b || b === '.' || b === '..') throw new Error('Nama berkas tidak valid');
+    return b;
+}
+
+const SPLITS = ['train', 'val', 'test'];
+function safeSplit(sp) {
+    return SPLITS.includes(sp) ? sp : 'train';
+}
+
+exports._safeJoin = safeJoin;   // dipakai main.js untuk handler lain
 
 // --- Project CRUD ---
 exports.list = (root) => {
@@ -67,7 +106,7 @@ exports.list = (root) => {
 };
 
 function loadProject(root, name) {
-    const f = path.join(root, name, PROJECT_FILE);
+    const f = safeJoin(root, safeSegment(name, 'project'), PROJECT_FILE);
     const data = JSON.parse(fs.readFileSync(f, 'utf8'));
     data.dir = path.join(root, name);
     // Inject model dirs
@@ -257,9 +296,10 @@ exports.listImages = (root, projectName, modelName, split) => {
 // List gambar sebuah split + parse bounding box dari label YOLO-nya.
 // Dipakai gallery preview untuk menggambar anotasi di atas thumbnail.
 exports.listImagesWithLabels = (root, projectName, modelName, split) => {
-    const dsDir = path.join(modelDir(root, projectName, modelName), DATASET_DIR);
-    const imgDir = path.join(dsDir, 'images', split);
-    const lblDir = path.join(dsDir, 'labels', split);
+    split = safeSplit(split);
+    const dsDir = safeJoin(modelDir(root, projectName, modelName), DATASET_DIR);
+    const imgDir = safeJoin(dsDir, 'images', split);
+    const lblDir = safeJoin(dsDir, 'labels', split);
     if (!fs.existsSync(imgDir)) return [];
     return fs.readdirSync(imgDir)
         .filter(f => /\.(jpg|jpeg|png)$/i.test(f))
@@ -638,7 +678,8 @@ exports.datasetPath = (root, projectName, modelName) =>
 
 /** Gambar dikirim sebagai data URL karena renderer tidak punya akses fs (contextIsolation). */
 exports.readImageDataUrl = (root, projectName, modelName, split, name) => {
-    const imgPath = path.join(modelDir(root, projectName, modelName), DATASET_DIR, 'images', split, name);
+    const imgPath = safeJoin(modelDir(root, projectName, modelName),
+                             DATASET_DIR, 'images', safeSplit(split), safeFileName(name));
     if (!fs.existsSync(imgPath)) throw new Error('Gambar tidak ditemukan: ' + name);
     const ext = path.extname(name).toLowerCase();
     const mime = ext === '.png' ? 'image/png' : 'image/jpeg';
@@ -650,9 +691,9 @@ exports.readImageDataUrl = (root, projectName, modelName, split, name) => {
  * @param {Array} shapes bbox {cls,cx,cy,w,h} atau poligon {cls,poly:[x1,y1,...]}
  */
 exports.saveLabels = (root, projectName, modelName, split, name, shapes) => {
-    const lblDir = path.join(modelDir(root, projectName, modelName), DATASET_DIR, 'labels', split);
+    const lblDir = safeJoin(modelDir(root, projectName, modelName), DATASET_DIR, 'labels', safeSplit(split));
     ensureDir(lblDir);
-    const lblPath = path.join(lblDir, path.parse(name).name + '.txt');
+    const lblPath = safeJoin(lblDir, path.parse(safeFileName(name)).name + '.txt');
 
     const clamp = (v) => Math.min(1, Math.max(0, v));
     const lines = (shapes || []).map((s) => {

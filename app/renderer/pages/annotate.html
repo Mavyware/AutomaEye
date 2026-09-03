@@ -6,7 +6,7 @@
 <link rel="stylesheet" href="../css/style.css">
 <script>window.LAYOUT_OPTS = { title: 'Anotasi', subtitle: 'Beri label dataset langsung di aplikasi', mode: 'setting', showTotalStatus: false };</script>
 <style>
-  .annot-wrap { display: grid; grid-template-columns: 210px 1fr 240px; gap: 10px; height: calc(100vh - 190px); }
+  .annot-wrap { display: grid; grid-template-columns: 200px 1fr 250px; gap: 10px; height: calc(100vh - 190px); }
   .pane { background: #fff; border: 1px solid #d0d7de; border-radius: 3px; display: flex; flex-direction: column; min-height: 0; }
   .pane-head { padding: 6px 10px; border-bottom: 1px solid #e5e7eb; font-size: 11px; font-weight: 600; color: #444; }
   .pane-body { overflow: auto; padding: 6px; flex: 1; min-height: 0; }
@@ -19,18 +19,22 @@
   .dot.on { background: #22a34c; } .dot.off { background: #d0d7de; }
 
   #stage { flex: 1; position: relative; background: #1e1e1e; overflow: hidden; display: flex; align-items: center; justify-content: center; }
-  #canvas { position: absolute; cursor: crosshair; }
+  #canvas { position: absolute; }
   #imgEl { max-width: 100%; max-height: 100%; user-select: none; -webkit-user-drag: none; }
+
+  .toolbar { display: flex; gap: 4px; align-items: center; padding: 6px 8px; border-bottom: 1px solid #e5e7eb; flex-wrap: wrap; }
+  .tool-btn { font-size: 11px; padding: 5px 9px; border: 1px solid #d0d7de; background: #fff; border-radius: 3px; cursor: pointer; }
+  .tool-btn.active { border-color: #0066cc; background: #0066cc; color: #fff; font-weight: 600; }
 
   .cls-btn { display: block; width: 100%; text-align: left; margin-bottom: 4px; font-size: 11px; padding: 5px 8px; border: 1px solid #d0d7de; background: #fff; border-radius: 3px; cursor: pointer; }
   .cls-btn.active { border-color: #0066cc; background: #e6f0ff; font-weight: 600; }
   .cls-swatch { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 6px; vertical-align: middle; }
 
-  .shape-row { font-size: 11px; padding: 4px 6px; border-bottom: 1px solid #f0f0f0; display: flex; justify-content: space-between; align-items: center; }
+  .shape-row { font-size: 11px; padding: 4px 6px; border-bottom: 1px solid #f0f0f0; display: flex; justify-content: space-between; align-items: center; cursor: pointer; }
   .shape-row:hover { background: #fff7ed; }
+  .shape-row.sel { background: #e6f0ff; font-weight: 600; }
   .shape-row button { border: none; background: none; color: #dc2626; cursor: pointer; font-size: 13px; }
   .hint { font-size: 10px; color: #777; line-height: 1.7; }
-  .toolbar { display: flex; gap: 6px; align-items: center; padding: 6px 8px; border-bottom: 1px solid #e5e7eb; flex-wrap: wrap; }
   .badge-save { font-size: 11px; color: #22a34c; }
 </style>
 </head>
@@ -42,9 +46,7 @@
         <h1 id="ttl">Anotasi</h1>
         <div class="row">
             <select id="splitSel" onchange="loadSplit()" style="font-size:12px">
-                <option value="train">train</option>
-                <option value="val">val</option>
-                <option value="test">test</option>
+                <option value="train">train</option><option value="val">val</option><option value="test">test</option>
             </select>
             <button class="btn" onclick="prevImg()">← Sebelumnya</button>
             <button class="btn" onclick="nextImg()">Berikutnya →</button>
@@ -61,10 +63,13 @@
 
         <div class="pane">
             <div class="toolbar">
-                <span id="modeLabel" class="hint"></span>
+                <button class="tool-btn" id="tool-rect" onclick="setTool('rect')" title="Kotak (R)">▭ Kotak</button>
+                <button class="tool-btn" id="tool-poly" onclick="setTool('poly')" title="Poligon (P) — ikuti tepi benda">⬟ Poligon</button>
+                <button class="tool-btn" id="tool-circle" onclick="setTool('circle')" title="Lingkaran (C) — untuk lubang bulat">◯ Lingkaran</button>
+                <button class="tool-btn" id="tool-edit" onclick="setTool('edit')" title="Ubah titik (E)">✥ Ubah titik</button>
                 <span style="flex:1"></span>
-                <button class="btn small" onclick="undoShape()">↶ Undo</button>
-                <button class="btn small" onclick="clearShapes()">Kosongkan</button>
+                <button class="tool-btn" onclick="undoShape()">↶ Undo</button>
+                <button class="tool-btn" onclick="clearShapes()">Kosongkan</button>
             </div>
             <div id="stage">
                 <img id="imgEl" alt="">
@@ -74,10 +79,8 @@
 
         <div class="pane">
             <div class="pane-head">Kelas</div>
-            <div class="pane-body" style="flex:none; max-height:190px">
-                <div id="classList"></div>
-            </div>
-            <div class="pane-head">Objek pada gambar ini (<span id="shapeCount">0</span>)</div>
+            <div class="pane-body" style="flex:none; max-height:170px"><div id="classList"></div></div>
+            <div class="pane-head">Objek (<span id="shapeCount">0</span>)</div>
             <div class="pane-body" id="shapeList"></div>
             <div class="pane-body" style="flex:none; border-top:1px solid #e5e7eb">
                 <p class="hint" id="helpText"></p>
@@ -91,46 +94,52 @@
 const params = new URLSearchParams(location.search);
 const projectName = params.get('project') || '';
 const modelName = params.get('model') || '';
-
 const COLORS = ['#ef4444','#3b82f6','#22c55e','#f59e0b','#a855f7','#06b6d4','#ec4899','#84cc16'];
+const CIRCLE_PTS = 24;   // lingkaran disimpan sebagai poligon; 24 titik sudah halus
 
 let classes = [], aiType = 'AI Detection';
 let images = [], idx = -1, split = 'train';
-let shapes = [];          // {cls, cx, cy, w, h} atau {cls, poly:[...]}
-let activeCls = 0;
-let polyPts = [];         // poligon yang sedang digambar (segmentasi)
-let drag = null;
-let dirty = false;
+let shapes = [], activeCls = 0, selected = -1;
+let tool = 'rect';
+let polyPts = [], drag = null, vertexDrag = null, dirty = false;
 
 const canvas = document.getElementById('canvas');
 const ctx = canvas.getContext('2d');
 const imgEl = document.getElementById('imgEl');
 
-function back() {
-    window.api.goTo(`model.html?project=${encodeURIComponent(projectName)}&model=${encodeURIComponent(modelName)}`);
-}
-
-const isPolygon = () => aiType === 'AI Segmentation';
-const isWholeImage = () => aiType === 'AI Classification';
+function back() { window.api.goTo(`model.html?project=${encodeURIComponent(projectName)}&model=${encodeURIComponent(modelName)}`); }
+function esc(s) { return String(s).replace(/[&<>"]/g, (c) => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;' }[c])); }
 
 async function init() {
     const p = await window.api.loadProject(projectName);
     const m = (p.models || []).find((x) => x.name === modelName);
     if (!m) { alert('Model tidak ditemukan'); return; }
     classes = m.classes || [];
-    aiType = m.aiType || 'AI Detection';
+    aiType = m.type || m.aiType || 'AI Detection';
+    document.getElementById('ttl').textContent = `Anotasi — ${modelName} (${aiType})`;
 
-    document.getElementById('ttl').textContent = `Anotasi — ${modelName}`;
-    document.getElementById('modeLabel').textContent =
-        isPolygon() ? 'Mode poligon (segmentasi)' : isWholeImage() ? 'Mode klasifikasi (1 kelas / gambar)' : 'Mode kotak (bounding box)';
-    document.getElementById('helpText').innerHTML = isPolygon()
-        ? 'Klik untuk menaruh titik. <strong>Klik kanan</strong> atau <strong>Enter</strong> untuk menutup poligon. Tombol <strong>1-9</strong> pilih kelas.'
-        : isWholeImage()
-            ? 'Pilih kelas untuk seluruh gambar, lalu Simpan. Tombol <strong>1-9</strong> pilih kelas.'
-            : 'Drag untuk menggambar kotak. Tombol <strong>1-9</strong> pilih kelas, <strong>Del</strong> hapus objek terakhir.';
-
+    // Semua alat tersedia untuk semua tipe model. Poligon/lingkaran berguna
+    // bukan hanya untuk segmentasi: bentuk yang mengikuti tepi benda membuat
+    // pengukuran GD&T jauh lebih akurat daripada kotak.
+    setTool(aiType === 'AI Segmentation' ? 'poly' : 'rect');
     renderClasses();
     await loadSplit();
+}
+
+function setTool(t) {
+    tool = t;
+    polyPts = [];
+    for (const id of ['rect', 'poly', 'circle', 'edit']) {
+        document.getElementById('tool-' + id).classList.toggle('active', id === t);
+    }
+    canvas.style.cursor = t === 'edit' ? 'default' : 'crosshair';
+    document.getElementById('helpText').innerHTML = ({
+        rect: 'Drag untuk menggambar <strong>kotak</strong>.',
+        poly: 'Klik menaruh titik mengikuti tepi benda. <strong>Klik kanan</strong> / <strong>Enter</strong> untuk menutup. Makin rapat titiknya, makin akurat ukurannya.',
+        circle: 'Drag dari <strong>tengah lubang</strong> ke tepi. Cocok untuk mengukur diameter.',
+        edit: 'Klik objek untuk memilih, lalu <strong>geser titik-titiknya</strong> agar pas ke tepi benda.',
+    })[t] + '<br>Tombol <strong>1-9</strong> pilih kelas · <strong>R/P/C/E</strong> ganti alat · <strong>Del</strong> hapus terpilih.';
+    redraw();
 }
 
 function renderClasses() {
@@ -139,8 +148,11 @@ function renderClasses() {
             <span class="cls-swatch" style="background:${COLORS[i % COLORS.length]}"></span>${esc(c)} <span style="color:#999">(${i + 1})</span>
         </button>`).join('') || '<p class="hint">Model ini belum punya kelas.</p>';
 }
-
-function setClass(i) { activeCls = i; renderClasses(); }
+function setClass(i) {
+    activeCls = i;
+    if (selected >= 0 && shapes[selected]) { shapes[selected].cls = i; dirty = true; }
+    renderClasses(); redraw();
+}
 
 async function loadSplit() {
     split = document.getElementById('splitSel').value;
@@ -160,13 +172,11 @@ function renderImgList() {
 
 async function selectImg(i) {
     if (dirty && !confirm('Perubahan belum disimpan. Lanjut tanpa menyimpan?')) return;
-    idx = i; dirty = false; polyPts = [];
+    idx = i; dirty = false; polyPts = []; selected = -1;
     const im = images[i];
-
     const r = await window.api.annotImage(projectName, modelName, split, im.name);
     if (!r.ok) { alert(r.error); return; }
 
-    // Bentuk yang sudah ada dimuat ulang supaya bisa dikoreksi, bukan ditimpa.
     shapes = (im.boxes || []).map((b) => b.poly
         ? { cls: b.cls, poly: b.poly.slice() }
         : { cls: b.cls, cx: b.cx, cy: b.cy, w: b.w, h: b.h });
@@ -185,27 +195,32 @@ function fitCanvas() {
 }
 window.addEventListener('resize', () => { if (imgEl.src) { fitCanvas(); redraw(); } });
 
-function redraw() {
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-    const W = canvas.width, H = canvas.height;
+// ---- Gambar ulang ----
+function shapePoints(s) {
+    if (s.poly) { const p = []; for (let i = 0; i < s.poly.length; i += 2) p.push([s.poly[i], s.poly[i + 1]]); return p; }
+    const x1 = s.cx - s.w / 2, y1 = s.cy - s.h / 2, x2 = s.cx + s.w / 2, y2 = s.cy + s.h / 2;
+    return [[x1, y1], [x2, y1], [x2, y2], [x1, y2]];
+}
 
-    shapes.forEach((s) => {
+function redraw() {
+    const W = canvas.width, H = canvas.height;
+    ctx.clearRect(0, 0, W, H);
+
+    shapes.forEach((s, i) => {
         const col = COLORS[s.cls % COLORS.length];
-        ctx.strokeStyle = col; ctx.lineWidth = 2; ctx.fillStyle = col + '22';
-        if (s.poly) {
-            ctx.beginPath();
-            for (let i = 0; i < s.poly.length; i += 2) {
-                const x = s.poly[i] * W, y = s.poly[i + 1] * H;
-                i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
-            }
-            ctx.closePath(); ctx.fill(); ctx.stroke();
-        } else {
-            const x = (s.cx - s.w / 2) * W, y = (s.cy - s.h / 2) * H;
-            ctx.fillRect(x, y, s.w * W, s.h * H);
-            ctx.strokeRect(x, y, s.w * W, s.h * H);
-            ctx.fillStyle = col; ctx.font = '11px sans-serif';
-            ctx.fillText(classes[s.cls] || s.cls, x + 3, y - 3);
+        const pts = shapePoints(s);
+        ctx.strokeStyle = col; ctx.lineWidth = i === selected ? 3 : 2; ctx.fillStyle = col + (i === selected ? '38' : '22');
+        ctx.beginPath();
+        pts.forEach((p, k) => (k === 0 ? ctx.moveTo(p[0] * W, p[1] * H) : ctx.lineTo(p[0] * W, p[1] * H)));
+        ctx.closePath(); ctx.fill(); ctx.stroke();
+
+        // Titik hanya ditampilkan saat mode ubah, supaya tidak mengaburkan gambar.
+        if (tool === 'edit' && i === selected) {
+            ctx.fillStyle = '#fff'; ctx.strokeStyle = col; ctx.lineWidth = 2;
+            pts.forEach((p) => { ctx.beginPath(); ctx.arc(p[0] * W, p[1] * H, 4.5, 0, Math.PI * 2); ctx.fill(); ctx.stroke(); });
         }
+        ctx.fillStyle = col; ctx.font = '11px sans-serif';
+        ctx.fillText(classes[s.cls] || s.cls, pts[0][0] * W + 3, pts[0][1] * H - 4);
     });
 
     if (polyPts.length) {
@@ -213,76 +228,146 @@ function redraw() {
         ctx.beginPath();
         polyPts.forEach((p, i) => (i === 0 ? ctx.moveTo(p[0] * W, p[1] * H) : ctx.lineTo(p[0] * W, p[1] * H)));
         ctx.stroke();
-        polyPts.forEach((p) => ctx.fillRect(p[0] * W - 2, p[1] * H - 2, 5, 5));
+        ctx.fillStyle = '#fff';
+        polyPts.forEach((p) => { ctx.beginPath(); ctx.arc(p[0] * W, p[1] * H, 3.5, 0, Math.PI * 2); ctx.fill(); ctx.stroke(); });
     }
 
     if (drag) {
         ctx.strokeStyle = COLORS[activeCls % COLORS.length]; ctx.setLineDash([4, 3]); ctx.lineWidth = 2;
-        ctx.strokeRect(drag.x0 * W, drag.y0 * H, (drag.x1 - drag.x0) * W, (drag.y1 - drag.y0) * H);
+        if (tool === 'circle') {
+            const r = Math.hypot((drag.x1 - drag.x0) * W, (drag.y1 - drag.y0) * H);
+            ctx.beginPath(); ctx.arc(drag.x0 * W, drag.y0 * H, r, 0, Math.PI * 2); ctx.stroke();
+        } else {
+            ctx.strokeRect(drag.x0 * W, drag.y0 * H, (drag.x1 - drag.x0) * W, (drag.y1 - drag.y0) * H);
+        }
         ctx.setLineDash([]);
     }
 
     document.getElementById('shapeCount').textContent = shapes.length;
     document.getElementById('shapeList').innerHTML = shapes.map((s, i) => `
-        <div class="shape-row">
-            <span><span class="cls-swatch" style="background:${COLORS[s.cls % COLORS.length]}"></span>${esc(classes[s.cls] || s.cls)}${s.poly ? ' (poligon)' : ''}</span>
-            <button onclick="delShape(${i})" title="Hapus">✕</button>
+        <div class="shape-row ${i === selected ? 'sel' : ''}" onclick="pickShape(${i})">
+            <span><span class="cls-swatch" style="background:${COLORS[s.cls % COLORS.length]}"></span>${esc(classes[s.cls] || s.cls)}
+                <span style="color:#999">${s.poly ? (s.poly.length / 2) + ' titik' : 'kotak'}</span></span>
+            <button onclick="event.stopPropagation();delShape(${i})" title="Hapus">✕</button>
         </div>`).join('') || '<p class="hint">Belum ada objek.</p>';
 }
 
+function pickShape(i) { selected = i; if (shapes[i]) activeCls = shapes[i].cls; renderClasses(); redraw(); }
+
+// ---- Interaksi ----
 function relPos(e) {
     const r = canvas.getBoundingClientRect();
     return [Math.min(1, Math.max(0, (e.clientX - r.left) / r.width)),
             Math.min(1, Math.max(0, (e.clientY - r.top) / r.height))];
 }
 
+function hitVertex(x, y) {
+    if (selected < 0 || !shapes[selected]) return -1;
+    const pts = shapePoints(shapes[selected]);
+    const tolX = 8 / canvas.width, tolY = 8 / canvas.height;
+    for (let i = 0; i < pts.length; i++) {
+        if (Math.abs(pts[i][0] - x) < tolX && Math.abs(pts[i][1] - y) < tolY) return i;
+    }
+    return -1;
+}
+
+function hitShape(x, y) {
+    // Dicari dari belakang: objek yang digambar terakhir ada di atas.
+    for (let i = shapes.length - 1; i >= 0; i--) {
+        const pts = shapePoints(shapes[i]);
+        let inside = false;
+        for (let a = 0, b = pts.length - 1; a < pts.length; b = a++) {
+            const [xa, ya] = pts[a], [xb, yb] = pts[b];
+            if ((ya > y) !== (yb > y) && x < (xb - xa) * (y - ya) / (yb - ya) + xa) inside = !inside;
+        }
+        if (inside) return i;
+    }
+    return -1;
+}
+
 canvas.addEventListener('mousedown', (e) => {
-    if (!imgEl.src || isWholeImage()) return;
+    if (!imgEl.src) return;
     const [x, y] = relPos(e);
-    if (isPolygon()) {
+
+    if (tool === 'edit') {
+        const v = hitVertex(x, y);
+        if (v >= 0) { vertexDrag = v; return; }
+        selected = hitShape(x, y);
+        if (selected >= 0) activeCls = shapes[selected].cls;
+        renderClasses(); redraw();
+        return;
+    }
+    if (tool === 'poly') {
         if (e.button === 2) return;
         polyPts.push([x, y]); redraw(); return;
     }
     drag = { x0: x, y0: y, x1: x, y1: y };
 });
+
 canvas.addEventListener('mousemove', (e) => {
-    if (!drag) return;
-    [drag.x1, drag.y1] = relPos(e); redraw();
+    const [x, y] = relPos(e);
+    if (vertexDrag !== null && selected >= 0) {
+        const s = shapes[selected];
+        if (s.poly) { s.poly[vertexDrag * 2] = x; s.poly[vertexDrag * 2 + 1] = y; }
+        else {
+            // Kotak diubah lewat sudutnya: sudut seberang dijadikan jangkar.
+            const pts = shapePoints(s);
+            const opp = pts[(vertexDrag + 2) % 4];
+            s.cx = (x + opp[0]) / 2; s.cy = (y + opp[1]) / 2;
+            s.w = Math.abs(x - opp[0]); s.h = Math.abs(y - opp[1]);
+        }
+        dirty = true; redraw(); return;
+    }
+    if (drag) { drag.x1 = x; drag.y1 = y; redraw(); }
 });
+
 canvas.addEventListener('mouseup', () => {
+    if (vertexDrag !== null) { vertexDrag = null; return; }
     if (!drag) return;
     const w = Math.abs(drag.x1 - drag.x0), h = Math.abs(drag.y1 - drag.y0);
-    // Klik tanpa geser (kotak sangat kecil) dianggap salah pencet, bukan objek.
-    if (w > 0.005 && h > 0.005) {
+
+    if (tool === 'circle') {
+        // Radius dalam satuan relatif berbeda untuk x dan y (gambar tidak persegi),
+        // jadi elipsnya dihitung terpisah agar lingkarannya terlihat bulat.
+        const rx = Math.abs(drag.x1 - drag.x0), ry = Math.abs(drag.y1 - drag.y0);
+        const rr = Math.max(rx, ry) > 0.004 ? Math.hypot(rx, ry) / Math.SQRT2 : 0;
+        if (rr > 0.004) {
+            const poly = [];
+            for (let i = 0; i < CIRCLE_PTS; i++) {
+                const a = (i / CIRCLE_PTS) * Math.PI * 2;
+                poly.push(Math.min(1, Math.max(0, drag.x0 + Math.cos(a) * rr)),
+                          Math.min(1, Math.max(0, drag.y0 + Math.sin(a) * rr)));
+            }
+            shapes.push({ cls: activeCls, poly });
+            selected = shapes.length - 1; dirty = true;
+        }
+    } else if (w > 0.005 && h > 0.005) {
         shapes.push({ cls: activeCls, cx: (drag.x0 + drag.x1) / 2, cy: (drag.y0 + drag.y1) / 2, w, h });
-        dirty = true;
+        selected = shapes.length - 1; dirty = true;
     }
     drag = null; redraw();
 });
+
 canvas.addEventListener('contextmenu', (e) => { e.preventDefault(); closePoly(); });
 
 function closePoly() {
     if (polyPts.length >= 3) {
         shapes.push({ cls: activeCls, poly: polyPts.flat() });
-        dirty = true;
+        selected = shapes.length - 1; dirty = true;
     }
     polyPts = []; redraw();
 }
 
-function delShape(i) { shapes.splice(i, 1); dirty = true; redraw(); }
-function undoShape() { if (polyPts.length) polyPts.pop(); else shapes.pop(); dirty = true; redraw(); }
-function clearShapes() { if (confirm('Kosongkan semua objek di gambar ini?')) { shapes = []; polyPts = []; dirty = true; redraw(); } }
+function delShape(i) { shapes.splice(i, 1); if (selected >= i) selected--; dirty = true; redraw(); }
+function undoShape() { if (polyPts.length) polyPts.pop(); else { shapes.pop(); selected = -1; } dirty = true; redraw(); }
+function clearShapes() { if (confirm('Kosongkan semua objek di gambar ini?')) { shapes = []; polyPts = []; selected = -1; dirty = true; redraw(); } }
 
 async function save() {
     if (idx < 0) return;
-    let out = shapes;
-    if (isWholeImage()) out = [{ cls: activeCls, cx: 0.5, cy: 0.5, w: 1, h: 1 }];
-
-    const r = await window.api.annotSave(projectName, modelName, split, images[idx].name, out);
+    const r = await window.api.annotSave(projectName, modelName, split, images[idx].name, shapes);
     if (!r.ok) { alert('Gagal simpan: ' + r.error); return; }
-
     dirty = false;
-    images[idx].boxes = out;
+    images[idx].boxes = shapes.map((s) => ({ ...s }));
     renderImgList();
     const el = document.getElementById('savedMsg');
     el.textContent = `Tersimpan (${r.count} objek)`;
@@ -293,15 +378,19 @@ function prevImg() { if (idx > 0) selectImg(idx - 1); }
 function nextImg() { if (idx < images.length - 1) selectImg(idx + 1); }
 
 document.addEventListener('keydown', (e) => {
+    if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT') return;
     if (e.ctrlKey && e.key.toLowerCase() === 's') { e.preventDefault(); save(); return; }
-    if (e.key >= '1' && e.key <= '9') { const i = +e.key - 1; if (i < classes.length) setClass(i); }
-    else if (e.key === 'Enter' && isPolygon()) closePoly();
-    else if (e.key === 'Delete') { shapes.pop(); dirty = true; redraw(); }
+    const k = e.key.toLowerCase();
+    if (k === 'r') setTool('rect');
+    else if (k === 'p') setTool('poly');
+    else if (k === 'c') setTool('circle');
+    else if (k === 'e') setTool('edit');
+    else if (e.key >= '1' && e.key <= '9') { const i = +e.key - 1; if (i < classes.length) setClass(i); }
+    else if (e.key === 'Enter') closePoly();
+    else if (e.key === 'Delete') { if (selected >= 0) delShape(selected); else { shapes.pop(); dirty = true; redraw(); } }
     else if (e.key === 'ArrowLeft') prevImg();
     else if (e.key === 'ArrowRight') nextImg();
 });
-
-function esc(s) { return String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c])); }
 
 init();
 </script>
