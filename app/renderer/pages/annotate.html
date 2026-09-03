@@ -138,7 +138,8 @@ function setTool(t) {
         poly: 'Klik menaruh titik mengikuti tepi benda. <strong>Klik kanan</strong> / <strong>Enter</strong> untuk menutup. Makin rapat titiknya, makin akurat ukurannya.',
         circle: 'Drag dari <strong>tengah lubang</strong> ke tepi. Cocok untuk mengukur diameter.',
         edit: 'Klik objek untuk memilih, lalu <strong>geser titik-titiknya</strong> agar pas ke tepi benda.',
-    })[t] + '<br>Tombol <strong>1-9</strong> pilih kelas · <strong>R/P/C/E</strong> ganti alat · <strong>Del</strong> hapus terpilih.';
+    })[t] + '<br>Tombol <strong>1-9</strong> pilih kelas · <strong>R/P/C/E</strong> ganti alat · '
+          + '<strong>Esc</strong> batal / keluar mode · <strong>Del</strong> hapus terpilih.';
     redraw();
 }
 
@@ -386,6 +387,15 @@ document.addEventListener('keydown', (e) => {
     else if (k === 'c') setTool('circle');
     else if (k === 'e') setTool('edit');
     else if (e.key >= '1' && e.key <= '9') { const i = +e.key - 1; if (i < classes.length) setClass(i); }
+    else if (e.key === 'Escape') {
+        // Esc = batalkan, bukan menyelesaikan. Kalau ada poligon yang sedang
+        // digambar, titik-titiknya dibuang dulu; menekan lagi keluar dari
+        // mode gambar ke mode pilih.
+        if (polyPts.length) { polyPts = []; redraw(); }
+        else if (drag) { drag = null; redraw(); }
+        else if (tool !== 'edit') setTool('edit');
+        else { selected = -1; redraw(); }
+    }
     else if (e.key === 'Enter') closePoly();
     else if (e.key === 'Delete') { if (selected >= 0) delShape(selected); else { shapes.pop(); dirty = true; redraw(); } }
     else if (e.key === 'ArrowLeft') prevImg();
