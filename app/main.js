@@ -47,7 +47,6 @@ function loadConfig() {
     }
     cfg = yaml.load(fs.readFileSync(CONFIG_PATH, 'utf8'));
     console.log(`[config] Loaded from ${CONFIG_PATH}`);
-    console.log(`[config] annotation.access_token: ${cfg.annotation?.access_token ? 'SET (' + cfg.annotation.access_token.length + ' chars)' : 'EMPTY'}`);
     // Resolve projects_root ke path absolut UNTUK RUNTIME saja.
     // PENTING: jangan mutasi cfg.paths.projects_root, karena saveConfig() menulis
     // cfg kembali ke config.yaml. Kalau dimutasi jadi absolut, path mesin ini akan
