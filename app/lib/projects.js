@@ -17,6 +17,7 @@
 //         YYYY-MM-DD/NNN-HHMM.jpg + .json
 //         daily_summary.csv
 
+const { pythonScript, pythonDir } = require('./paths');
 const fs = require('fs');
 const path = require('path');
 const { spawn } = require('child_process');
@@ -625,7 +626,7 @@ exports.augmentDataset = (root, projectName, modelName, opts, pyCfg, onProgress)
         const splits = Array.isArray(opts.splits) && opts.splits.length
             ? opts.splits.filter(s => ['train', 'val', 'test'].includes(s))
             : ['train'];
-        const args = ['python/augment.py',
+        const args = [pythonScript(null, 'augment.py'),
             '--dir', path.join(mDir, DATASET_DIR),
             '--multiplier', String(opts.multiplier || 2),
             '--splits', splits.join(','),
@@ -647,7 +648,7 @@ exports.augmentDataset = (root, projectName, modelName, opts, pyCfg, onProgress)
             args.push('--noise', '--noise-sigma', String(opts.noiseSigma || 8));
         }
 
-        const py = spawn(pyCfg.exe || 'python', args);
+        const py = spawn(pyCfg.exe || 'python', args, { cwd: pythonDir() });
         let stdout = '', stderr = '';
         py.stdout.on('data', d => {
             const s = d.toString();

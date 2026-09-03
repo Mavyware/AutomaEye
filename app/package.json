@@ -1,16 +1,19 @@
 {
   "name": "automaeyes",
   "version": "0.1.0",
-  "description": "AutomaEyes — Prototipe Sistem Quality Control berbasis YOLOv11 (Electron)",
+  "description": "AutomaEyes — Sistem Quality Control berbasis YOLOv11",
   "main": "main.js",
   "author": "Reno Mardiputra",
   "license": "UNLICENSED",
   "scripts": {
     "start": "electron .",
-    "dev": "electron . --dev"
+    "dev": "electron . --dev",
+    "dist": "electron-builder --win",
+    "pack": "electron-builder --win --dir"
   },
   "devDependencies": {
-    "electron": "^33.0.0"
+    "electron": "^33.0.0",
+    "electron-builder": "^25.1.8"
   },
   "dependencies": {
     "adm-zip": "^0.5.18",
@@ -20,5 +23,50 @@
   "allowScripts": {
     "electron@33.4.11": true,
     "@serialport/bindings-cpp@12.0.1": true
+  },
+  "build": {
+    "appId": "id.my.automaeyes.app",
+    "productName": "AutomaEyes",
+    "artifactName": "AutomaEyes-Setup-${version}.${ext}",
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "main.js",
+      "preload.js",
+      "lib/**/*",
+      "renderer/**/*",
+      "config.example.yaml",
+      "package.json"
+    ],
+    "extraResources": [
+      {
+        "from": "python",
+        "to": "python",
+        "filter": [
+          "**/*.py",
+          "requirements*.txt",
+          "*.pt"
+        ]
+      }
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "perMachine": false,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "AutomaEyes"
+    }
   }
 }

@@ -76,6 +76,10 @@ contextBridge.exposeInMainWorld('api', {
     reportDailyXlsx: (project, date) => ipcRenderer.invoke('report:dailyXlsx', { project, date }),
     openPath: (p) => ipcRenderer.invoke('file:open', p),
 
+    // Pembaruan aplikasi
+    updateInfo: () => ipcRenderer.invoke('update:info'),
+    updateRecheck: () => ipcRenderer.invoke('update:recheck'),
+
     // Login website + koneksi GitHub milik user
     authStatus: () => ipcRenderer.invoke('auth:status'),
     authLogin: () => ipcRenderer.invoke('auth:login'),

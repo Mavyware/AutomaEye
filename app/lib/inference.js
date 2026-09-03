@@ -3,6 +3,7 @@
 //   - Inference: 1-shot HTTP request ke Python sidecar (auto-started on demand)
 //   - Training: streaming stdout parse progress
 
+const { pythonScript, pythonDir } = require('./paths');
 const { spawn } = require('child_process');
 const path = require('path');
 const fs = require('fs');
@@ -39,8 +40,8 @@ function syncDataYamlPath(dataYaml, datasetDir) {
 function startInferServer(cfg) {
     if (inferServer && inferServer.child && !inferServer.child.killed) return inferServer.ready;
 
-    const script = (cfg.python && cfg.python.infer_server_script) || 'python/infer_server.py';
-    const child = spawn((cfg.python && cfg.python.exe) || 'python', [script]);
+    const script = pythonScript((cfg.python && cfg.python.infer_server_script), 'infer_server.py');
+    const child = spawn((cfg.python && cfg.python.exe) || 'python', [script], { cwd: pythonDir() });
     const srv = { child, pending: new Map(), nextId: 1, buffer: '' };
 
     srv.ready = new Promise((resolve, reject) => {
@@ -136,7 +137,7 @@ exports.startTraining = (cfg, root, projectName, modelName, onProgress, opts = {
     if (!m) throw new Error('Model not found');
 
     const args = [
-        cfg.python.train_script || 'python/train.py',
+        pythonScript(cfg.python.train_script, 'train.py'),
         '--project', projectName,
         '--project-dir', path.join(root, projectName),
         '--model', modelName,
@@ -149,7 +150,7 @@ exports.startTraining = (cfg, root, projectName, modelName, onProgress, opts = {
         '--type', m.type,
     ];
     if (opts && opts.resume) args.push('--resume');
-    const py = spawn(cfg.python.exe || 'python', args);
+    const py = spawn(cfg.python.exe || 'python', args, { cwd: pythonDir() });
     currentTraining = { model: modelName, py };
 
     let logBuf = '';                       // simpan log untuk ditampilkan kalau error
@@ -262,7 +263,7 @@ exports.evaluate = (cfg, root, projectName, modelName, split, onProgress) => new
     syncDataYamlPath(dataYaml, path.join(modelDir, 'dataset'));
     const outDir = path.join(modelDir, 'eval');
     const args = [
-        cfg.python.eval_script || 'python/evaluate.py',
+        pythonScript(cfg.python.eval_script, 'evaluate.py'),
         '--weights', weights,
         '--data', dataYaml,
         '--split', split || 'test',
@@ -271,7 +272,7 @@ exports.evaluate = (cfg, root, projectName, modelName, split, onProgress) => new
         '--conf', String((cfg.model && cfg.model.confidence) || 0.25),
         '--iou', String((cfg.model && cfg.model.iou) || 0.45),
     ];
-    const py = spawn(cfg.python.exe || 'python', args);
+    const py = spawn(cfg.python.exe || 'python', args, { cwd: pythonDir() });
     let out = '', err = '', result = null;
     py.stdout.on('data', d => {
         const t = d.toString(); out += t;

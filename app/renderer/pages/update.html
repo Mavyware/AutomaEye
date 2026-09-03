@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>Pembaruan Diperlukan — AutomaEyes</title>
+<link rel="stylesheet" href="../css/style.css">
+<style>
+  body { display: flex; align-items: center; justify-content: center; height: 100vh; margin: 0; }
+  .gate { width: 470px; text-align: center; }
+  .gate .logo { font-size: 24px; font-weight: 700; margin-bottom: 6px; }
+  .ver { font-family: Consolas, monospace; font-size: 13px; }
+  .ver .old { color: #dc2626; } .ver .new { color: #22a34c; font-weight: 700; }
+  .notes { text-align: left; font-size: 12px; color: #555; background: #f5f5f5;
+           border: 1px solid #e5e7eb; border-radius: 4px; padding: 10px; margin: 12px 0;
+           white-space: pre-wrap; max-height: 160px; overflow: auto; }
+</style>
+</head>
+<body>
+
+<div class="gate">
+    <div class="logo">AutomaEyes</div>
+    <div class="card">
+        <div class="section-title">Pembaruan diperlukan</div>
+        <div style="padding:16px">
+            <p style="margin-top:0">
+                Versi yang terpasang sudah tidak didukung dan perlu diperbarui
+                sebelum aplikasi bisa dipakai.
+            </p>
+            <p class="ver">
+                Terpasang: <span class="old" id="cur">-</span>
+                &nbsp;→&nbsp; Terbaru: <span class="new" id="latest">-</span>
+            </p>
+            <div class="notes" id="notes" style="display:none"></div>
+            <div class="row" style="justify-content:center; margin-top:14px">
+                <button class="btn primary" onclick="unduh()">Unduh pembaruan</button>
+                <button class="btn" onclick="cekLagi()">Sudah diperbarui? Cek lagi</button>
+            </div>
+            <p class="muted" style="font-size:11px;margin-bottom:0">
+                Tutup aplikasi ini setelah installer selesai diunduh, lalu jalankan installernya.
+            </p>
+        </div>
+    </div>
+</div>
+
+<script>
+let info = null;
+
+async function muat() {
+    info = await window.api.updateInfo();
+    document.getElementById('cur').textContent = info.current || '-';
+    document.getElementById('latest').textContent = info.latest || '-';
+    if (info.notes) {
+        const n = document.getElementById('notes');
+        n.textContent = info.notes;
+        n.style.display = '';
+    }
+}
+
+function unduh() {
+    if (info && info.url) window.api.openExternal(info.url);
+    else alert('Tautan unduhan belum tersedia. Hubungi admin.');
+}
+
+async function cekLagi() { await window.api.updateRecheck(); }
+
+muat();
+</script>
+</body>
+</html>

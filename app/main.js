@@ -21,8 +21,10 @@ const gitsync = require('./lib/gitsync');
 const userstore = require('./lib/userstore');
 const appauth = require('./lib/appauth');
 const github = require('./lib/github');
+const updater = require('./lib/updater');
 
 let _autoPullDone = false, _autoPullResult = null;
+let _updateInfo = null;   // hasil cek versi terakhir
 
 let mainWindow;
 let cfg;
@@ -124,9 +126,35 @@ function createWindow() {
  * ada tempat penyimpanan yang sah untuk dataset/model-nya.
  */
 function startPage() {
+    // Pembaruan wajib diperiksa paling awal: kalau versi ini sudah tidak
+    // didukung, melanjutkan ke login hanya akan menimbulkan kegagalan aneh
+    // yang sulit ditelusuri user.
+    if (_updateInfo && _updateInfo.mustUpdate) return 'renderer/pages/update.html';
     if (!userstore.getSession()) return 'renderer/pages/login.html';
     if (!userstore.getGithub()) return 'renderer/pages/connect-github.html';
     return 'renderer/pages/projects.html';
+}
+
+/**
+ * Cek versi lalu arahkan ulang bila perlu.
+ * Gagal menghubungi situs TIDAK memblokir aplikasi - lini produksi tidak
+ * boleh berhenti hanya karena internet mati.
+ */
+async function checkUpdate(redirect = true) {
+    try {
+        _updateInfo = await updater.check(cfg);
+        if (_updateInfo.offline) {
+            console.log('[update] situs tidak terjangkau, aplikasi tetap jalan');
+        } else if (_updateInfo.ok) {
+            console.log(`[update] terpasang ${_updateInfo.current}, terbaru ${_updateInfo.latest}` +
+                (_updateInfo.mustUpdate ? ' - WAJIB diperbarui' : _updateInfo.updateAvailable ? ' - tersedia pembaruan' : ' - sudah terbaru'));
+        }
+    } catch (e) {
+        console.warn('[update] cek gagal:', e.message);
+        _updateInfo = { ok: false, offline: true, current: app.getVersion(), error: e.message };
+    }
+    if (redirect && mainWindow) mainWindow.loadFile(startPage());
+    return _updateInfo;
 }
 
 // Nonce sekali pakai untuk tiap alur login/otorisasi yang DIMULAI aplikasi.
@@ -239,6 +267,9 @@ app.whenReady().then(() => {
     arduino.init(cfg.arduino).catch(err => console.warn('[arduino]', err.message));
 
     createWindow();
+
+    // Cek versi di latar; halaman diarahkan ulang begitu hasilnya tiba.
+    checkUpdate();
 
     // Cold start lewat deep link: Windows menaruh URL-nya di argv proses ini.
     const coldUrl = process.argv.find((a) => a.startsWith('automaeye://'));
@@ -399,6 +430,10 @@ ipcMain.handle('git:autoPullOnce', async () => {
     }
     return { skipped: false, result: _autoPullResult };
 });
+
+// ---- Pembaruan aplikasi ----
+ipcMain.handle('update:info', () => _updateInfo || { ok: false, current: app.getVersion() });
+ipcMain.handle('update:recheck', () => checkUpdate(true));
 
 // ---- Login website ----
 ipcMain.handle('auth:status', () => ({
