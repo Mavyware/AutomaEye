@@ -214,14 +214,47 @@ function init() {
       item.classList.toggle('active', Number(item.dataset.i) === stageIndex);
     });
     const ids = overlaysByStage[stageIndex] || [];
-    allOverlays.forEach((el) => el.classList.toggle('active', ids.indexOf(el.id) !== -1));
+    allOverlays.forEach((el) => {
+        const on = ids.indexOf(el.id) !== -1;
+        el.classList.toggle('active', on);
+        // projectTo() menulis opacity inline, dan inline mengalahkan CSS.
+        // Tanpa dibersihkan, label stage sebelumnya tetap terlihat karena
+        // nilai inline-nya tertinggal saat kelas .active dilepas.
+        if (!on) el.style.opacity = '';
+    });
   }
 
   /* ---------- Project a 3D anchor to CSS coordinates within the stage ---------- */
   const projected = new THREE.Vector3();
-  function projectTo(el, anchor, width, height) {
-    anchor.getWorldPosition(projected);
-    projected.project(camera);
+  const _worldPos = new THREE.Vector3();
+  const _normal = new THREE.Vector3();
+  const _toCamera = new THREE.Vector3();
+  const _quat = new THREE.Quaternion();
+  const FRONT = new THREE.Vector3(0, 0, 1);
+
+  // Tags are pinned to a point ON the part, and the part turns as the story
+  // scrolls. Projecting the anchor alone is not enough: once the part rotates
+  // far enough, a tag anchored to the far side still projects onto the screen
+  // and reads as if it were stuck to the near face. So each tag also knows
+  // which way its surface points, and fades out once that surface turns away.
+  function projectTo(el, anchor, width, height, localNormal) {
+    anchor.getWorldPosition(_worldPos);
+
+    anchor.getWorldQuaternion(_quat);
+    _normal.copy(localNormal || FRONT).applyQuaternion(_quat).normalize();
+    _toCamera.copy(camera.position).sub(_worldPos).normalize();
+    const facing = _normal.dot(_toCamera);
+
+    projected.copy(_worldPos).project(camera);
+    const behindCamera = projected.z > 1;
+
+    // Fade across a band rather than snapping, so a tag easing around the
+    // silhouette does not pop in and out.
+    const opacity = behindCamera ? 0 : Math.max(0, Math.min(1, (facing - 0.12) / 0.28));
+    el.style.opacity = String(opacity);
+    el.style.pointerEvents = opacity > 0.5 ? '' : 'none';
+    if (opacity <= 0) return;
+
     const x = (projected.x * 0.5 + 0.5) * width;
     const y = (-projected.y * 0.5 + 0.5) * height;
     el.style.left = x + 'px';
@@ -277,9 +310,11 @@ function init() {
     // actual object surface as the camera orbits and the part turns.
     const w = mount.clientWidth;
     const h = mount.clientHeight;
-    if (ovFrame && ovFrame.classList.contains('active')) projectTo(ovFrame, frameAnchor, w, h);
-    if (ovDefect && ovDefect.classList.contains('active')) projectTo(ovDefect, defectAnchor, w, h);
-    if (ovOutput && ovOutput.classList.contains('active')) projectTo(ovOutput, outputAnchor, w, h);
+    // Ketiga titik menempel di permukaan depan bendanya masing-masing (+Z lokal),
+    // jadi arah permukaannya ikut berputar bersama benda.
+    if (ovFrame && ovFrame.classList.contains('active')) projectTo(ovFrame, frameAnchor, w, h, FRONT);
+    if (ovDefect && ovDefect.classList.contains('active')) projectTo(ovDefect, defectAnchor, w, h, FRONT);
+    if (ovOutput && ovOutput.classList.contains('active')) projectTo(ovOutput, outputAnchor, w, h, FRONT);
 
     if (stageIndex !== lastStage) {
       setStageVisuals(stageIndex);
