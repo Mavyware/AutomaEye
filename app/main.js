@@ -6,7 +6,7 @@
 //   - Spawn Python sidecar untuk YOLO inference/training
 //   - Serial ke Arduino
 
-const { app, BrowserWindow, ipcMain, dialog, shell } = require('electron');
+const { app, BrowserWindow, ipcMain, dialog, shell, session } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const yaml = require('js-yaml');
@@ -145,6 +145,11 @@ function createWindow() {
             webviewTag: false, // tidak dipakai; mematikannya mengurangi permukaan serangan
             backgroundThrottling: false, // JANGAN throttle loop/kamera saat window tak fokus
         },
+    });
+    // Log dari halaman diteruskan ke terminal; tanpa ini, kesalahan di
+    // renderer tidak terlihat sama sekali saat menjalankan lewat npm start.
+    mainWindow.webContents.on('console-message', (_e, level, message) => {
+        if (level >= 1) console.log('[renderer]', message);
     });
     mainWindow.setMenuBarVisibility(false);
     mainWindow.maximize();   // buka dalam keadaan maximized (memenuhi layar, title bar & taskbar tetap ada)
@@ -285,6 +290,37 @@ if (!gotLock) {
     app.on('open-url', (e, url) => { e.preventDefault(); handleDeepLink(url); }); // macOS
 }
 
+// Content-Security-Policy untuk halaman aplikasi.
+//
+// Semua aset halaman bersifat lokal - tidak ada satu pun yang diambil dari
+// internet - jadi 'self' sudah cukup. Ini menutup jalur paling berbahaya
+// kalau suatu saat ada celah XSS: memuat skrip dari luar atau mengirim data
+// keluar diam-diam. 'unsafe-inline' terpaksa diizinkan karena halaman
+// memakai <script> dan style inline; menghapusnya perlu menulis ulang
+// seluruh halaman, sementara pembatasan sumber sudah memberi manfaat besar.
+// img-src data: dibutuhkan halaman Anotasi, yang memuat gambar sebagai data URL.
+const CSP = [
+    "default-src 'self'",
+    "script-src 'self' 'unsafe-inline'",
+    "style-src 'self' 'unsafe-inline'",
+    "img-src 'self' data: blob:",
+    "media-src 'self' blob:",
+    "connect-src 'self'",
+    "object-src 'none'",
+    "frame-src 'none'",
+].join('; ');
+
+function applyCsp() {
+    session.defaultSession.webRequest.onHeadersReceived((details, callback) => {
+        callback({
+            responseHeaders: {
+                ...details.responseHeaders,
+                'Content-Security-Policy': [CSP],
+            },
+        });
+    });
+}
+
 app.whenReady().then(() => {
     try {
         loadConfig();
@@ -293,6 +329,8 @@ app.whenReady().then(() => {
         app.quit();
         return;
     }
+
+    applyCsp();
 
     // Daftarkan skema automaeye:// ke OS. Saat dev (dijalankan via electron.exe)
     // perlu argv eksplisit supaya Windows tahu cara memanggil balik app-nya.

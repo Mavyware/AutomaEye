@@ -8,7 +8,7 @@ $user = Auth::user();
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title><?= e($pageTitle ?? APP_NAME) ?></title>
-<meta name="description" content="AutomaEye — build and deploy computer vision pipelines on the edge. Login and download the desktop app.">
+<meta name="description" content="AutomaEyes — AI Quality Control. Detect defects, measure dimensions, and signal OK/NG straight to your line. Log in and download the desktop app.">
 <link rel="icon" type="image/png" sizes="32x32" href="/assets/img/favicon-32.png">
 <link rel="apple-touch-icon" href="/assets/img/logo.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">

@@ -1,7 +1,7 @@
 <?php
 require __DIR__ . '/../src/bootstrap.php';
 
-$pageTitle = 'AutomaEye - Low-edge computer vision, automated';
+$pageTitle = 'AutomaEyes - AI Quality Control';
 $bodyClass = 'has-story-bg';
 require __DIR__ . '/../src/includes/header.php';
 ?>
@@ -21,9 +21,9 @@ require __DIR__ . '/../src/includes/header.php';
 
   <section class="story-section story-hero" data-reveal>
     <div>
-      <span class="eyebrow">Edge computer vision, automated</span>
+      <span class="eyebrow">AI Quality Control</span>
       <h1>See the edge.<br><span class="grad">Automate the eye.</span></h1>
-      <p>AutomaEye turns your own camera feeds into working computer-vision pipelines - dataset to deployment, running low and light on the edge.</p>
+      <p>AutomaEyes inspects your parts as they come off the line: it finds defects, measures dimensions, and sends the OK/NG result straight to your PLC. You train it on your own parts, and your data stays in your own hands.</p>
       <div class="hero-actions">
         <a href="/signup.php" class="btn btn-primary btn-lg">Get started free</a>
         <a href="/login.php" class="btn btn-ghost btn-lg">Log in</a>

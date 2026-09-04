@@ -13,7 +13,7 @@
 (function() {
     const opts = window.LAYOUT_OPTS || {};
     const title = opts.title || 'AutomaEyes';
-    const subtitle = opts.subtitle || 'Socket Holder Quality Control';
+    const subtitle = opts.subtitle || 'AI Quality Control';
     const mode = opts.mode || 'setting';
     const showTotalStatus = opts.showTotalStatus !== false;
     const showFooter = opts.showFooter !== false;
@@ -151,28 +151,148 @@ window.switchToRunMode = function() {
 };
 
 // ===================== GitHub Sync (Save / Load) =====================
+// Kerangka aplikasi: sidebar navigasi + satu topbar.
+//
+// Sebelumnya ada empat baris chrome bertumpuk (menu bar, toolbar, header,
+// status bar) yang memakan ~150 px sebelum konten muncul, dan navigasinya
+// tersebar: "Home" di menu File, mode Run di header, Settings di dua tempat.
+// Semua digabung ke satu sidebar supaya jelas "saya sedang di mana", dan
+// area kerja dapat ruang jauh lebih besar - layar inspeksi dipandangi lama.
 (function () {
-    const style = document.createElement('style');
-    style.textContent = `
-        .util-menu{position:absolute;top:100%;left:0;margin-top:2px;background:#1e2128;
-            border:1px solid #3a3f4b;border-radius:5px;min-width:240px;z-index:2000;
-            box-shadow:0 6px 18px rgba(0,0,0,.45);overflow:hidden}
-        .util-opt{padding:9px 13px;font-size:13px;white-space:nowrap;cursor:pointer;color:#e6e7ea}
-        .util-opt:hover{background:#2a2e37}
-        #syncToast{position:fixed;right:16px;bottom:44px;z-index:5000;display:flex;flex-direction:column;gap:8px}
-        .sync-toast{background:#1e2128;border:1px solid #3a3f4b;border-left-width:4px;border-radius:6px;
-            padding:10px 14px;font-size:13px;color:#e6e7ea;max-width:360px;box-shadow:0 6px 18px rgba(0,0,0,.4);
-            animation:syncIn .18s ease}
-        .sync-toast.ok{border-left-color:#22c55e}
-        .sync-toast.err{border-left-color:#ef4444}
-        .sync-toast.info{border-left-color:#7c3aed}
-        @keyframes syncIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
-    `;
-    document.head.appendChild(style);
+    const opts = window.LAYOUT_OPTS || {};
+    const title = opts.title || 'AutomaEyes';
+    const subtitle = opts.subtitle || '';
+    const showTotalStatus = !!opts.showTotalStatus;
+
+    const q = new URLSearchParams(location.search);
+    const project = q.get('project') || q.get('name') || '';
+    const model = q.get('model') || '';
+    const page = (location.pathname.split('/').pop() || '').toLowerCase();
+
+    const esc = (v) => String(v == null ? '' : v).replace(/[&<>"']/g, (c) => ({
+        '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
+    }[c]));
+
+    const go = (p) => `window.api.goTo('${p}')`;
+    const withProject = (p) => project ? `${p}?project=${encodeURIComponent(project)}` : p;
+
+    // Menu project hanya muncul saat ada project terbuka - menampilkan
+    // "Workflow" atau "Run" tanpa project hanya akan berujung peringatan.
+    const navItem = (id, ikon, label, target, aktif, nonaktif) => `
+        <button class="nav-item ${aktif ? 'active' : ''}" ${nonaktif ? 'disabled' : `onclick="${go(target)}"`}>
+            <span class="nav-ic">${ikon}</span><span class="nav-label">${esc(label)}</span>
+        </button>`;
+
+    const navProject = project ? `
+        <div class="nav-group">
+            <div class="nav-group-title">${esc(project)}</div>
+            ${navItem('p', '&#9776;', 'Ringkasan', withProject('project.html'), page === 'project.html')}
+            ${navItem('m', '&#9635;', 'Model', withProject('project.html'), page === 'model.html' || page === 'new_model.html' || page === 'annotate.html')}
+            ${navItem('w', '&#8644;', 'Workflow', withProject('workflow.html'), page === 'workflow.html')}
+            ${navItem('o', '&#9889;', 'Output', withProject('output.html'), page === 'output.html')}
+            ${navItem('r', '&#9654;', 'Jalankan', withProject('run.html'), page === 'run.html')}
+        </div>` : '';
+
+    const sidebarHTML = `
+        <aside class="sidebar">
+            <div class="brand">
+                <span class="brand-dot"></span>
+                <span class="brand-name">AutomaEyes</span>
+            </div>
+
+            <nav class="nav">
+                <div class="nav-group">
+                    ${navItem('all', '&#9783;', 'Semua Project', 'projects.html', page === 'projects.html')}
+                </div>
+                ${navProject}
+            </nav>
+
+            <div class="sidebar-foot">
+                <button class="nav-item ${page === 'settings.html' ? 'active' : ''}" onclick="${go('settings.html')}">
+                    <span class="nav-ic">&#9881;</span><span class="nav-label">Pengaturan</span>
+                </button>
+                <button class="acct" onclick="toggleMenu(event,'acctMenu')">
+                    <span class="acct-avatar" id="acctAvatar">&#128100;</span>
+                    <span class="acct-text">
+                        <span class="acct-name" id="acctLabel">Akun</span>
+                        <span class="acct-repo" id="acctRepo">&mdash;</span>
+                    </span>
+                    <div id="acctMenu" class="util-menu" style="display:none">
+                        <div class="util-opt" style="pointer-events:none;opacity:.75;white-space:normal" id="acctInfo">Memuat&hellip;</div>
+                        <div class="util-opt" onclick="changeRepo(event)">&#128193; Ganti repo penyimpanan</div>
+                        <div class="util-opt" onclick="showAbout(event)">&#8505;&#65039; Tentang aplikasi</div>
+                        <div class="util-opt" onclick="location.reload()">&#128260; Muat ulang halaman</div>
+                        <div class="util-opt" style="color:#f87171" onclick="doLogout(event)">&#9211; Keluar akun</div>
+                        <div class="util-opt" style="color:#f87171" onclick="appExit()">&#10005; Tutup aplikasi</div>
+                    </div>
+                </button>
+            </div>
+        </aside>`;
+
+    const totalStatusHTML = showTotalStatus ? `
+        <div class="total-status-box idle" id="totalStatusBox">
+            <span id="totalStatusValue">&mdash;</span>
+        </div>` : '';
+
+    // Breadcrumb menggantikan judul polos: posisi terbaca tanpa menebak.
+    const crumbs = [];
+    if (project) crumbs.push(esc(project));
+    if (model) crumbs.push(esc(model));
+
+    const topbarHTML = `
+        <header class="topbar">
+            <div class="crumbs">
+                ${crumbs.map((c) => `<span class="crumb">${c}</span>`).join('<span class="crumb-sep">&rsaquo;</span>')}
+                ${crumbs.length ? '<span class="crumb-sep">&rsaquo;</span>' : ''}
+                <span class="crumb-now">${esc(title)}</span>
+                ${subtitle ? `<span class="crumb-sub">${esc(subtitle)}</span>` : ''}
+            </div>
+            <div class="topbar-actions">
+                <button class="icon-btn" title="Simpan &amp; unggah ke GitHub" onclick="syncSaveToCloud(event)">&#9729;&#65039;</button>
+                <button class="icon-btn" title="Muat versi terbaru dari GitHub" onclick="syncLoadFromCloud(event)">&#11015;&#65039;</button>
+                <button class="icon-btn" title="Status sinkronisasi" onclick="showSyncStatus(event)">&#8505;&#65039;</button>
+                ${totalStatusHTML}
+            </div>
+        </header>`;
+
+    // Konten halaman dibungkus supaya bisa di-scroll terpisah dari sidebar.
+    document.body.insertAdjacentHTML('afterbegin', sidebarHTML + '<div class="workarea">' + topbarHTML + '</div>');
+    const workarea = document.querySelector('.workarea');
+    const main = document.querySelector('body > main');
+    if (main && workarea) workarea.appendChild(main);
+})();
+
+window.setTotalStatus = function(verdict) {
+    const badge = document.getElementById('totalStatusBadge');
+    const value = document.getElementById('totalStatusValue');
+    if (!badge || !value) return;
+    badge.classList.remove('pass', 'fail', 'idle');
+    if (verdict === 'OK') {
+        badge.classList.add('pass');
+        value.textContent = 'PASS';
+    } else if (verdict === 'NG') {
+        badge.classList.add('fail');
+        value.textContent = 'FAIL';
+    } else {
+        badge.classList.add('idle');
+        value.textContent = '—';
+    }
+};
+
+window.switchToRunMode = function() {
+    // Nav to Run page for current project kalau ada
+    const p = new URLSearchParams(location.search).get('name')
+        || new URLSearchParams(location.search).get('project');
+    if (p) window.api.goTo(`run.html?project=${encodeURIComponent(p)}`);
+    else alert('Pilih project dulu');
+};
+
+// ===================== GitHub Sync (Save / Load) =====================
+(function () {
 
     // Tutup semua dropdown menubar saat klik di luar
     document.addEventListener('click', (e) => {
-        if (e.target.closest('.menu-item')) return;
+        if (e.target.closest('.acct') || e.target.closest('.menu-item')) return;
         document.querySelectorAll('.util-menu').forEach(m => { m.style.display = 'none'; });
     });
 
@@ -276,22 +396,28 @@ async function _loadAccount() {
     try {
         const st = await window.api.authStatus();
         const lbl = document.getElementById('acctLabel');
+        const repo = document.getElementById('acctRepo');
         const info = document.getElementById('acctInfo');
         if (!lbl || !info) return;
 
         if (st.session) {
-            const nm = (st.session.user.name || st.session.user.email || 'Akun').split(' ')[0];
-            lbl.textContent = st.github ? `${nm} - ${st.github.repo}` : nm;
-            info.innerHTML = `<strong>${_esc(st.session.user.name || '')}</strong><br>` +
+            const nama = st.session.user.name || st.session.user.email || 'Akun';
+            lbl.textContent = nama.split(' ')[0];
+            if (repo) {
+                repo.textContent = st.github ? st.github.repo.split('/').pop() : 'GitHub belum tersambung';
+                repo.classList.toggle('warn', !st.github);
+            }
+            info.innerHTML = `<strong>${_esc(nama)}</strong><br>` +
                 `<span style="font-size:11px">${_esc(st.session.user.email || '')}</span><br>` +
                 (st.github
                     ? `<span style="font-size:11px">Repo: ${_esc(st.github.repo)}</span>`
                     : `<span style="font-size:11px;color:#f59e0b">GitHub belum tersambung</span>`);
         } else {
             lbl.textContent = 'Belum login';
+            if (repo) repo.textContent = '\u2014';
             info.textContent = 'Belum login';
         }
-    } catch (_) { /* halaman gate tidak punya menu bar */ }
+    } catch (_) { /* halaman gate tidak punya sidebar */ }
 }
 
 function _esc(s) {
