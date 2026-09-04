@@ -28,7 +28,7 @@
     <h1>Persiapan sekali jalan</h1>
     <div class="sub">
         AutomaEyes memakai Python untuk melatih dan menjalankan model AI.
-        Berikut yang masih perlu disiapkan di komputer ini.
+        Semuanya bisa dipasang dari sini &mdash; tidak ada yang perlu diunduh sendiri.
     </div>
 
     <div class="card">
@@ -39,9 +39,9 @@
     </div>
 
     <div class="row" style="margin-top:12px">
-        <button class="btn primary" id="btnInstall" onclick="pasang()" style="display:none">Pasang otomatis</button>
-        <button class="btn" id="btnPython" onclick="unduhPython()" style="display:none">Unduh Python</button>
+        <button class="btn primary" id="btnInstall" onclick="pasang()" style="display:none">Pasang semua otomatis</button>
         <button class="btn" onclick="periksa()">Periksa ulang</button>
+        <button class="btn" id="btnPython" onclick="unduhPython()" style="display:none">Unduh Python manual</button>
         <button class="btn" id="btnSkip" onclick="lewati()">Lanjut tanpa ini</button>
     </div>
     <div class="status" id="st"></div>
@@ -80,14 +80,17 @@ async function periksa() {
     document.getElementById('reqList').innerHTML = html;
 
     const perluPython = !p.found || p.tooOld;
+    // Pemasangan otomatis kini mengurus Python juga, jadi tombolnya muncul
+    // untuk apa pun yang kurang. Unduhan manual disisakan sebagai jalan
+    // cadangan kalau jaringannya memblokir unduhan dari aplikasi.
+    document.getElementById('btnInstall').style.display = info.ok ? 'none' : '';
     document.getElementById('btnPython').style.display = perluPython ? '' : 'none';
-    document.getElementById('btnInstall').style.display = (!perluPython && info.missing.length) ? '' : 'none';
 
     if (info.ok) {
         setStatus('Semua siap.', 'ok');
         setTimeout(() => window.api.prereqDone(), 900);
     } else if (perluPython) {
-        setStatus('Python belum ada. Unduh dan pasang dulu, lalu klik Periksa ulang.', 'err');
+        setStatus('Python belum ada. Tekan Pasang semua otomatis \u2014 Python dan paketnya akan diunduh sendiri.', 'wait');
     } else {
         setStatus(`${info.missing.length} paket belum ada. Unduhannya lebih dari 1 GB, jadi siapkan koneksi yang stabil.`, 'wait');
     }
@@ -99,7 +102,11 @@ async function pasang() {
     const log = document.getElementById('log');
     log.style.display = ''; log.textContent = '';
     document.getElementById('btnInstall').disabled = true;
-    setStatus('Memasang… ini bisa memakan waktu lama (unduhan >1 GB). Jangan tutup aplikasi.', 'wait');
+    document.getElementById('btnSkip').disabled = true;
+    const adaPython = info.python.found && !info.python.tooOld;
+    setStatus(adaPython
+        ? 'Memasang paket… unduhannya lebih dari 1 GB, jadi bisa lama. Jangan tutup aplikasi.'
+        : 'Memasang Python lalu paketnya… seluruhnya otomatis. Jangan tutup aplikasi.', 'wait');
 
     window.api.onPrereqLog((line) => {
         log.textContent += line + '\n';
@@ -108,6 +115,7 @@ async function pasang() {
 
     const r = await window.api.prereqInstall();
     document.getElementById('btnInstall').disabled = false;
+    document.getElementById('btnSkip').disabled = false;
     if (r.ok) { setStatus('Pemasangan selesai. Memeriksa ulang…', 'ok'); periksa(); }
     else setStatus('Gagal: ' + r.error, 'err');
 }

@@ -526,10 +526,35 @@ ipcMain.handle('prereq:check', async () => {
     _prereqOk = r.ok;
     return { ...r, pythonUrl: prereq.pythonDownloadUrl() };
 });
+// Satu tombol mengurus semuanya: Python dulu kalau belum ada, baru paketnya.
+// Dipisah jadi dua langkah karena keduanya sangat berbeda ukurannya - Python
+// ~25 MB dan cepat, paketnya lebih dari 1 GB - jadi pengguna perlu tahu
+// sedang menunggu yang mana.
 ipcMain.handle('prereq:install', async (event) => {
-    const r = await prereq.installPackages(cfg, (line) => {
-        if (!event.sender.isDestroyed()) event.sender.send('prereq:log', line);
-    });
+    const kirim = (line) => { if (!event.sender.isDestroyed()) event.sender.send('prereq:log', line); };
+
+    let awal = await prereq.check(cfg);
+    if (!awal.python.found || awal.python.tooOld) {
+        kirim('== Langkah 1 dari 2: memasang Python ==');
+        const rp = await prereq.installPython(kirim);
+        if (!rp.ok) return { ok: false, error: `Gagal memasang Python: ${rp.error}` };
+
+        // PATH proses ini sudah terbentuk sebelum Python dipasang, jadi
+        // "python" belum tentu langsung dikenali. Lokasi bawaan pemasangan
+        // per-pengguna ditambahkan sendiri supaya langkah berikutnya jalan
+        // tanpa menunggu aplikasi ditutup dan dibuka lagi.
+        const tambahan = prereq.pythonUserPaths();
+        process.env.PATH = tambahan.join(path.delimiter) + path.delimiter + process.env.PATH;
+
+        awal = await prereq.check(cfg);
+        if (!awal.python.found) {
+            return { ok: false, error: 'Python terpasang, tapi belum terbaca. Tutup lalu buka lagi AutomaEyes.' };
+        }
+        kirim(`Python siap: ${awal.python.version}`);
+    }
+
+    kirim('== Langkah 2 dari 2: memasang paket Python ==');
+    const r = await prereq.installPackages(cfg, kirim);
     if (r.ok) _prereqOk = (await prereq.check(cfg)).ok;
     return r;
 });
