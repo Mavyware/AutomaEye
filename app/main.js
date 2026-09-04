@@ -13,6 +13,7 @@ const yaml = require('js-yaml');
 
 const projects = require('./lib/projects');
 const perangkat = require('./lib/perangkat');
+const pyoutput = require('./lib/pyoutput');
 const workflow = require('./lib/workflow');
 const arduino = require('./lib/arduino');
 const inference = require('./lib/inference');
@@ -811,7 +812,9 @@ ipcMain.handle('output:get', (_, { project }) => {
     const dev = out.device || {};
     return {
         mode: out.mode || 'signal',
+        bahasa: out.bahasa === 'py' ? 'py' : 'js',
         script: out.script || customoutput.DEFAULT_SCRIPT,
+        scriptPy: out.scriptPy || pyoutput.DEFAULT_SCRIPT,
         device: {
             jenis: dev.jenis || 'arduino',
             papan: dev.papan || '',
@@ -907,8 +910,10 @@ ipcMain.handle('device:sketsa', (_, mana) => {
     const berkas = path.join(dir, mana === 'panduan' ? 'BACA-SAYA.md' : 'automaeyes_pinout.ino');
     return { berkas, ada: fs.existsSync(berkas) };
 });
-ipcMain.handle('output:test', (_, { script, verdict }) =>
-    customoutput.test(script, arduino, verdict));
+ipcMain.handle('output:test', (_, { script, verdict, bahasa }) =>
+    (bahasa === 'py'
+        ? pyoutput.test(script, arduino, verdict, cfg.python)
+        : customoutput.test(script, arduino, verdict)));
 
 // ---- Navigation ----
 ipcMain.handle('nav:go', (_, page) => {

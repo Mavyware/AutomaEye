@@ -724,7 +724,11 @@ exports.saveOutputConfig = (root, projectName, cfg) => {
 
     p.output = {
         mode,
+        // Dua skrip disimpan terpisah supaya berganti bahasa tidak
+        // menghapus kode yang sudah ditulis di bahasa satunya.
+        bahasa: (cfg && cfg.bahasa) === 'py' ? 'py' : 'js',
         script: String((cfg && cfg.script) || ''),
+        scriptPy: String((cfg && cfg.scriptPy) || ''),
         device: {
             jenis: String(dev.jenis || 'arduino'),
             papan: String(dev.papan || ''),

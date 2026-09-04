@@ -784,3 +784,12 @@ textarea { resize: vertical; }
     border-radius: var(--radius-sm); padding: 9px 11px; margin: 6px 0 10px;
     overflow-x: auto; white-space: pre;
 }
+
+/* Dialog bantuan: lebih lebar dari dialog biasa karena isinya contoh kode
+   yang tidak boleh terpotong, dan isinya digulung sendiri supaya tab-nya
+   tetap terlihat. */
+.bantuan-kotak { width: 780px; max-width: 100%; display: flex; flex-direction: column; max-height: 84vh; }
+.bantuan-kepala { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 10px; }
+.bantuan-isi { overflow-y: auto; padding-right: 4px; }
+.bantuan-isi .dok-inti { margin-top: 14px; }
+.bantuan-isi .dok-inti:first-child { margin-top: 0; }

@@ -521,9 +521,12 @@ exports.execute = async (cfg, project, imageDataUrl, arduino, output, opts = {})
             // menempel dan mesin membaca kelas yang sudah tidak ada.
             const pinout = require('./pinout');
             result.pinout = await pinout.kirim(arduino, outCfg, result);
-        } else if (outCfg.mode === 'script' && outCfg.script && !opts.noSignal) {
-            const customoutput = require('./customoutput');
-            const r = customoutput.run(outCfg.script, result, arduino);
+        } else if (outCfg.mode === 'script' && !opts.noSignal) {
+            // Python dijalankan sebagai proses terpisah, jadi hasilnya
+            // ditunggu; versi JavaScript berjalan langsung di dalam aplikasi.
+            const r = outCfg.bahasa === 'py'
+                ? await require('./pyoutput').run(outCfg.scriptPy, result, arduino, cfg.python)
+                : require('./customoutput').run(outCfg.script, result, arduino);
             result.customOutput = { ok: r.ok, error: r.error, logs: r.logs };
         } else if (!hasCommStep && !opts.noSignal) {
             if (result.finalVerdict === 'NG') {

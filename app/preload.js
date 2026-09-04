@@ -112,7 +112,7 @@ contextBridge.exposeInMainWorld('api', {
     deviceSambung: (project) => ipcRenderer.invoke('device:sambung', { project }),
     deviceUjiPin: (pin, aktif, jenis) => ipcRenderer.invoke('device:ujiPin', { pin, aktif, jenis }),
     deviceSketsa: (mana) => ipcRenderer.invoke('device:sketsa', mana),
-    testOutputScript: (script, verdict) => ipcRenderer.invoke('output:test', { script, verdict }),
+    testOutputScript: (script, verdict, bahasa) => ipcRenderer.invoke('output:test', { script, verdict, bahasa }),
 
     // Navigation
     goTo: (page) => ipcRenderer.invoke('nav:go', page),

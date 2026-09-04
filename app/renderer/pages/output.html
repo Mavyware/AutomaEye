@@ -49,110 +49,21 @@
     <div class="card" id="kartuScript" style="display:none">
         <div class="section-title">Kode Output</div>
         <div style="padding:12px">
-            <div class="dok">
-                <p class="dok-inti">
-                    Ada <strong>dua tempat</strong> yang bisa Anda tulis sendiri, dan bahasanya berbeda.
-                    Yang di bawah ini adalah <strong>JavaScript</strong>, berjalan di dalam aplikasi.
-                </p>
-
-                <table class="dok-tabel">
-                    <tr>
-                        <th></th><th>Di aplikasi (kotak di bawah)</th><th>Di papan (Arduino IDE)</th>
-                    </tr>
-                    <tr>
-                        <td>Bahasa</td>
-                        <td><strong>JavaScript</strong></td>
-                        <td><strong>C++ Arduino</strong> (berkas <code>.ino</code>)</td>
-                    </tr>
-                    <tr>
-                        <td>Tugasnya</td>
-                        <td>Menentukan <strong>apa yang dikirim</strong> saat ada hasil inspeksi</td>
-                        <td>Menentukan <strong>apa yang dilakukan</strong> dengan yang diterima</td>
-                    </tr>
-                    <tr>
-                        <td>Kapan dipakai</td>
-                        <td>Hampir selalu cukup di sini saja</td>
-                        <td>Hanya kalau papan perlu perilaku sendiri (timer, relay berurutan, motor)</td>
-                    </tr>
-                </table>
-
-                <p class="dok-inti" style="margin-top:12px">Menulis output di JavaScript</p>
-                <p class="helper">
-                    Skrip wajib punya fungsi <code>onResult(result)</code>, dipanggil sekali tiap hasil inspeksi.
-                    Nilai baliknya tidak dipakai &mdash; yang bekerja adalah helper yang Anda panggil di dalamnya.
-                </p>
-                <pre class="dok-kode">result = {
-  verdict: "OK" | "NG",          // hasil akhir seluruh workflow
-  confidence: 0.93,              // confidence terendah antar step
-  totalMS: 123.4,                // lama satu siklus
-  steps: [{
-    modelName: "Inference",
-    verdict:   "NG",
-    confidence: 0.93,
-    classes:   ["cacat scratch"] // kelas yang terdeteksi di step ini
-  }]
-}</pre>
-                <p class="helper">
-                    Helper yang tersedia:<br>
-                    <code>serial_write(str)</code> &mdash; kirim teks mentah ke papan / PLC lewat serial<br>
-                    <code>http_post(url, obj)</code> &mdash; kirim JSON ke server (MES, dashboard); tidak ditunggu<br>
-                    <code>log(str)</code> &mdash; muncul di panel hasil uji di bawah<br>
-                    <code>sleep_ms(n)</code> &mdash; jeda, maksimal 5 detik
-                </p>
-                <p class="helper">
-                    Skrip dihentikan kalau lebih dari 5 detik, supaya lini tidak menggantung.
-                    Tekan <strong>Uji</strong> di bawah untuk menjalankannya dengan hasil contoh tanpa perlu inspeksi sungguhan.
-                </p>
-
-                <p class="dok-inti" style="margin-top:12px">Contoh 1 &mdash; kirim huruf berbeda per kelas</p>
-                <pre class="dok-kode">function onResult(result) {
-  const kelas = result.steps.flatMap(s =&gt; s.classes);
-
-  if (kelas.includes("cacat scratch"))     serial_write("S\n");
-  else if (kelas.includes("cacat warna"))  serial_write("W\n");
-  else if (result.verdict === "NG")        serial_write("1\n");
-  else                                     serial_write("0\n");
-}</pre>
-
-                <p class="dok-inti">Contoh 2 &mdash; kirim ke server, bukan ke papan</p>
-                <pre class="dok-kode">function onResult(result) {
-  http_post("http://192.168.1.50/api/inspeksi", {
-    hasil: result.verdict,
-    kelas: result.steps.flatMap(s =&gt; s.classes),
-    waktuMS: result.totalMS
-  });
-}</pre>
-
-                <p class="dok-inti" style="margin-top:12px">Sisi papan &mdash; menerima yang Anda kirim</p>
-                <p class="helper">
-                    Kalau <code>serial_write</code> mengirim huruf sendiri seperti contoh di atas,
-                    papan perlu tahu artinya. Ini ditulis di <strong>Arduino IDE</strong>, bukan di sini:
-                </p>
-                <pre class="dok-kode">void setup() {
-  Serial.begin(9600);          // samakan dengan baud di halaman ini
-  pinMode(7, OUTPUT);
-  pinMode(8, OUTPUT);
-}
-
-void loop() {
-  if (!Serial.available()) return;
-  char c = Serial.read();
-
-  if (c == 'S') { digitalWrite(7, HIGH); }   // cacat scratch
-  if (c == 'W') { digitalWrite(8, HIGH); }   // cacat warna
-  if (c == '0') { digitalWrite(7, LOW); digitalWrite(8, LOW); }
-}</pre>
-                <p class="helper">
-                    Kalau Anda tidak ingin menulis sisi papan sendiri, pakai saja perangkat
-                    <strong>Arduino</strong> atau <strong>ESP32</strong> di atas &mdash; sketsanya sudah
-                    disediakan dan pemetaan pin diatur lewat tabel, tanpa menulis kode sama sekali.
-                    Untuk <strong>PLC</strong> tidak ada kode papan sama sekali: PLC sudah bicara Modbus dari pabrik.
-                </p>
+            <div class="row" style="align-items:center; gap:10px; margin-bottom:10px">
+                <button class="btn small" onclick="bukaBantuan()">? Bantuan &amp; contoh kode</button>
+                <label class="pin-lab">Bahasa
+                    <select id="bahasa" onchange="gantiBahasa(this.value)">
+                        <option value="js">JavaScript</option>
+                        <option value="py">Python</option>
+                    </select>
+                </label>
+                <span class="muted" id="bahasaKet" style="font-size:11px"></span>
             </div>
             <textarea id="script" spellcheck="false"></textarea>
             <div class="row" style="margin-top:10px">
-                <button class="btn" onclick="uji('OK')">Uji (hasil OK)</button>
-                <button class="btn" onclick="uji('NG')">Uji (hasil NG)</button>
+                <button class="btn" onclick="uji('OK')">▶ Uji dengan hasil OK</button>
+                <button class="btn" onclick="uji('NG')">▶ Uji dengan hasil NG</button>
+                <span class="muted" id="ujiStatus" style="font-size:11px;align-self:center"></span>
             </div>
             <div class="test-out" id="testOut"></div>
         </div>
@@ -562,13 +473,260 @@ async function ujiPin(pin, aktif, jenis) {
 }
 
 // ---------------- kode kustom ----------------
+// ---------------- dialog bantuan ----------------
+// Penjelasannya panjang dan hanya dibutuhkan sesekali, jadi ditaruh di
+// dialog: dibaca saat perlu, lalu ditutup supaya kotak kodenya lega.
+const BANTUAN = {
+    cara: {
+        judul: 'Cara kerja',
+        isi: `
+            <p class="dok-inti">Ada dua tempat yang bisa Anda tulis sendiri, dan bahasanya berbeda.</p>
+            <table class="dok-tabel">
+                <tr><th></th><th>Di aplikasi (kotak kode)</th><th>Di papan (Arduino IDE)</th></tr>
+                <tr><td>Bahasa</td><td><strong>JavaScript</strong> atau <strong>Python</strong></td><td><strong>C++ Arduino</strong> (berkas <code>.ino</code>)</td></tr>
+                <tr><td>Tugasnya</td><td>Menentukan <strong>apa yang dikirim</strong> saat ada hasil inspeksi</td><td>Menentukan <strong>apa yang dilakukan</strong> dengan yang diterima</td></tr>
+                <tr><td>Kapan dipakai</td><td>Hampir selalu cukup di sini saja</td><td>Hanya kalau papan perlu perilaku sendiri (timer, relay berurutan, motor)</td></tr>
+            </table>
+
+            <p class="dok-inti" style="margin-top:12px">Memilih bahasa</p>
+            <table class="dok-tabel">
+                <tr><th>Bahasa</th><th>Kapan cocok</th><th>Catatan</th></tr>
+                <tr><td><strong>JavaScript</strong></td><td>Logika sederhana: pilih sinyal, kirim ke server</td><td>Berjalan di dalam aplikasi, tanpa perangkat lunak tambahan. Paling cepat.</td></tr>
+                <tr><td><strong>Python</strong></td><td>Perlu pustaka lain: pandas, numpy, klien database, SDK MES/SCADA</td><td>Memakai Python yang sama dengan pelatihan model. Pustaka dipasang sendiri lewat pip.</td></tr>
+            </table>
+            <p class="helper">
+                Bahasa lain seperti C#, Java, atau Structured Text tidak dijalankan aplikasi ini.
+                Kalau sistem Anda memakai salah satunya, sambungkan lewat <code>http_post</code>
+                ke layanan yang sudah ada &mdash; itu cara yang lazim dan tidak mengunci Anda ke bahasa mana pun.
+            </p>
+
+            <p class="dok-inti" style="margin-top:12px">Yang diterima skrip</p>
+            <pre class="dok-kode">result = {
+  verdict: "OK" | "NG",          // hasil akhir seluruh workflow
+  confidence: 0.93,              // confidence terendah antar step
+  totalMS: 123.4,                // lama satu siklus
+  steps: [{
+    modelName: "Inference",
+    verdict:   "NG",
+    confidence: 0.93,
+    classes:   ["cacat scratch"] // kelas yang terdeteksi di step ini
+  }]
+}</pre>
+
+            <p class="dok-inti">Helper yang tersedia di kedua bahasa</p>
+            <table class="dok-tabel">
+                <tr><th>Helper</th><th>Gunanya</th></tr>
+                <tr><td><code>serial_write(teks)</code></td><td>Kirim teks mentah ke papan / PLC lewat sambungan milik aplikasi</td></tr>
+                <tr><td><code>http_post(url, obj)</code></td><td>Kirim JSON ke server (MES, dashboard). Tidak ditunggu.</td></tr>
+                <tr><td><code>log(teks)</code></td><td>Muncul di panel hasil uji</td></tr>
+                <tr><td><code>sleep_ms(n)</code></td><td>Jeda, maksimal 5 detik</td></tr>
+            </table>
+            <p class="helper">
+                Skrip dihentikan kalau berjalan lebih dari 5 detik, supaya lini tidak menggantung.
+                Tekan <strong>Uji</strong> untuk menjalankannya dengan hasil contoh tanpa inspeksi sungguhan.
+            </p>`,
+    },
+
+    js: {
+        judul: 'Contoh JavaScript',
+        isi: `
+            <p class="helper">Wajib mendefinisikan <code>onResult(result)</code>.</p>
+
+            <p class="dok-inti">Kirim huruf berbeda per kelas</p>
+            <pre class="dok-kode">function onResult(result) {
+  const kelas = result.steps.flatMap(s =&gt; s.classes);
+
+  if (kelas.includes("cacat scratch"))     serial_write("S\\n");
+  else if (kelas.includes("cacat warna"))  serial_write("W\\n");
+  else if (result.verdict === "NG")        serial_write("1\\n");
+  else                                     serial_write("0\\n");
+}</pre>
+
+            <p class="dok-inti">Kirim ke server produksi</p>
+            <pre class="dok-kode">function onResult(result) {
+  http_post("http://192.168.1.50/api/inspeksi", {
+    hasil: result.verdict,
+    kelas: result.steps.flatMap(s =&gt; s.classes),
+    waktuMS: result.totalMS
+  });
+}</pre>
+
+            <p class="dok-inti">Tolak hanya kalau keyakinannya tinggi</p>
+            <pre class="dok-kode">function onResult(result) {
+  const ng = result.steps.filter(s =&gt; s.verdict === "NG" &amp;&amp; s.confidence &gt; 0.8);
+
+  if (ng.length) {
+    serial_write("1\\n");
+    log("ditolak: " + ng.map(s =&gt; s.modelName).join(", "));
+  } else {
+    serial_write("0\\n");
+  }
+}</pre>`,
+    },
+
+    py: {
+        judul: 'Contoh Python',
+        isi: `
+            <p class="helper">
+                Wajib mendefinisikan <code>on_result(result)</code>. <code>result</code> berupa
+                dictionary biasa, jadi diakses dengan <code>result["verdict"]</code>.
+            </p>
+
+            <p class="dok-inti">Kirim huruf berbeda per kelas</p>
+            <pre class="dok-kode">def on_result(result):
+    kelas = [k for s in result["steps"] for k in s["classes"]]
+
+    if "cacat scratch" in kelas:
+        serial_write("S\\n")
+    elif "cacat warna" in kelas:
+        serial_write("W\\n")
+    elif result["verdict"] == "NG":
+        serial_write("1\\n")
+    else:
+        serial_write("0\\n")</pre>
+
+            <p class="dok-inti">Catat ke berkas untuk dianalisis nanti</p>
+            <pre class="dok-kode">import csv, datetime, pathlib
+
+def on_result(result):
+    berkas = pathlib.Path.home() / "inspeksi.csv"
+    baru = not berkas.exists()
+
+    with open(berkas, "a", newline="", encoding="utf-8") as f:
+        w = csv.writer(f)
+        if baru:
+            w.writerow(["waktu", "hasil", "kelas", "ms"])
+        w.writerow([
+            datetime.datetime.now().isoformat(timespec="seconds"),
+            result["verdict"],
+            "|".join(k for s in result["steps"] for k in s["classes"]),
+            round(result["totalMS"], 1),
+        ])
+
+    log("dicatat ke " + str(berkas))</pre>
+
+            <p class="dok-inti">Pakai pustaka lain</p>
+            <pre class="dok-kode">def on_result(result):
+    # Pustaka apa pun yang sudah dipasang lewat pip bisa dipakai di sini,
+    # misalnya klien database, SDK MES, atau numpy untuk hitungan tambahan.
+    http_post("http://192.168.1.50/api/inspeksi", {
+        "hasil": result["verdict"],
+        "kelas": [k for s in result["steps"] for k in s["classes"]],
+    })</pre>
+            <p class="helper">
+                Pustaka dipasang sendiri ke Python yang dipakai aplikasi, misalnya
+                <code>pip install requests</code>. Kalau pustakanya tidak ada, hasil uji akan
+                menyebutkan modul mana yang hilang.
+            </p>`,
+    },
+
+    papan: {
+        judul: 'Sisi papan',
+        isi: `
+            <p class="helper">
+                Kalau <code>serial_write</code> mengirim huruf sendiri, papan perlu tahu artinya.
+                Ini ditulis di <strong>Arduino IDE</strong>, bukan di aplikasi:
+            </p>
+            <pre class="dok-kode">void setup() {
+  Serial.begin(9600);          // samakan dengan baud di halaman Output
+  pinMode(7, OUTPUT);
+  pinMode(8, OUTPUT);
+}
+
+void loop() {
+  if (!Serial.available()) return;
+  char c = Serial.read();
+
+  if (c == 'S') { digitalWrite(7, HIGH); }   // cacat scratch
+  if (c == 'W') { digitalWrite(8, HIGH); }   // cacat warna
+  if (c == '0') { digitalWrite(7, LOW); digitalWrite(8, LOW); }
+}</pre>
+            <p class="helper">
+                Kalau Anda tidak ingin menulis sisi papan sendiri, pakai saja perangkat
+                <strong>Arduino</strong> atau <strong>ESP32</strong> di kartu di atas &mdash; sketsanya
+                sudah disediakan dan pemetaan pin diatur lewat tabel, tanpa menulis kode sama sekali.
+                Untuk <strong>PLC</strong> tidak ada kode papan sama sekali: PLC sudah bicara Modbus dari pabrik.
+            </p>`,
+    },
+};
+
+function bukaBantuan() {
+    const lama = document.getElementById('dlgBantuan');
+    if (lama) lama.remove();
+
+    const kunci = Object.keys(BANTUAN);
+    const latar = document.createElement('div');
+    latar.id = 'dlgBantuan';
+    latar.className = 'tanya-latar';
+    latar.innerHTML = `
+        <div class="tanya-kotak bantuan-kotak" role="dialog" aria-modal="true">
+            <div class="bantuan-kepala">
+                <h3 class="tanya-judul" style="margin:0">Bantuan &mdash; kode output</h3>
+                <button class="btn small" id="bnTutup" type="button">Tutup</button>
+            </div>
+            <div class="tab-headers" id="bnTab">
+                ${kunci.map((k, i) => `<button class="${i === 0 ? 'active' : ''}" data-k="${k}">${BANTUAN[k].judul}</button>`).join('')}
+            </div>
+            <div class="bantuan-isi" id="bnIsi">${BANTUAN[kunci[0]].isi}</div>
+        </div>`;
+    document.body.appendChild(latar);
+
+    const tutup = () => { latar.remove(); document.removeEventListener('keydown', esc, true); };
+    const esc = (e) => { if (e.key === 'Escape') { e.preventDefault(); tutup(); } };
+    document.addEventListener('keydown', esc, true);
+    latar.querySelector('#bnTutup').onclick = tutup;
+    latar.onclick = (e) => { if (e.target === latar) tutup(); };
+
+    latar.querySelectorAll('#bnTab button').forEach((b) => {
+        b.onclick = () => {
+            latar.querySelectorAll('#bnTab button').forEach((x) => x.classList.remove('active'));
+            b.classList.add('active');
+            latar.querySelector('#bnIsi').innerHTML = BANTUAN[b.dataset.k].isi;
+            latar.querySelector('#bnIsi').scrollTop = 0;
+        };
+    });
+
+    // Buka langsung di tab bahasa yang sedang dipakai, bukan selalu dari awal.
+    const tabBahasa = latar.querySelector(`#bnTab button[data-k="${cfg.bahasa === 'py' ? 'py' : 'js'}"]`);
+    if (tabBahasa) tabBahasa.click();
+}
+
+// Dua skrip disimpan terpisah, jadi berganti bahasa tidak menghapus kode
+// yang sudah ditulis di bahasa satunya.
+function gantiBahasa(b) {
+    // Simpan isi kotak ke bahasa yang SEDANG dipakai, baru pindah. Saat
+    // pemuatan pertama tidak ada yang perlu disimpan - kotaknya masih kosong,
+    // dan menyimpannya justru menghapus skrip bawaan.
+    simpanKotak();
+    muatBahasa(b);
+}
+
+function muatBahasa(b) {
+    cfg.bahasa = b === 'py' ? 'py' : 'js';
+    document.getElementById('script').value = cfg.bahasa === 'py' ? cfg.scriptPy : cfg.script;
+    document.getElementById('bahasaKet').textContent = cfg.bahasa === 'py'
+        ? 'Dijalankan memakai Python yang sama dengan pelatihan model.'
+        : 'Dijalankan di dalam aplikasi, tanpa perangkat lunak tambahan.';
+    tandai();
+}
+
+function simpanKotak() {
+    const isi = document.getElementById('script').value;
+    if (cfg.bahasa === 'py') cfg.scriptPy = isi; else cfg.script = isi;
+}
+
 async function uji(verdict) {
+    simpanKotak();
     const out = document.getElementById('testOut');
-    const r = await window.api.testOutputScript(document.getElementById('script').value, verdict);
+    const st = document.getElementById('ujiStatus');
+    st.textContent = 'Menjalankan\u2026';
+    const r = await window.api.testOutputScript(
+        document.getElementById('script').value, verdict, cfg.bahasa);
+    st.textContent = '';
     out.className = 'test-out ' + (r.ok ? 'ok' : 'err');
     out.textContent = r.ok
-        ? `Script jalan tanpa error.\n${r.logs.join('\n')}`
-        : `Error: ${r.error}\n${r.logs.join('\n')}`;
+        ? `Skrip jalan tanpa kesalahan.\n${r.logs.join('\n')}`
+        : `Kesalahan: ${r.error}\n${r.logs.join('\n')}`;
 }
 
 // ---------------- simpan ----------------
@@ -582,9 +740,10 @@ function pesanSimpan(teks, jenis) {
 }
 
 async function simpan() {
-    cfg.script = document.getElementById('script').value;
+    simpanKotak();
     const r = await window.api.saveOutputConfig(projectName, {
-        mode: cfg.mode, script: cfg.script, device: cfg.device, pinKelas: cfg.pinKelas,
+        mode: cfg.mode, bahasa: cfg.bahasa, script: cfg.script, scriptPy: cfg.scriptPy,
+        device: cfg.device, pinKelas: cfg.pinKelas,
     });
     if (!r.ok) { pesanSimpan(r.masalah.join(' '), 'err'); return; }
     adaPerubahan = false;
@@ -599,8 +758,9 @@ async function init() {
     katalog = await window.api.deviceKatalog();
     cfg = await window.api.getOutputConfig(projectName);
     if (!cfg.device.baud) cfg.device.baud = katalog.katalog[cfg.device.jenis].baudBawaan;
-    document.getElementById('script').value = cfg.script;
-    document.getElementById('script').addEventListener('input', tandai);
+    document.getElementById('bahasa').value = cfg.bahasa || 'js';
+    muatBahasa(cfg.bahasa || 'js');
+    document.getElementById('script').addEventListener('input', () => { simpanKotak(); tandai(); });
     renderPerangkat();
     if (cfg.mode === 'device') await renderPin();
     siap = true;
