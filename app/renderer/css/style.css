@@ -332,7 +332,8 @@ textarea { resize: vertical; }
 }
 
 /* ================== TABS ================== */
-.tabs, .tab-headers { display: flex; gap: 2px; border-bottom: 1px solid var(--border); margin-bottom: 16px; }
+.tabs { display: block; }
+.tab-headers { display: flex; gap: 2px; border-bottom: 1px solid var(--border); margin-bottom: 16px; }
 .tabs button, .tab-headers button {
     border: none; background: none; cursor: pointer;
     padding: 9px 15px; font-size: 12px; font-weight: 500; font-family: inherit;
@@ -342,8 +343,11 @@ textarea { resize: vertical; }
 }
 .tabs button:hover, .tab-headers button:hover { color: var(--accent); }
 .tabs button.active, .tab-headers button.active { color: var(--accent); border-bottom-color: var(--accent); font-weight: 600; }
+/* Tab disembunyikan lewat kelas, bukan style inline, supaya tab awal
+   tetap tampil tanpa menunggu skrip berjalan. */
 .tab-content { display: none; }
 .tab-content.active { display: block; }
+.tabs > .tab-headers ~ .tab-content:not(.active) { display: none; }
 
 /* ================== THUMBNAILS ================== */
 .thumbnails { display: grid; grid-template-columns: repeat(auto-fill, minmax(118px, 1fr)); gap: 9px; }

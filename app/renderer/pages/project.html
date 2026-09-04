@@ -14,9 +14,6 @@
         <h1 id="pTitle">…</h1>
         <div class="row">
             <button class="btn primary" onclick="newModel()">+ New Model</button>
-            <button class="btn" onclick="openOutput()">⚡ Output</button>
-            <button class="btn" onclick="exportDaily()">📊 Laporan Harian (XLSX)</button>
-            <button class="btn" onclick="exportDetections()">📐 Data Deteksi (XLSX)</button>
             <button class="btn danger" onclick="deleteProject()">🗑 Hapus</button>
         </div>
     </div>
@@ -139,27 +136,6 @@ function confirmDeleteModel(name) {
             render();
         } catch (e2) { alert('Gagal hapus: ' + e2.message); }
     };
-}
-function openOutput() { window.api.goTo(`output.html?project=${encodeURIComponent(projectName)}`); }
-
-// Laporan dihitung dari outputs/ project (CSV harian + JSON per-frame).
-// Murni statistik/pengukuran — tidak ada LLM di jalur ini.
-function todayKey() { return new Date().toISOString().slice(0, 10); }
-
-async function exportDaily() {
-    const date = prompt('Tanggal laporan (YYYY-MM-DD):', todayKey());
-    if (!date) return;
-    const r = await window.api.reportDailyXlsx(projectName, date);
-    if (!r.ok) { alert('Gagal: ' + r.error); return; }
-    if (confirm(`Laporan tersimpan:\n${r.xlsxPath}\n\nBuka sekarang?`)) window.api.openPath(r.xlsxPath);
-}
-
-async function exportDetections() {
-    const date = prompt('Tanggal data deteksi (YYYY-MM-DD):', todayKey());
-    if (!date) return;
-    const r = await window.api.reportDetectionXlsx(projectName, date);
-    if (!r.ok) { alert('Gagal: ' + r.error); return; }
-    if (confirm(`${r.count} baris tersimpan:\n${r.xlsxPath}\n\nBuka sekarang?`)) window.api.openPath(r.xlsxPath);
 }
 function editWorkflow() {
     if (!currentProject.models.length) { alert('Buat model dulu'); return; }

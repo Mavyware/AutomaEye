@@ -28,7 +28,7 @@
             <button onclick="showTab(this,'test')">🧪 Test</button>
         </div>
 
-        <div id="tab-dataset" class="tab-content">
+        <div id="tab-dataset" class="tab-content active">
             <div class="card">
                 <div class="section-title">Dataset Management</div>
                 <div style="padding:12px">
@@ -48,7 +48,7 @@
             </div>
         </div>
 
-        <div id="tab-annotate" class="tab-content" style="display:none">
+        <div id="tab-annotate" class="tab-content">
             <div class="card">
                 <div class="section-title">Anotasi</div>
                 <div style="padding:12px">
@@ -242,7 +242,7 @@
             </style>
         </div>
 
-        <div id="tab-train" class="tab-content" style="display:none">
+        <div id="tab-train" class="tab-content">
             <div class="card">
                 <div class="section-title">Import Existing Model (.pt)</div>
                 <div style="padding:12px">
@@ -339,7 +339,7 @@
             </div>
         </div>
 
-        <div id="tab-test" class="tab-content" style="display:none">
+        <div id="tab-test" class="tab-content">
             <div class="card">
                 <div class="section-title">Test / Evaluasi Model</div>
                 <div style="padding:12px">
@@ -409,10 +409,15 @@ let currentModel = null;
 document.getElementById('backLink').onclick = () => window.api.goTo(`project.html?name=${encodeURIComponent(projectName)}`);
 
 function showTab(btn, id) {
+    // Pakai kelas, bukan style inline: dengan begitu tab pertama sudah
+    // tampil dari markup dan tidak bergantung skrip yang belum jalan.
     document.querySelectorAll('.tab-headers button').forEach(b => b.classList.remove('active'));
     btn.classList.add('active');
-    document.querySelectorAll('.tab-content').forEach(t => t.style.display = 'none');
-    document.getElementById('tab-' + id).style.display = 'block';
+    document.querySelectorAll('.tab-content').forEach((t) => {
+        t.classList.remove('active');
+        t.style.removeProperty('display');
+    });
+    document.getElementById('tab-' + id).classList.add('active');
     if (id === 'train') { try { checkResumeState(); } catch (_) {} }
 }
 

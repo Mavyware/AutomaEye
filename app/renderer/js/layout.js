@@ -50,6 +50,15 @@
             ${navItem('w', '&#8644;', 'Workflow', withProject('workflow.html'), page === 'workflow.html')}
             ${navItem('o', '&#9889;', 'Output', withProject('output.html'), page === 'output.html')}
             ${navItem('r', '&#9654;', 'Jalankan', withProject('run.html'), page === 'run.html')}
+        </div>
+        <div class="nav-group">
+            <div class="nav-group-title">Laporan</div>
+            <button class="nav-item" onclick="laporanHarian()">
+                <span class="nav-ic">&#128202;</span><span class="nav-label">Laporan Harian</span>
+            </button>
+            <button class="nav-item" onclick="dataDeteksi()">
+                <span class="nav-ic">&#128207;</span><span class="nav-label">Data Deteksi</span>
+            </button>
         </div>` : '';
 
     const sidebarHTML = `
@@ -426,3 +435,91 @@ async function showConflictDialog() {
     box.querySelector('#ckBranchBtn').onclick = () => jalankan('branch',
         'Pekerjaan Anda disimpan ke cabang baru di GitHub, lalu komputer ini mengikuti versi GitHub.\nTidak ada yang ditimpa maupun dibuang.');
 }
+
+// ===================== Laporan (XLSX) =====================
+// Dulu tombolnya ada di halaman Ringkasan dan memakai window.prompt untuk
+// menanyakan tanggal. Electron tidak mendukung prompt() - ia melempar
+// "prompt() is not supported", jadi kedua ekspor itu tidak pernah sekali pun
+// berjalan. Diganti dialog tanggal di dalam aplikasi.
+//
+// Laporan dihitung dari outputs/ project (CSV harian + JSON per-frame).
+// Murni statistik, tidak ada model bahasa di jalur ini.
+function _tanggalHariIni() {
+    const d = new Date();
+    const p = (n) => String(n).padStart(2, '0');
+    return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+}
+
+function _tanyaTanggal(judul) {
+    return new Promise((selesai) => {
+        const bekas = document.getElementById('dlgTanggal');
+        if (bekas) bekas.remove();
+
+        // Gaya inline, mengikuti dialog lain di aplikasi ini - stylesheet
+        // belum punya kelas modal, jadi kelas saja tidak akan tampil benar.
+        const bungkus = document.createElement('div');
+        bungkus.id = 'dlgTanggal';
+        bungkus.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:3100;'
+            + 'display:flex;align-items:center;justify-content:center;padding:14px';
+        bungkus.innerHTML = `
+            <div role="dialog" aria-modal="true" style="background:var(--panel,#fff);color:var(--text,inherit);border:1px solid var(--border,#ccc);border-radius:8px;padding:20px;width:340px;max-width:100%">
+                <h3 style="margin:0 0 10px">${_esc(judul)}</h3>
+                <label style="font-size:12px;display:block">
+                    Tanggal
+                    <input type="date" id="dlgTglInput" value="${_tanggalHariIni()}" style="width:100%;margin-top:4px">
+                </label>
+                <p class="muted" style="font-size:11px;margin:8px 0 0">
+                    Diambil dari hasil inspeksi yang tersimpan pada tanggal tersebut.
+                </p>
+                <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:14px">
+                    <button class="btn" id="dlgTglBatal">Batal</button>
+                    <button class="btn primary" id="dlgTglOk">Buat laporan</button>
+                </div>
+            </div>`;
+        document.body.appendChild(bungkus);
+
+        const input = bungkus.querySelector('#dlgTglInput');
+        const tutup = (hasil) => { bungkus.remove(); document.removeEventListener('keydown', kunci); selesai(hasil); };
+        const kunci = (e) => {
+            if (e.key === 'Escape') tutup(null);
+            if (e.key === 'Enter') tutup(input.value || null);
+        };
+        document.addEventListener('keydown', kunci);
+        bungkus.querySelector('#dlgTglBatal').onclick = () => tutup(null);
+        bungkus.querySelector('#dlgTglOk').onclick = () => tutup(input.value || null);
+        bungkus.onclick = (e) => { if (e.target === bungkus) tutup(null); };
+        setTimeout(() => input.focus(), 0);
+    });
+}
+
+function _projectAktif() {
+    const q = new URLSearchParams(location.search);
+    return q.get('project') || q.get('name') || '';
+}
+
+async function _buatLaporan(judul, panggil, ringkas) {
+    const project = _projectAktif();
+    if (!project) { alert('Buka salah satu project dulu.'); return; }
+    const tanggal = await _tanyaTanggal(judul);
+    if (!tanggal) return;
+    try {
+        const r = await panggil(project, tanggal);
+        if (!r || !r.ok) { alert('Gagal membuat laporan: ' + ((r && r.error) || 'tidak diketahui')); return; }
+        if (confirm(`${ringkas(r)}
+${r.xlsxPath}
+
+Buka sekarang?`)) window.api.openPath(r.xlsxPath);
+    } catch (e) {
+        alert('Gagal membuat laporan: ' + e.message);
+    }
+}
+
+window.laporanHarian = () => _buatLaporan(
+    'Laporan Harian',
+    (p, t) => window.api.reportDailyXlsx(p, t),
+    () => 'Laporan tersimpan:');
+
+window.dataDeteksi = () => _buatLaporan(
+    'Data Deteksi',
+    (p, t) => window.api.reportDetectionXlsx(p, t),
+    (r) => `${r.count} baris tersimpan:`);
