@@ -818,6 +818,11 @@ ipcMain.handle('output:get', (_, { project }) => {
             koneksi: dev.koneksi || 'usb',
             port: dev.port || '',
             baud: dev.baud || 9600,
+            host: dev.host || '',
+            porta: dev.porta || 502,
+            unit: dev.unit || 1,
+            paritas: dev.paritas || 'none',
+            stopBits: dev.stopBits || 1,
         },
         pinKelas: out.pinKelas || [],
         // Kelas diambil dari model project, bukan disimpan ulang: kalau
@@ -841,6 +846,12 @@ ipcMain.handle('device:sambung', async (_, { project }) => {
     try {
         const p = projects.load(projectsRoot, project);
         const dev = (p.output || {}).device || {};
+        // PLC memakai Modbus, bukan sketsa di papan - jalur sambungnya lain.
+        if (dev.jenis === 'plc') {
+            const modbus = require('./lib/modbus');
+            const r = await modbus.sambung(dev);
+            return r.ok ? { ok: true, port: r.info, baud: dev.baud || 9600 } : r;
+        }
         if (!dev.port) return { ok: false, error: 'Port belum dipilih di halaman Output.' };
         arduino.close();
         await arduino.init({ port: dev.port, baud: dev.baud || 9600 });
@@ -854,12 +865,24 @@ ipcMain.handle('device:sambung', async (_, { project }) => {
 
 // Uji satu pin: nyalakan sebentar lalu padamkan lagi. Dipakai untuk
 // memastikan kabelnya benar sebelum lini dijalankan.
-ipcMain.handle('device:ujiPin', async (_, { pin, aktif }) => {
+ipcMain.handle('device:ujiPin', async (_, { pin, aktif, jenis }) => {
     try {
+        if (jenis === 'plc') {
+            const modbus = require('./lib/modbus');
+            const nyalaKe = aktif === 'LOW' ? false : true;
+            let r = await modbus.tulisCoil([{ alamat: parseInt(pin, 10), nyala: nyalaKe }]);
+            if (!r.ok) return { ok: false, error: r.error };
+            await new Promise((x) => setTimeout(x, 600));
+            await modbus.tulisCoil([{ alamat: parseInt(pin, 10), nyala: !nyalaKe }]);
+            return { ok: true, dikirim: [`coil ${pin}`] };
+        }
         const pinout = require('./lib/pinout');
         const nyala = pinout.baris([{ pin: String(pin), aktif: aktif === 'LOW' ? 'LOW' : 'HIGH', nyala: true }]);
         const padam = pinout.baris([{ pin: String(pin), aktif: aktif === 'LOW' ? 'LOW' : 'HIGH', nyala: false }]);
-        await arduino.send(nyala);
+        const r1 = await arduino.send(nyala);
+        if (r1 && r1.ok === false) {
+            return { ok: false, error: r1.reason === 'not connected' ? 'papan belum tersambung' : String(r1.reason) };
+        }
         await new Promise((r) => setTimeout(r, 600));
         await arduino.send(padam);
         return { ok: true, dikirim: [nyala.trim(), padam.trim()] };
@@ -877,11 +900,11 @@ ipcMain.handle('device:pin', (_, { jenis, papan }) => perangkat.pinPapan(jenis, 
 
 // Sketsa firmware. Saat terpasang berkasnya ada di resources, bukan di
 // samping main.js - app.asar tidak bisa dibuka aplikasi luar.
-ipcMain.handle('device:sketsa', () => {
+ipcMain.handle('device:sketsa', (_, mana) => {
     const dir = app.isPackaged
         ? path.join(process.resourcesPath, 'firmware')
         : path.join(__dirname, 'firmware');
-    const berkas = path.join(dir, 'automaeyes_pinout.ino');
+    const berkas = path.join(dir, mana === 'panduan' ? 'BACA-SAYA.md' : 'automaeyes_pinout.ino');
     return { berkas, ada: fs.existsSync(berkas) };
 });
 ipcMain.handle('output:test', (_, { script, verdict }) =>

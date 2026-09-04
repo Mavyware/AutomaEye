@@ -66,10 +66,34 @@ exports.baris = (keadaan) => {
 // siklus inspeksi yang sudah selesai - hasilnya tetap dicatat dan ditampilkan.
 exports.kirim = async (arduino, outputCfg, result) => {
     const keadaan = exports.hitung(outputCfg, result);
+    if (!keadaan.length) return { ok: false, alasan: 'tidak ada keluaran yang dipetakan' };
+
+    // PLC bicara Modbus, bukan baris teks ke papan. Yang dihitung sama -
+    // kelas mana menyala - hanya cara mengirimnya yang berbeda.
+    const dev = (outputCfg && outputCfg.device) || {};
+    if (dev.jenis === 'plc') {
+        const modbus = require('./modbus');
+        const coil = keadaan.map((k) => ({
+            alamat: parseInt(k.pin, 10),
+            nyala: k.aktif === 'LOW' ? !k.nyala : k.nyala,
+        })).filter((c) => Number.isFinite(c.alamat));
+        const r = await modbus.tulisCoil(coil);
+        return r.ok
+            ? { ok: true, baris: r.cara, nyala: keadaan.filter((k) => k.nyala).map((k) => `${k.model}/${k.kelas}@${k.pin}`) }
+            : { ok: false, alasan: r.error };
+    }
+
     const baris = exports.baris(keadaan);
     if (!baris) return { ok: false, alasan: 'tidak ada pin yang dipetakan' };
     try {
-        await arduino.send(baris);
+        // arduino.send TIDAK melempar saat port belum terbuka - ia menjawab
+        // { ok:false, reason:'not connected' }. Kalau jawabannya diabaikan,
+        // aplikasi melapor pin menyala padahal tidak ada yang tersambung, dan
+        // itu baru ketahuan saat mesin di ujung lini diam saja.
+        const r = await arduino.send(baris);
+        if (r && r.ok === false) {
+            return { ok: false, alasan: r.reason === 'not connected' ? 'papan belum tersambung' : String(r.reason || 'gagal') };
+        }
         return {
             ok: true,
             baris: baris.trim(),

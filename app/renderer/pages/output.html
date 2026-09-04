@@ -36,9 +36,7 @@
     <div class="card" id="kartuPin" style="display:none">
         <div class="section-title">Sinyal per Kelas</div>
         <div style="padding:12px">
-            <p class="muted" style="margin-top:0">
-                Tiap kelas pada model Anda dikirim ke satu pin. Kosongkan pin yang tidak dipakai.
-            </p>
+            <p class="muted" style="margin-top:0" id="pinKet"></p>
             <div class="row" style="margin-bottom:10px; align-items:center; gap:8px">
                 <button class="btn small" onclick="sambung()">🔌 Sambungkan</button>
                 <button class="btn small" onclick="bukaSketsa()">📄 Sketsa untuk papan</button>
@@ -51,12 +49,106 @@
     <div class="card" id="kartuScript" style="display:none">
         <div class="section-title">Kode Output</div>
         <div style="padding:12px">
-            <p class="helper">
-                Script wajib punya fungsi <code>onResult(result)</code>. Dipanggil sekali tiap hasil inspeksi.<br>
-                <code>result</code> = <code>{ verdict, confidence, totalMS, steps[] }</code>.
-                Helper: <code>serial_write(str)</code>, <code>http_post(url, body)</code>,
-                <code>log(str)</code>, <code>sleep_ms(n)</code>.
-            </p>
+            <div class="dok">
+                <p class="dok-inti">
+                    Ada <strong>dua tempat</strong> yang bisa Anda tulis sendiri, dan bahasanya berbeda.
+                    Yang di bawah ini adalah <strong>JavaScript</strong>, berjalan di dalam aplikasi.
+                </p>
+
+                <table class="dok-tabel">
+                    <tr>
+                        <th></th><th>Di aplikasi (kotak di bawah)</th><th>Di papan (Arduino IDE)</th>
+                    </tr>
+                    <tr>
+                        <td>Bahasa</td>
+                        <td><strong>JavaScript</strong></td>
+                        <td><strong>C++ Arduino</strong> (berkas <code>.ino</code>)</td>
+                    </tr>
+                    <tr>
+                        <td>Tugasnya</td>
+                        <td>Menentukan <strong>apa yang dikirim</strong> saat ada hasil inspeksi</td>
+                        <td>Menentukan <strong>apa yang dilakukan</strong> dengan yang diterima</td>
+                    </tr>
+                    <tr>
+                        <td>Kapan dipakai</td>
+                        <td>Hampir selalu cukup di sini saja</td>
+                        <td>Hanya kalau papan perlu perilaku sendiri (timer, relay berurutan, motor)</td>
+                    </tr>
+                </table>
+
+                <p class="dok-inti" style="margin-top:12px">Menulis output di JavaScript</p>
+                <p class="helper">
+                    Skrip wajib punya fungsi <code>onResult(result)</code>, dipanggil sekali tiap hasil inspeksi.
+                    Nilai baliknya tidak dipakai &mdash; yang bekerja adalah helper yang Anda panggil di dalamnya.
+                </p>
+                <pre class="dok-kode">result = {
+  verdict: "OK" | "NG",          // hasil akhir seluruh workflow
+  confidence: 0.93,              // confidence terendah antar step
+  totalMS: 123.4,                // lama satu siklus
+  steps: [{
+    modelName: "Inference",
+    verdict:   "NG",
+    confidence: 0.93,
+    classes:   ["cacat scratch"] // kelas yang terdeteksi di step ini
+  }]
+}</pre>
+                <p class="helper">
+                    Helper yang tersedia:<br>
+                    <code>serial_write(str)</code> &mdash; kirim teks mentah ke papan / PLC lewat serial<br>
+                    <code>http_post(url, obj)</code> &mdash; kirim JSON ke server (MES, dashboard); tidak ditunggu<br>
+                    <code>log(str)</code> &mdash; muncul di panel hasil uji di bawah<br>
+                    <code>sleep_ms(n)</code> &mdash; jeda, maksimal 5 detik
+                </p>
+                <p class="helper">
+                    Skrip dihentikan kalau lebih dari 5 detik, supaya lini tidak menggantung.
+                    Tekan <strong>Uji</strong> di bawah untuk menjalankannya dengan hasil contoh tanpa perlu inspeksi sungguhan.
+                </p>
+
+                <p class="dok-inti" style="margin-top:12px">Contoh 1 &mdash; kirim huruf berbeda per kelas</p>
+                <pre class="dok-kode">function onResult(result) {
+  const kelas = result.steps.flatMap(s =&gt; s.classes);
+
+  if (kelas.includes("cacat scratch"))     serial_write("S\n");
+  else if (kelas.includes("cacat warna"))  serial_write("W\n");
+  else if (result.verdict === "NG")        serial_write("1\n");
+  else                                     serial_write("0\n");
+}</pre>
+
+                <p class="dok-inti">Contoh 2 &mdash; kirim ke server, bukan ke papan</p>
+                <pre class="dok-kode">function onResult(result) {
+  http_post("http://192.168.1.50/api/inspeksi", {
+    hasil: result.verdict,
+    kelas: result.steps.flatMap(s =&gt; s.classes),
+    waktuMS: result.totalMS
+  });
+}</pre>
+
+                <p class="dok-inti" style="margin-top:12px">Sisi papan &mdash; menerima yang Anda kirim</p>
+                <p class="helper">
+                    Kalau <code>serial_write</code> mengirim huruf sendiri seperti contoh di atas,
+                    papan perlu tahu artinya. Ini ditulis di <strong>Arduino IDE</strong>, bukan di sini:
+                </p>
+                <pre class="dok-kode">void setup() {
+  Serial.begin(9600);          // samakan dengan baud di halaman ini
+  pinMode(7, OUTPUT);
+  pinMode(8, OUTPUT);
+}
+
+void loop() {
+  if (!Serial.available()) return;
+  char c = Serial.read();
+
+  if (c == 'S') { digitalWrite(7, HIGH); }   // cacat scratch
+  if (c == 'W') { digitalWrite(8, HIGH); }   // cacat warna
+  if (c == '0') { digitalWrite(7, LOW); digitalWrite(8, LOW); }
+}</pre>
+                <p class="helper">
+                    Kalau Anda tidak ingin menulis sisi papan sendiri, pakai saja perangkat
+                    <strong>Arduino</strong> atau <strong>ESP32</strong> di atas &mdash; sketsanya sudah
+                    disediakan dan pemetaan pin diatur lewat tabel, tanpa menulis kode sama sekali.
+                    Untuk <strong>PLC</strong> tidak ada kode papan sama sekali: PLC sudah bicara Modbus dari pabrik.
+                </p>
+            </div>
             <textarea id="script" spellcheck="false"></textarea>
             <div class="row" style="margin-top:10px">
                 <button class="btn" onclick="uji('OK')">Uji (hasil OK)</button>
@@ -98,6 +190,7 @@ const tandai = () => { if (siap) adaPerubahan = true; };
 const PILIHAN = [
     { id: 'arduino', ikon: '🔌', nama: 'Arduino',      ket: 'Kirim sinyal per kelas ke pin papan Arduino' },
     { id: 'esp32',   ikon: '📶', nama: 'ESP32',        ket: 'Sama seperti Arduino, papan ESP32' },
+    { id: 'plc',     ikon: '🏭', nama: 'PLC (Modbus)',  ket: 'Tulis coil PLC lewat Modbus RTU atau TCP' },
     { id: 'signal',  ikon: '🔁', nama: 'Sinyal OK/NG', ket: 'Satu sinyal untuk hasil akhir saja (bawaan)' },
     { id: 'script',  ikon: '📝', nama: 'Kode sendiri', ket: 'Tulis sendiri cara hasilnya dikirim' },
 ];
@@ -120,14 +213,25 @@ function renderPerangkat() {
 
     document.getElementById('kartuScript').style.display = cfg.mode === 'script' ? '' : 'none';
     document.getElementById('kartuPin').style.display = cfg.mode === 'device' ? '' : 'none';
+    const ket = document.getElementById('pinKet');
+    if (ket && cfg.mode === 'device') {
+        ket.textContent = (katalog.katalog[cfg.device.jenis] || {}).alamatCoil
+            ? 'Tiap kelas pada model Anda menulis satu coil di PLC. Alamatnya harus cocok dengan pemetaan di program PLC Anda. Kosongkan yang tidak dipakai.'
+            : 'Tiap kelas pada model Anda dikirim ke satu pin. Kosongkan pin yang tidak dipakai.';
+    }
 
     const ring = document.getElementById('devRingkas');
     if (cfg.mode === 'device') {
         const j = katalog.katalog[cfg.device.jenis];
         const papan = j && j.papan[cfg.device.papan];
+        const namaKoneksi = esc((katalog.koneksi[cfg.device.koneksi] || {}).nama || cfg.device.koneksi);
+        const sambungan = cfg.device.koneksi === 'tcp'
+            ? `<strong>${esc(cfg.device.host || 'IP belum diisi')}:${cfg.device.porta || 502}</strong> · unit ${cfg.device.unit || 1}`
+            : (cfg.device.jenis === 'plc'
+                ? `port <strong>${esc(cfg.device.port || 'belum dipilih')}</strong> · ${cfg.device.baud} baud · unit ${cfg.device.unit || 1}`
+                : `port <strong>${esc(cfg.device.port || 'belum dipilih')}</strong> · ${cfg.device.baud} baud`);
         ring.innerHTML = papan
-            ? `${esc(papan.nama)} · ${esc((katalog.koneksi[cfg.device.koneksi] || {}).nama || cfg.device.koneksi)} · port <strong>${esc(cfg.device.port || 'belum dipilih')}</strong> · ${cfg.device.baud} baud
-               &nbsp; <a href="#" id="ubahDev">ubah</a>`
+            ? `${esc(papan.nama)} · ${namaKoneksi} · ${sambungan} &nbsp; <a href="#" id="ubahDev">ubah</a>`
             : `Papan belum dipilih. <a href="#" id="ubahDev">atur sekarang</a>`;
         const a = document.getElementById('ubahDev');
         if (a) a.onclick = (e) => { e.preventDefault(); dialogPerangkat(cfg.device.jenis); };
@@ -183,21 +287,42 @@ function dialogPerangkat(jenis) {
 
                 <label style="display:block;font-size:12px;margin-bottom:10px">Cara sambung
                     <select id="dpKoneksi" style="width:100%;margin-top:4px">
-                        ${Object.entries(katalog.koneksi).map(([k, v]) =>
+                        ${Object.entries(katalog.koneksi)
+                            .filter(([, v]) => !v.untuk || v.untuk.includes(jenis))
+                            .map(([k, v]) =>
                             `<option value="${k}" ${cfg.device.koneksi === k ? 'selected' : ''} ${v.siap ? '' : 'disabled'}>${esc(v.nama)}${v.siap ? '' : ' — ' + esc(v.catatan)}</option>`).join('')}
                     </select>
                 </label>
 
-                <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
-                    <span style="font-size:12px;font-weight:600">Port</span>
-                    <button class="btn small" id="dpPindai" type="button">🔍 Pindai</button>
-                    <span class="muted" id="dpStatus" style="font-size:11px"></span>
+                <div id="dpSerial">
+                    <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
+                        <span style="font-size:12px;font-weight:600">Port</span>
+                        <button class="btn small" id="dpPindai" type="button">🔍 Pindai</button>
+                        <span class="muted" id="dpStatus" style="font-size:11px"></span>
+                    </div>
+                    <div id="dpPort" class="dp-port"></div>
+                    <label style="display:block;font-size:12px;margin-top:10px">Baud
+                        <input type="number" id="dpBaud" value="${cfg.device.baud || j.baudBawaan}" style="width:140px;margin-top:4px">
+                    </label>
                 </div>
-                <div id="dpPort" class="dp-port"></div>
 
-                <label style="display:block;font-size:12px;margin-top:10px">Baud
-                    <input type="number" id="dpBaud" value="${cfg.device.baud || j.baudBawaan}" style="width:140px;margin-top:4px">
-                </label>
+                <div id="dpJaringan" style="display:none">
+                    <div style="display:flex;gap:10px;flex-wrap:wrap">
+                        <label style="font-size:12px;flex:1;min-width:170px">Alamat IP PLC
+                            <input type="text" id="dpHost" placeholder="192.168.1.10" value="${esc(cfg.device.host || '')}" style="width:100%;margin-top:4px">
+                        </label>
+                        <label style="font-size:12px;width:110px">Port TCP
+                            <input type="number" id="dpPorta" value="${cfg.device.porta || 502}" style="width:100%;margin-top:4px">
+                        </label>
+                    </div>
+                </div>
+
+                <div id="dpUnit" style="display:none;margin-top:10px">
+                    <label style="font-size:12px">Unit / slave ID
+                        <input type="number" id="dpUnitId" min="1" max="247" value="${cfg.device.unit || 1}" style="width:110px;margin-top:4px">
+                    </label>
+                    <p class="muted" style="font-size:11px;margin:6px 0 0" id="dpCatatan"></p>
+                </div>
 
                 <div class="tanya-tombol">
                     <button class="btn" id="dpBatal" type="button">Batal</button>
@@ -239,30 +364,56 @@ function dialogPerangkat(jenis) {
                 if (saran) portTerpilih = saran.path;
             }
             gambarPort(daftar);
+            latar.querySelector('#dpPort').dataset.sudah = '1';
             const cocok = daftar.filter((p) => p.kemungkinanPapan).length;
             st.textContent = daftar.length
                 ? `${daftar.length} port ditemukan${cocok ? `, ${cocok} kemungkinan papan` : ''}.`
                 : 'Tidak ada port.';
         };
         latar.querySelector('#dpPindai').onclick = pindai;
-        pindai();      // langsung pindai saat dibuka; itu yang dicari orang
+
+        // Medan yang tampil mengikuti cara sambungnya: Modbus TCP tidak punya
+        // port serial, dan Arduino/ESP32 tidak punya unit ID.
+        const aturMedan = () => {
+            const kon = latar.querySelector('#dpKoneksi').value;
+            const jaringan = kon === 'tcp';
+            latar.querySelector('#dpSerial').style.display = jaringan ? 'none' : '';
+            latar.querySelector('#dpJaringan').style.display = jaringan ? '' : 'none';
+            latar.querySelector('#dpUnit').style.display = jenis === 'plc' ? '' : 'none';
+            const b = j.papan[latar.querySelector('#dpPapan').value];
+            const ct = latar.querySelector('#dpCatatan');
+            if (ct) ct.textContent = (b && b.catatan) ? b.catatan : '';
+            // Pindai sekali saja saat medan serial pertama kali tampil.
+            if (!jaringan && !latar.querySelector('#dpPort').dataset.sudah) pindai();
+        };
+        latar.querySelector('#dpKoneksi').onchange = aturMedan;
+        aturMedan();
 
         const tutup = (hasil) => { latar.remove(); selesai(hasil); };
         latar.querySelector('#dpBatal').onclick = () => tutup(false);
         latar.onclick = (e) => { if (e.target === latar) tutup(false); };
         latar.querySelector('#dpPapan').onchange = (e) => {
             const b = j.papan[e.target.value];
-            if (b) latar.querySelector('#dpBaud').value = cfg.device.baud || j.baudBawaan;
+            const ct = latar.querySelector('#dpCatatan');
+            if (ct) ct.textContent = (b && b.catatan) ? b.catatan : '';
         };
         latar.querySelector('#dpOk').onclick = () => {
             const papan = latar.querySelector('#dpPapan').value;
+            const kon = latar.querySelector('#dpKoneksi').value;
             if (!papan) { pesan('Pilih seri papannya dulu.', 'warn'); return; }
-            if (!portTerpilih) { pesan('Pilih port yang dipakai. Tekan Pindai kalau belum muncul.', 'warn'); return; }
+            if (kon === 'tcp') {
+                if (!latar.querySelector('#dpHost').value.trim()) { pesan('Isi alamat IP PLC-nya.', 'warn'); return; }
+            } else if (!portTerpilih) {
+                pesan('Pilih port yang dipakai. Tekan Pindai kalau belum muncul.', 'warn'); return;
+            }
             cfg.device.jenis = jenis;
             cfg.device.papan = papan;
-            cfg.device.koneksi = latar.querySelector('#dpKoneksi').value;
+            cfg.device.koneksi = kon;
             cfg.device.port = portTerpilih;
             cfg.device.baud = parseInt(latar.querySelector('#dpBaud').value, 10) || j.baudBawaan;
+            cfg.device.host = latar.querySelector('#dpHost').value.trim();
+            cfg.device.porta = parseInt(latar.querySelector('#dpPorta').value, 10) || 502;
+            cfg.device.unit = parseInt(latar.querySelector('#dpUnitId').value, 10) || 1;
             tandai();
             tutup(true);
         };
@@ -285,10 +436,16 @@ async function renderPin() {
         body.innerHTML = '<p class="muted">Pilih seri papan dulu supaya pinnya bisa ditawarkan.</p>';
         return;
     }
-    const pin = await window.api.devicePin(cfg.device.jenis, cfg.device.papan);
-    const opsi = (terpilih) => ['<option value="">—</option>']
-        .concat(pin.map((x) => `<option value="${x}" ${String(terpilih) === String(x) ? 'selected' : ''}>${x}</option>`))
-        .join('');
+    // Papan punya daftar pin yang pasti; PLC tidak - alamat coil ditentukan
+    // program PLC-nya sendiri, jadi diisi bebas dan hanya dicek berupa angka.
+    const pakaiAlamat = !!(katalog.katalog[cfg.device.jenis] || {}).alamatCoil;
+    const pin = pakaiAlamat ? [] : await window.api.devicePin(cfg.device.jenis, cfg.device.papan);
+    const labelKeluaran = pakaiAlamat ? 'Coil' : 'Pin';
+    const medan = (terpilih) => pakaiAlamat
+        ? `<input type="number" class="pin-sel" min="0" max="65535" style="width:92px" value="${esc(terpilih)}" placeholder="alamat">`
+        : `<select class="pin-sel">` + ['<option value="">—</option>']
+            .concat(pin.map((x) => `<option value="${x}" ${String(terpilih) === String(x) ? 'selected' : ''}>${x}</option>`))
+            .join('') + '</select>';
 
     body.innerHTML = cfg.model.map((m) => `
         <div class="pin-model">
@@ -297,7 +454,7 @@ async function renderPin() {
                 const v = nilaiPin(m.nama, k);
                 return `<div class="pin-baris" data-model="${esc(m.nama)}" data-kelas="${esc(k)}">
                     <span class="pin-kelas">${esc(k)}</span>
-                    <label class="pin-lab">Pin <select class="pin-sel">${opsi(v.pin)}</select></label>
+                    <label class="pin-lab">${labelKeluaran} ${medan(v.pin)}</label>
                     <label class="pin-lab">Aktif saat
                         <select class="pin-aktif">
                             <option value="HIGH" ${v.aktif !== 'LOW' ? 'selected' : ''}>HIGH</option>
@@ -318,10 +475,12 @@ async function renderPin() {
             tandai();
             tandaiBentrok();
         };
-        row.querySelector('.pin-sel').onchange = simpanBaris;
+        const sel = row.querySelector('.pin-sel');
+        sel.onchange = simpanBaris;
+        if (sel.tagName === 'INPUT') sel.oninput = simpanBaris;
         row.querySelector('.pin-aktif').onchange = simpanBaris;
         row.querySelector('.pin-uji').onclick = () =>
-            ujiPin(row.querySelector('.pin-sel').value, row.querySelector('.pin-aktif').value);
+            ujiPin(row.querySelector('.pin-sel').value, row.querySelector('.pin-aktif').value, cfg.device.jenis);
     });
     tandaiBentrok();
 }
@@ -350,21 +509,27 @@ async function sambung() {
     st.textContent = 'Menyambungkan…';
     const r = await window.api.deviceSambung(projectName);
     if (!r.ok) { st.textContent = ''; pesan('Gagal menyambung: ' + r.error, 'err'); return; }
-    st.textContent = `Tersambung ke ${r.port} @ ${r.baud} baud.`;
+    st.textContent = cfg.device.koneksi === 'tcp'
+        ? `Tersambung ke ${r.port}.`
+        : `Tersambung ke ${r.port} @ ${r.baud} baud.`;
     pesan(`Tersambung ke ${r.port}.`, 'ok');
 }
 
 async function bukaSketsa() {
-    const r = await window.api.deviceSketsa();
-    if (!r.ada) { pesan('Berkas sketsa tidak ditemukan.', 'err'); return; }
+    // PLC tidak punya sketsa - yang dibuka panduannya, karena di situ letak
+    // penjelasan alamat coil dan cara sambungnya.
+    const plc = cfg.device.jenis === 'plc';
+    const r = await window.api.deviceSketsa(plc ? 'panduan' : 'sketsa');
+    if (!r.ada) { pesan('Berkas panduan tidak ditemukan.', 'err'); return; }
     window.api.openPath(r.berkas);
 }
 
-async function ujiPin(pin, aktif) {
-    if (!pin) { pesan('Pilih pinnya dulu.', 'warn'); return; }
-    const r = await window.api.deviceUjiPin(pin, aktif);
-    if (!r.ok) { pesan('Gagal menguji pin: ' + r.error, 'err'); return; }
-    pesan(`Pin ${pin} dinyalakan 0,6 detik lalu dipadamkan.`, 'ok');
+async function ujiPin(pin, aktif, jenis) {
+    const label = jenis === 'plc' ? 'Coil' : 'Pin';
+    if (!pin) { pesan(`Isi ${label.toLowerCase()}nya dulu.`, 'warn'); return; }
+    const r = await window.api.deviceUjiPin(pin, aktif, jenis);
+    if (!r.ok) { pesan(`Gagal menguji ${label.toLowerCase()}: ` + r.error, 'err'); return; }
+    pesan(`${label} ${pin} dinyalakan 0,6 detik lalu dipadamkan.`, 'ok');
 }
 
 // ---------------- kode kustom ----------------

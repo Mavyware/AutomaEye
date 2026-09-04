@@ -1,8 +1,9 @@
-// Katalog perangkat keluaran (Arduino / ESP32) dan pemindai port.
+// Katalog perangkat keluaran (Arduino / ESP32 / PLC) dan pemindai port.
 //
 // Dipakai halaman Output: pengguna memilih perangkat, lalu memetakan tiap
-// kelas model ke satu pin. Modul ini hanya menyediakan pengetahuan tentang
-// papannya - membuka port dan mengirim sinyal tetap urusan lib/arduino.js.
+// kelas model ke satu keluaran - pin pada papan, atau alamat coil pada PLC.
+// Modul ini hanya menyediakan pengetahuannya; mengirim sinyal tetap urusan
+// lib/arduino.js (papan) dan lib/modbus.js (PLC).
 
 const arduino = require('./arduino');
 
@@ -39,13 +40,34 @@ const KATALOG = {
             c3:       { nama: 'ESP32-C3',           pin: [...rentang(0, 10), 18, 19, 20, 21] },
         },
     },
+    // PLC tidak perlu firmware: hampir semuanya sudah bicara Modbus dari
+    // pabrik. Yang dipetakan bukan pin fisik melainkan alamat coil, dan
+    // alamat itu ditentukan program PLC-nya sendiri - daftar merek di bawah
+    // hanya memberi titik mulai yang lazim, bukan jaminan. Selalu cocokkan
+    // dengan pemetaan di program PLC Anda.
+    plc: {
+        nama: 'PLC (Modbus)',
+        baudBawaan: 9600,
+        alamatCoil: true,                 // dipetakan lewat alamat, bukan daftar pin
+        papan: {
+            umum:       { nama: 'Modbus umum', basis: 0, catatan: 'Alamat coil apa adanya, sesuai program PLC.' },
+            omron:      { nama: 'Omron CP1 / CJ', basis: 0, catatan: 'Coil biasanya dipetakan dari area CIO.' },
+            mitsubishi: { nama: 'Mitsubishi FX', basis: 0, catatan: 'Coil umumnya menunjuk keluaran Y.' },
+            delta:      { nama: 'Delta DVP / AS', basis: 0, catatan: 'Coil umumnya menunjuk keluaran Y.' },
+            siemens:    { nama: 'Siemens S7 (modul Modbus)', basis: 0, catatan: 'Alamat mengikuti blok Modbus yang dikonfigurasi.' },
+            schneider:  { nama: 'Schneider M221 / M241', basis: 0, catatan: 'Alamat mengikuti tabel %M / %Q yang dipetakan.' },
+            wecon:      { nama: 'Wecon / Xinje', basis: 0, catatan: 'Coil umumnya menunjuk keluaran Y.' },
+        },
+    },
 };
 
 // Cara sambungnya. Untuk sekarang hanya USB serial yang benar-benar jalan;
 // yang lain disebut supaya jelas belum tersedia, bukan disembunyikan.
 const KONEKSI = {
-    usb: { nama: 'Kabel USB (serial)', siap: true },
-    wifi: { nama: 'Wi-Fi (jaringan)', siap: false, catatan: 'Belum tersedia' },
+    usb: { nama: 'Kabel USB (serial)', siap: true, untuk: ['arduino', 'esp32'] },
+    rtu: { nama: 'Modbus RTU (serial / RS-485)', siap: true, untuk: ['plc'] },
+    tcp: { nama: 'Modbus TCP (Ethernet)', siap: true, untuk: ['plc'] },
+    wifi: { nama: 'Wi-Fi (jaringan)', siap: false, catatan: 'Belum tersedia', untuk: ['esp32'] },
 };
 
 exports.KATALOG = KATALOG;
@@ -105,13 +127,23 @@ exports.periksa = (cfg) => {
 
     if (!KATALOG[jenis]) masalah.push('Jenis perangkat tidak dikenal.');
     else if (!KATALOG[jenis].papan[papan]) masalah.push('Seri papan belum dipilih.');
-    if (!port) masalah.push('Port belum dipilih. Tekan Pindai untuk mencarinya.');
 
-    const sah = new Set(exports.pinPapan(jenis, papan).map(String));
+    if (jenis === 'plc' && cfg.device.koneksi === 'tcp') {
+        if (!String(cfg.device.host || '').trim()) masalah.push('Alamat IP PLC belum diisi.');
+    } else if (!port) {
+        masalah.push('Port belum dipilih. Tekan Pindai untuk mencarinya.');
+    }
+
+    const pakaiAlamat = !!(KATALOG[jenis] && KATALOG[jenis].alamatCoil);
+    const sah = pakaiAlamat ? new Set() : new Set(exports.pinPapan(jenis, papan).map(String));
     const terpakai = new Map();
     for (const m of (cfg.pinKelas || [])) {
         if (m.pin === '' || m.pin == null) continue;      // belum diatur, bukan kesalahan
         const pin = String(m.pin);
+        if (pakaiAlamat && !/^\d+$/.test(pin)) {
+            masalah.push(`Alamat coil "${pin}" bukan angka.`);
+            continue;
+        }
         if (sah.size && !sah.has(pin)) {
             masalah.push(`Pin ${pin} tidak ada pada ${KATALOG[jenis] && KATALOG[jenis].papan[papan] ? KATALOG[jenis].papan[papan].nama : papan}.`);
             continue;

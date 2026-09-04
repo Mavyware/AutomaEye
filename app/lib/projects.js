@@ -731,6 +731,12 @@ exports.saveOutputConfig = (root, projectName, cfg) => {
             koneksi: String(dev.koneksi || 'usb'),
             port: String(dev.port || ''),
             baud: parseInt(dev.baud, 10) || 9600,
+            // Khusus PLC (Modbus). Diabaikan untuk Arduino/ESP32.
+            host: String(dev.host || ''),
+            porta: parseInt(dev.porta, 10) || 502,
+            unit: parseInt(dev.unit, 10) || 1,
+            paritas: ['none', 'even', 'odd'].includes(dev.paritas) ? dev.paritas : 'none',
+            stopBits: parseInt(dev.stopBits, 10) === 2 ? 2 : 1,
         },
         // Hanya bentuknya yang dijaga di sini; keabsahan pin diperiksa
         // lib/perangkat.js sebelum sampai ke sini.

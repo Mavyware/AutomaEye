@@ -6,7 +6,8 @@
 // (Setara fitur "Custom code" di versi C# yang memakai Jint.)
 //
 // Kontrak: script WAJIB mendefinisikan fungsi onResult(result).
-//   result = { verdict:'OK'|'NG', confidence, totalMS, steps:[{modelName,verdict,confidence}] }
+//   result = { verdict:'OK'|'NG', confidence, totalMS,
+//               steps:[{ modelName, verdict, confidence, classes:[...] }] }
 //
 // Helper yang tersedia di dalam script:
 //   serial_write(str)        — kirim string mentah ke Arduino/PLC
@@ -57,6 +58,12 @@ function toScriptResult(result) {
         modelName: s.modelName || s.label || s.category || '',
         verdict: s.verdict,
         confidence: s.confidence || 0,
+        // Nama kelas yang terdeteksi pada langkah ini. Tanpa ini skrip tidak
+        // bisa membedakan "cacat scratch" dari "cacat warna" - padahal itu
+        // justru alasan orang menulis outputnya sendiri.
+        classes: (s.detections || [])
+            .map((d) => d.class_name || d.className || d.name)
+            .filter(Boolean),
     }));
     return {
         verdict: result.finalVerdict || 'OK',
@@ -92,18 +99,43 @@ exports.run = (script, result, arduino) => {
 exports.test = (script, arduino, verdict = 'OK') => exports.run(script, {
     finalVerdict: verdict,
     totalMS: 123.4,
-    steps: [{ modelName: 'ContohModel', verdict, confidence: 0.93 }],
+    steps: [{
+        modelName: 'ContohModel',
+        verdict,
+        confidence: 0.93,
+        // Contoh ikut membawa kelas, supaya skrip yang memakai
+        // result.steps[].classes bisa diuji tanpa inspeksi sungguhan.
+        detections: verdict === 'NG'
+            ? [{ class_name: 'cacat scratch', confidence: 0.93 }]
+            : [{ class_name: 'ok', confidence: 0.93 }],
+    }],
 }, arduino);
 
-exports.DEFAULT_SCRIPT = `// Dipanggil sekali setiap ada hasil inspeksi.
-// result = { verdict: "OK"|"NG", confidence, totalMS, steps: [...] }
+exports.DEFAULT_SCRIPT = `// Bahasanya JavaScript, dijalankan di dalam aplikasi
+// (bukan di papan). Dipanggil sekali setiap ada hasil inspeksi.
+//
+// result = {
+//   verdict: "OK" | "NG",
+//   confidence, totalMS,
+//   steps: [{ modelName, verdict, confidence, classes: ["cacat scratch", ...] }]
+// }
+//
 // Helper: serial_write(str), http_post(url, body), log(str), sleep_ms(n)
 
 function onResult(result) {
-  if (result.verdict === "NG") {
+  // Contoh: kirim sinyal berbeda tergantung kelas yang terdeteksi.
+  const kelas = result.steps.flatMap(s => s.classes);
+
+  if (kelas.includes("cacat scratch")) {
+    serial_write("S\\n");
+  } else if (kelas.includes("cacat warna")) {
+    serial_write("W\\n");
+  } else if (result.verdict === "NG") {
     serial_write("1\\n");
   } else {
     serial_write("0\\n");
   }
+
+  log("kelas terdeteksi: " + (kelas.join(", ") || "tidak ada"));
 }
 `;
