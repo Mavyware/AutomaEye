@@ -46,7 +46,7 @@
         <div class="nav-group">
             <div class="nav-group-title">${esc(project)}</div>
             ${navItem('p', '&#9776;', 'Ringkasan', withProject('project.html'), page === 'project.html')}
-            ${navItem('m', '&#9635;', 'Model', withProject('project.html'), page === 'model.html' || page === 'new_model.html' || page === 'annotate.html')}
+            ${navItem('m', '&#9635;', 'Model', withProject('project.html'), page === 'model.html' || page === 'new_model.html')}
             ${navItem('w', '&#8644;', 'Workflow', withProject('workflow.html'), page === 'workflow.html')}
             ${navItem('o', '&#9889;', 'Output', withProject('output.html'), page === 'output.html')}
             ${navItem('r', '&#9654;', 'Jalankan', withProject('run.html'), page === 'run.html')}

@@ -448,7 +448,7 @@ ipcMain.handle('dataset:cleanRebuild', (_, { project, model, ratios }) =>
 
 // ---- Anotasi bawaan ----
 //
-// Anotasi dikerjakan sendiri di renderer/pages/annotate.html: tidak ada
+// Anotasi dikerjakan sendiri di renderer/js/annotator.js: tidak ada
 // server, tidak ada token, tidak ada langkah export/sync — label langsung
 // ditulis ke dataset/labels/ dalam format YOLO yang dibaca train.py.
 

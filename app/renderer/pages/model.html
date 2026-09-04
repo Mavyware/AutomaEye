@@ -53,12 +53,15 @@
                 <div class="section-title">Anotasi</div>
                 <div style="padding:12px">
                     <p class="muted">Langkah <strong>1</strong>: beri label pada gambar yang sudah diunggah — kotak untuk deteksi, poligon untuk segmentasi, lingkaran untuk lubang dan poros. Label tersimpan dalam format YOLO dan langsung siap dilatih.</p>
-                    <p class="muted" style="font-size:11px">Anotasi berjalan di dalam aplikasi ini, layar penuh supaya gambarnya besar. Selesai menandai, kembali ke sini untuk lanjut ke Langkah 2.</p>
-                    <div class="row">
-                        <button class="btn primary" onclick="openAnnotStudio()">✏️ Mulai Anotasi</button>
+                    <div class="row" style="margin-bottom:10px">
                         <button class="btn" onclick="openFolder()">📁 Buka Folder Dataset</button>
+                        <span class="muted" id="annotStatus" style="font-size:11px"></span>
                     </div>
-                    <p class="muted" id="annotStatus" style="margin-top:8px"></p>
+                    <!-- Ruang kerja anotasi dipasang di sini oleh annotator.js.
+                         Baru dimuat saat tab dibuka: memuat daftar gambar dan
+                         gambar pertama tidak perlu terjadi kalau penggunanya
+                         sedang di tab lain. -->
+                    <div id="annotHost"></div>
                 </div>
             </div>
 
@@ -402,6 +405,7 @@
 </main>
 
 <script src="../js/common.js"></script>
+<script src="../js/annotator.js"></script>
 <script>
 const projectName = param('project');
 const modelName = param('model');
@@ -419,7 +423,29 @@ function showTab(btn, id) {
     });
     document.getElementById('tab-' + id).classList.add('active');
     if (id === 'train') { try { checkResumeState(); } catch (_) {} }
+    if (id === 'annotate') mountAnnotator();
 }
+
+// Anotasi menyatu dengan halaman ini, tapi baru dipasang saat tabnya dibuka:
+// memuat daftar gambar dan menggambar kanvas tidak perlu terjadi kalau
+// penggunanya sedang di tab lain. Sekali terpasang, dibiarkan hidup supaya
+// pekerjaan yang belum disimpan tidak hilang saat berpindah tab.
+let annotatorSiap = false;
+function mountAnnotator() {
+    const host = document.getElementById('annotHost');
+    if (!host) return;
+    if (annotatorSiap) { window.Annotator.refit(); return; }
+    annotatorSiap = true;
+    window.Annotator.mount(host, { project: projectName, model: modelName });
+}
+
+// Kanvas diukur dari lebar sebenarnya, jadi ia perlu tahu saat tabnya
+// baru saja tampil - sebelum itu lebarnya masih nol.
+window.addEventListener('resize', () => { try { window.Annotator.refit(); } catch (_) {} });
+
+window.addEventListener('beforeunload', (e) => {
+    if (annotatorSiap && window.Annotator.isDirty()) { e.preventDefault(); e.returnValue = ''; }
+});
 
 // Auto-switch tab kalau ada query param ?tab=train
 window.addEventListener('DOMContentLoaded', () => {
@@ -489,10 +515,6 @@ async function upload() {
     const res = await window.api.uploadImages(projectName, modelName, paths);
     alert(`Uploaded ${res.saved} file`);
     render();
-}
-
-function openAnnotStudio() {
-    window.api.goTo(`annotate.html?project=${encodeURIComponent(projectName)}&model=${encodeURIComponent(modelName)}`);
 }
 
 async function openFolder() {

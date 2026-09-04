@@ -333,16 +333,19 @@ textarea { resize: vertical; }
 
 /* ================== TABS ================== */
 .tabs { display: block; }
+/* Hanya tombol di dalam .tab-headers yang ditata sebagai tab. Dulu
+   selektornya ".tabs button", padahal .tabs adalah pembungkus - jadi
+   seluruh tombol di dalam isi tab ikut kehilangan bingkai dan latarnya. */
 .tab-headers { display: flex; gap: 2px; border-bottom: 1px solid var(--border); margin-bottom: 16px; }
-.tabs button, .tab-headers button {
+.tab-headers button {
     border: none; background: none; cursor: pointer;
     padding: 9px 15px; font-size: 12px; font-weight: 500; font-family: inherit;
     color: var(--text-secondary);
     border-bottom: 2px solid transparent; margin-bottom: -1px;
     transition: color .12s ease, border-color .12s ease;
 }
-.tabs button:hover, .tab-headers button:hover { color: var(--accent); }
-.tabs button.active, .tab-headers button.active { color: var(--accent); border-bottom-color: var(--accent); font-weight: 600; }
+.tab-headers button:hover { color: var(--accent); }
+.tab-headers button.active { color: var(--accent); border-bottom-color: var(--accent); font-weight: 600; }
 /* Tab disembunyikan lewat kelas, bukan style inline, supaya tab awal
    tetap tampil tanpa menunggu skrip berjalan. */
 .tab-content { display: none; }
@@ -493,3 +496,80 @@ textarea { resize: vertical; }
 .total-status-box.idle { background: var(--panel-sunken); color: var(--muted); border-color: var(--border); }
 .total-status-box.pass { background: var(--ok-bg); color: var(--ok); border-color: var(--ok); }
 .total-status-box.fail { background: var(--ng-bg); color: var(--ng); border-color: var(--ng); }
+
+/* ================== RUANG KERJA ANOTASI ==================
+   Disematkan di dalam tab, bukan halaman tersendiri. Semua kelas diberi
+   awalan "an-" karena ia menumpang halaman yang sudah punya .toolbar,
+   .row, dan .dot sendiri. */
+.an-head { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; flex-wrap: wrap; }
+.an-title { font-weight: 600; font-size: 12.5px; }
+.an-saved { font-size: 11px; color: var(--ok); }
+
+/* Tinggi tetap: kanvas butuh ruang yang bisa diandalkan, dan halaman di
+   sekitarnya tetap bisa digulung seperti biasa. */
+.an-wrap {
+    display: grid; grid-template-columns: 190px 1fr 232px; gap: 10px;
+    height: 62vh; min-height: 400px;
+}
+.an-pane {
+    background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius-sm);
+    display: flex; flex-direction: column; min-height: 0; min-width: 0;
+}
+.an-pane-head {
+    padding: 6px 10px; border-bottom: 1px solid var(--border);
+    font-size: 11px; font-weight: 600; color: var(--text-secondary);
+}
+.an-pane-body { overflow: auto; padding: 6px; flex: 1; min-height: 0; }
+
+.an-item {
+    padding: 5px 8px; font-size: 11px; border-radius: var(--radius-sm); cursor: pointer;
+    display: flex; justify-content: space-between; gap: 6px;
+}
+.an-item:hover { background: var(--panel-sunken); }
+.an-item.active { background: var(--accent-light); font-weight: 600; }
+.an-nm { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.an-dot { width: 7px; height: 7px; border-radius: 50%; flex: none; align-self: center; }
+.an-dot.on { background: var(--ok); }
+.an-dot.off { background: var(--border-strong); }
+
+.an-toolbar {
+    display: flex; gap: 4px; align-items: center; padding: 6px 8px;
+    border-bottom: 1px solid var(--border); flex-wrap: wrap;
+}
+.an-tool {
+    font-size: 11px; padding: 5px 9px; border: 1px solid var(--border-strong);
+    background: var(--panel); color: var(--text); font-family: inherit;
+    border-radius: var(--radius-sm); cursor: pointer;
+}
+.an-tool:hover { border-color: var(--accent); color: var(--accent); }
+.an-tool.active { border-color: var(--accent); background: var(--accent); color: #fff; font-weight: 600; }
+
+.an-stage {
+    flex: 1; position: relative; background: #1e1e1e; overflow: hidden;
+    display: flex; align-items: center; justify-content: center; min-height: 0;
+}
+.an-stage canvas { position: absolute; }
+.an-stage img { max-width: 100%; max-height: 100%; user-select: none; -webkit-user-drag: none; }
+
+.an-cls {
+    display: block; width: 100%; text-align: left; margin-bottom: 4px; font-size: 11px;
+    padding: 5px 8px; border: 1px solid var(--border-strong); background: var(--panel);
+    color: var(--text); font-family: inherit; border-radius: var(--radius-sm); cursor: pointer;
+}
+.an-cls.active { border-color: var(--accent); background: var(--accent-light); font-weight: 600; }
+.an-swatch { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 6px; vertical-align: middle; }
+
+.an-row {
+    font-size: 11px; padding: 4px 6px; border-bottom: 1px solid var(--border);
+    display: flex; justify-content: space-between; align-items: center; cursor: pointer;
+}
+.an-row:hover { background: var(--panel-sunken); }
+.an-row.sel { background: var(--accent-light); font-weight: 600; }
+.an-row button { border: none; background: none; color: var(--ng); cursor: pointer; font-size: 13px; }
+.an-hint { font-size: 10px; color: var(--muted); line-height: 1.7; margin: 0; }
+
+/* Layar sempit: panel samping ditumpuk supaya kanvas tidak ikut menyempit. */
+@media (max-width: 1100px) {
+    .an-wrap { grid-template-columns: 160px 1fr; }
+    .an-wrap > .an-pane:last-child { grid-column: 1 / -1; height: 190px; }
+}
