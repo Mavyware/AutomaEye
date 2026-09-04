@@ -724,3 +724,47 @@ textarea { resize: vertical; }
     background: var(--panel-sunken); color: var(--muted);
     border: 1px solid var(--border); flex: none; text-transform: uppercase;
 }
+
+/* ================== PERANGKAT KELUARAN ================== */
+.dev-grid {
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+    gap: 10px; margin-top: 10px;
+}
+.dev-kartu {
+    display: flex; flex-direction: column; align-items: flex-start; gap: 3px;
+    padding: 12px 14px; text-align: left; cursor: pointer; font: inherit;
+    background: var(--panel); border: 1px solid var(--border-strong);
+    border-radius: var(--radius); transition: border-color .12s ease, background .12s ease;
+}
+.dev-kartu:hover { border-color: var(--accent); }
+.dev-kartu.aktif { border-color: var(--accent); background: var(--accent-light); }
+.dev-ikon { font-size: 20px; line-height: 1; }
+.dev-nama { font-size: 13px; font-weight: 600; color: var(--text); }
+.dev-ket { font-size: 10.5px; color: var(--muted); line-height: 1.5; }
+
+/* Daftar port hasil pindai */
+.dp-port { display: flex; flex-direction: column; gap: 4px; max-height: 190px; overflow: auto; }
+.dp-baris {
+    display: flex; align-items: flex-start; gap: 8px; padding: 7px 9px; cursor: pointer;
+    border: 1px solid var(--border); border-radius: var(--radius-sm); font-size: 12px;
+}
+.dp-baris:hover { background: var(--panel-sunken); }
+.dp-baris.aktif { border-color: var(--accent); background: var(--accent-light); }
+.dp-cocok {
+    font-size: 9.5px; padding: 1px 6px; border-radius: 8px; margin-left: 6px;
+    background: var(--ok-bg); color: var(--ok); border: 1px solid var(--ok);
+}
+
+/* Pemetaan kelas ke pin */
+.pin-model { border-top: 1px solid var(--border); padding: 10px 0; }
+.pin-model:first-child { border-top: none; padding-top: 0; }
+.pin-model-nama { font-size: 12.5px; font-weight: 600; margin-bottom: 6px; }
+.pin-baris {
+    display: flex; align-items: center; gap: 14px; flex-wrap: wrap;
+    padding: 6px 9px; border-radius: var(--radius-sm); border: 1px solid transparent;
+}
+.pin-baris:nth-child(even) { background: var(--panel-alt); }
+.pin-baris.bentrok { border-color: var(--ng); background: var(--ng-bg); }
+.pin-kelas { font-size: 12px; min-width: 170px; }
+.pin-lab { font-size: 11px; color: var(--text-secondary); display: flex; align-items: center; gap: 5px; }
+.pin-lab select { font-size: 11px; }

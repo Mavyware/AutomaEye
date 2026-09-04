@@ -105,7 +105,10 @@ contextBridge.exposeInMainWorld('api', {
 
     // Output kustom
     getOutputConfig: (project) => ipcRenderer.invoke('output:get', { project }),
-    saveOutputConfig: (project, mode, script) => ipcRenderer.invoke('output:save', { project, mode, script }),
+    saveOutputConfig: (project, config) => ipcRenderer.invoke('output:save', { project, config }),
+    deviceKatalog: () => ipcRenderer.invoke('device:katalog'),
+    devicePindai: () => ipcRenderer.invoke('device:pindai'),
+    devicePin: (jenis, papan) => ipcRenderer.invoke('device:pin', { jenis, papan }),
     testOutputScript: (script, verdict) => ipcRenderer.invoke('output:test', { script, verdict }),
 
     // Navigation

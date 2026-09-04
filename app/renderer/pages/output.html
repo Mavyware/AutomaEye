@@ -4,10 +4,9 @@
 <meta charset="UTF-8">
 <title>Output — AutomaEyes</title>
 <link rel="stylesheet" href="../css/style.css">
-<script>window.LAYOUT_OPTS = { title: 'Output', subtitle: 'Langkah 3 · cara hasil OK/NG dikirim keluar', mode: 'setting', showTotalStatus: false };</script>
+<script>window.LAYOUT_OPTS = { title: 'Output', subtitle: 'Langkah 3 · cara hasil dikirim keluar', mode: 'setting', showTotalStatus: false };</script>
 <style>
-  .mode-btn.active { background: var(--accent); color: #fff; border-color: var(--accent); }
-  #script { width: 100%; height: 320px; font-family: Consolas, monospace; font-size: 12px; }
+  #script { width: 100%; height: 300px; font-family: Consolas, monospace; font-size: 12px; }
   .helper { font-size: 11px; color: var(--text-secondary); line-height: 1.7; }
   .test-out { font-family: Consolas, monospace; font-size: 11px; white-space: pre-wrap; margin-top: 8px; }
   .test-out.err { color: var(--ng); } .test-out.ok { color: var(--ok); }
@@ -17,20 +16,34 @@
 
 <main>
     <a class="back" onclick="back()">← Project</a>
-    <div class="page-header"><h1 id="pTitle">Output</h1></div>
-
-    <div class="card">
-        <div class="section-title">Mode Output</div>
-        <div style="padding:12px">
-            <div class="row">
-                <button class="btn mode-btn" id="modeSignal" onclick="setMode('signal')">Sinyal Arduino bawaan (0 = OK, 1 = NG)</button>
-                <button class="btn mode-btn" id="modeScript" onclick="setMode('script')">Custom code</button>
-            </div>
-            <p class="muted" id="modeHint" style="margin-top:10px"></p>
+    <div class="page-header">
+        <h1 id="pTitle">Output</h1>
+        <div class="row" style="align-items:center; gap:10px">
+            <button class="btn primary" onclick="simpan()">💾 Simpan</button>
+            <span class="save-msg" id="simpanMsg" role="status" aria-live="polite"></span>
         </div>
     </div>
 
-    <div class="card" id="scriptCard" style="display:none">
+    <div class="card">
+        <div class="section-title">Perangkat Keluaran</div>
+        <div style="padding:12px">
+            <p class="muted" style="margin-top:0">Pilih ke mana hasil inspeksi dikirim.</p>
+            <div class="dev-grid" id="devGrid"></div>
+            <p class="muted" id="devRingkas" style="font-size:11px; margin:10px 0 0"></p>
+        </div>
+    </div>
+
+    <div class="card" id="kartuPin" style="display:none">
+        <div class="section-title">Sinyal per Kelas</div>
+        <div style="padding:12px">
+            <p class="muted" style="margin-top:0">
+                Tiap kelas pada model Anda dikirim ke satu pin. Kosongkan pin yang tidak dipakai.
+            </p>
+            <div id="pinBody"></div>
+        </div>
+    </div>
+
+    <div class="card" id="kartuScript" style="display:none">
         <div class="section-title">Kode Output</div>
         <div style="padding:12px">
             <p class="helper">
@@ -41,21 +54,16 @@
             </p>
             <textarea id="script" spellcheck="false"></textarea>
             <div class="row" style="margin-top:10px">
-                <button class="btn" onclick="test('OK')">Test (hasil OK)</button>
-                <button class="btn" onclick="test('NG')">Test (hasil NG)</button>
+                <button class="btn" onclick="uji('OK')">Uji (hasil OK)</button>
+                <button class="btn" onclick="uji('NG')">Uji (hasil NG)</button>
             </div>
             <div class="test-out" id="testOut"></div>
         </div>
     </div>
 
-    <div class="row" style="margin-top:14px">
-        <button class="btn primary" onclick="save()">💾 Simpan</button>
-        <span class="muted" id="saved" style="display:none">Tersimpan ✓</span>
-    </div>
-
     <div class="flow-next">
         <span class="muted">Cara hasil dikirim sudah diatur. Langkah terakhir: jalankan inspeksi di lini produksi.</span>
-        <button class="btn small primary" onclick="keRun()">Langkah 4 &middot; Jalankan &rarr;</button>
+        <button class="btn small primary" onclick="keRun()">Langkah 4 · Jalankan →</button>
     </div>
 </main>
 
@@ -63,60 +71,311 @@
 <script>
 const params = new URLSearchParams(location.search);
 const projectName = params.get('project') || '';
-let mode = 'signal';
+
+let cfg = null;          // { mode, script, device, pinKelas, model[] }
+let katalog = null;      // { katalog, koneksi }
 let adaPerubahan = false;
-let siap = false;   // supaya penyiapan awal tidak dihitung sebagai perubahan
+let siap = false;
 
 function back() { window.api.goTo(`project.html?name=${encodeURIComponent(projectName)}`); }
 async function keRun() {
-    if (adaPerubahan && !await tanya('Kode output yang baru diubah belum disimpan.',
+    if (adaPerubahan && !await tanya('Pengaturan output yang baru diubah belum disimpan.',
         { judul: 'Perubahan belum disimpan', ya: 'Lanjut tanpa menyimpan' })) return;
     window.api.goTo(`run.html?project=${encodeURIComponent(projectName)}`);
 }
 
-function setMode(m) {
-    if (siap && m !== mode) adaPerubahan = true;
-    mode = m;
-    document.getElementById('modeSignal').classList.toggle('active', m === 'signal');
-    document.getElementById('modeScript').classList.toggle('active', m === 'script');
-    document.getElementById('scriptCard').style.display = m === 'script' ? '' : 'none';
-    document.getElementById('modeHint').textContent = m === 'script'
-        ? 'Kode Anda yang menentukan output — sinyal 0/1 bawaan tidak dikirim lagi.'
-        : 'Sinyal dikirim otomatis ke Arduino/PLC sesuai pengaturan di Settings.';
+const tandai = () => { if (siap) adaPerubahan = true; };
+
+// ---------------- pemilihan perangkat ----------------
+// Tiga pilihan sejajar: dua perangkat nyata, dan kode kustom untuk yang
+// tidak tercakup keduanya. Sinyal OK/NG bawaan tetap ada sebagai pilihan
+// paling sederhana, supaya project lama tidak kehilangan perilakunya.
+const PILIHAN = [
+    { id: 'arduino', ikon: '🔌', nama: 'Arduino',      ket: 'Kirim sinyal per kelas ke pin papan Arduino' },
+    { id: 'esp32',   ikon: '📶', nama: 'ESP32',        ket: 'Sama seperti Arduino, papan ESP32' },
+    { id: 'signal',  ikon: '🔁', nama: 'Sinyal OK/NG', ket: 'Satu sinyal untuk hasil akhir saja (bawaan)' },
+    { id: 'script',  ikon: '📝', nama: 'Kode sendiri', ket: 'Tulis sendiri cara hasilnya dikirim' },
+];
+
+function pilihanAktif() {
+    if (cfg.mode === 'device') return cfg.device.jenis;
+    return cfg.mode;                                  // 'signal' | 'script'
 }
 
-async function init() {
-    document.getElementById('pTitle').textContent = `Output — ${projectName}`;
-    const cfg = await window.api.getOutputConfig(projectName);
-    document.getElementById('script').value = cfg.script;
-    setMode(cfg.mode);
-    siap = true;
-    document.getElementById('script').addEventListener('input', () => { adaPerubahan = true; });
+function renderPerangkat() {
+    const aktif = pilihanAktif();
+    const grid = document.getElementById('devGrid');
+    grid.innerHTML = PILIHAN.map((d) => `
+        <button class="dev-kartu ${d.id === aktif ? 'aktif' : ''}" data-id="${d.id}">
+            <span class="dev-ikon">${d.ikon}</span>
+            <span class="dev-nama">${esc(d.nama)}</span>
+            <span class="dev-ket">${esc(d.ket)}</span>
+        </button>`).join('');
+    grid.querySelectorAll('.dev-kartu').forEach((b) => { b.onclick = () => pilihPerangkat(b.dataset.id); });
+
+    document.getElementById('kartuScript').style.display = cfg.mode === 'script' ? '' : 'none';
+    document.getElementById('kartuPin').style.display = cfg.mode === 'device' ? '' : 'none';
+
+    const ring = document.getElementById('devRingkas');
+    if (cfg.mode === 'device') {
+        const j = katalog.katalog[cfg.device.jenis];
+        const papan = j && j.papan[cfg.device.papan];
+        ring.innerHTML = papan
+            ? `${esc(papan.nama)} · ${esc((katalog.koneksi[cfg.device.koneksi] || {}).nama || cfg.device.koneksi)} · port <strong>${esc(cfg.device.port || 'belum dipilih')}</strong> · ${cfg.device.baud} baud
+               &nbsp; <a href="#" id="ubahDev">ubah</a>`
+            : `Papan belum dipilih. <a href="#" id="ubahDev">atur sekarang</a>`;
+        const a = document.getElementById('ubahDev');
+        if (a) a.onclick = (e) => { e.preventDefault(); dialogPerangkat(cfg.device.jenis); };
+    } else if (cfg.mode === 'signal') {
+        ring.textContent = 'Sinyal tunggal dikirim sesuai pengaturan Arduino di Settings — 0 untuk OK, 1 untuk NG.';
+    } else {
+        ring.textContent = 'Kode Anda yang menentukan output; sinyal bawaan tidak dikirim lagi.';
+    }
 }
 
-// Kode output hanya ada di kotak teks sampai ditekan Simpan.
+async function pilihPerangkat(id) {
+    if (id === 'signal' || id === 'script') {
+        cfg.mode = id;
+        tandai(); renderPerangkat();
+        return;
+    }
+    // Perangkat nyata: seri papan dan portnya ditanyakan dulu, karena tanpa
+    // keduanya pemetaan pin tidak punya arti.
+    const berubah = cfg.device.jenis !== id;
+    if (berubah) {
+        cfg.device.jenis = id;
+        cfg.device.papan = '';
+        cfg.device.baud = katalog.katalog[id].baudBawaan;
+    }
+    const jadi = await dialogPerangkat(id);
+    if (!jadi && !cfg.device.papan) {          // dibatalkan dan belum pernah diatur
+        if (berubah) cfg.device.jenis = pilihanAktif();
+        return;
+    }
+    cfg.mode = 'device';
+    tandai();
+    renderPerangkat();
+    await renderPin();
+}
+
+// ---------------- dialog perangkat ----------------
+function dialogPerangkat(jenis) {
+    return new Promise((selesai) => {
+        const j = katalog.katalog[jenis];
+        const latar = document.createElement('div');
+        latar.className = 'tanya-latar';
+        latar.innerHTML = `
+            <div class="tanya-kotak" role="dialog" aria-modal="true" style="width:480px">
+                <h3 class="tanya-judul">Sambungkan ${esc(j.nama)}</h3>
+
+                <label style="display:block;font-size:12px;margin-bottom:10px">Seri papan
+                    <select id="dpPapan" style="width:100%;margin-top:4px">
+                        <option value="">— pilih seri —</option>
+                        ${Object.entries(j.papan).map(([k, v]) =>
+                            `<option value="${k}" ${cfg.device.papan === k ? 'selected' : ''}>${esc(v.nama)}</option>`).join('')}
+                    </select>
+                </label>
+
+                <label style="display:block;font-size:12px;margin-bottom:10px">Cara sambung
+                    <select id="dpKoneksi" style="width:100%;margin-top:4px">
+                        ${Object.entries(katalog.koneksi).map(([k, v]) =>
+                            `<option value="${k}" ${cfg.device.koneksi === k ? 'selected' : ''} ${v.siap ? '' : 'disabled'}>${esc(v.nama)}${v.siap ? '' : ' — ' + esc(v.catatan)}</option>`).join('')}
+                    </select>
+                </label>
+
+                <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
+                    <span style="font-size:12px;font-weight:600">Port</span>
+                    <button class="btn small" id="dpPindai" type="button">🔍 Pindai</button>
+                    <span class="muted" id="dpStatus" style="font-size:11px"></span>
+                </div>
+                <div id="dpPort" class="dp-port"></div>
+
+                <label style="display:block;font-size:12px;margin-top:10px">Baud
+                    <input type="number" id="dpBaud" value="${cfg.device.baud || j.baudBawaan}" style="width:140px;margin-top:4px">
+                </label>
+
+                <div class="tanya-tombol">
+                    <button class="btn" id="dpBatal" type="button">Batal</button>
+                    <button class="btn primary" id="dpOk" type="button">Simpan perangkat</button>
+                </div>
+            </div>`;
+        document.body.appendChild(latar);
+
+        let portTerpilih = cfg.device.port || '';
+
+        const gambarPort = (daftar) => {
+            const el = latar.querySelector('#dpPort');
+            if (!daftar) { el.innerHTML = '<p class="muted" style="font-size:11px;margin:0">Belum dipindai.</p>'; return; }
+            if (!daftar.length) {
+                el.innerHTML = '<p class="muted" style="font-size:11px;margin:0">Tidak ada port serial ditemukan. '
+                    + 'Pastikan papan tercolok dan drivernya terpasang (CH340 / CP210x).</p>';
+                return;
+            }
+            el.innerHTML = daftar.map((p) => `
+                <label class="dp-baris ${p.path === portTerpilih ? 'aktif' : ''}">
+                    <input type="radio" name="dpPortPilih" value="${esc(p.path)}" ${p.path === portTerpilih ? 'checked' : ''}>
+                    <span><strong>${esc(p.path)}</strong> ${p.kemungkinanPapan ? '<span class="dp-cocok">papan terdeteksi</span>' : ''}
+                        <br><span class="muted" style="font-size:10.5px">${esc(p.nama)}</span></span>
+                </label>`).join('');
+            el.querySelectorAll('input[name=dpPortPilih]').forEach((r) => {
+                r.onchange = () => { portTerpilih = r.value; gambarPort(daftar); };
+            });
+        };
+        gambarPort(null);
+
+        const pindai = async () => {
+            const st = latar.querySelector('#dpStatus');
+            st.textContent = 'Memindai…';
+            const daftar = await window.api.devicePindai();
+            // Kalau port belum pernah dipilih, sarankan yang paling mungkin -
+            // tapi jangan pernah menimpa pilihan yang sudah ada.
+            if (!portTerpilih) {
+                const saran = daftar.find((p) => p.tebakan === jenis) || daftar.find((p) => p.kemungkinanPapan);
+                if (saran) portTerpilih = saran.path;
+            }
+            gambarPort(daftar);
+            const cocok = daftar.filter((p) => p.kemungkinanPapan).length;
+            st.textContent = daftar.length
+                ? `${daftar.length} port ditemukan${cocok ? `, ${cocok} kemungkinan papan` : ''}.`
+                : 'Tidak ada port.';
+        };
+        latar.querySelector('#dpPindai').onclick = pindai;
+        pindai();      // langsung pindai saat dibuka; itu yang dicari orang
+
+        const tutup = (hasil) => { latar.remove(); selesai(hasil); };
+        latar.querySelector('#dpBatal').onclick = () => tutup(false);
+        latar.onclick = (e) => { if (e.target === latar) tutup(false); };
+        latar.querySelector('#dpPapan').onchange = (e) => {
+            const b = j.papan[e.target.value];
+            if (b) latar.querySelector('#dpBaud').value = cfg.device.baud || j.baudBawaan;
+        };
+        latar.querySelector('#dpOk').onclick = () => {
+            const papan = latar.querySelector('#dpPapan').value;
+            if (!papan) { pesan('Pilih seri papannya dulu.', 'warn'); return; }
+            if (!portTerpilih) { pesan('Pilih port yang dipakai. Tekan Pindai kalau belum muncul.', 'warn'); return; }
+            cfg.device.jenis = jenis;
+            cfg.device.papan = papan;
+            cfg.device.koneksi = latar.querySelector('#dpKoneksi').value;
+            cfg.device.port = portTerpilih;
+            cfg.device.baud = parseInt(latar.querySelector('#dpBaud').value, 10) || j.baudBawaan;
+            tandai();
+            tutup(true);
+        };
+    });
+}
+
+// ---------------- pemetaan kelas → pin ----------------
+function nilaiPin(model, kelas) {
+    const m = (cfg.pinKelas || []).find((x) => x.model === model && x.kelas === kelas);
+    return m || { pin: '', aktif: 'HIGH' };
+}
+
+async function renderPin() {
+    const body = document.getElementById('pinBody');
+    if (!cfg.model.length) {
+        body.innerHTML = '<p class="muted">Project ini belum punya model. Buat model dulu di Langkah 1.</p>';
+        return;
+    }
+    if (!cfg.device.papan) {
+        body.innerHTML = '<p class="muted">Pilih seri papan dulu supaya pinnya bisa ditawarkan.</p>';
+        return;
+    }
+    const pin = await window.api.devicePin(cfg.device.jenis, cfg.device.papan);
+    const opsi = (terpilih) => ['<option value="">—</option>']
+        .concat(pin.map((x) => `<option value="${x}" ${String(terpilih) === String(x) ? 'selected' : ''}>${x}</option>`))
+        .join('');
+
+    body.innerHTML = cfg.model.map((m) => `
+        <div class="pin-model">
+            <div class="pin-model-nama">${esc(m.nama)} <span class="muted" style="font-weight:400">· ${esc(m.jenis || '')}</span></div>
+            ${m.kelas.length ? m.kelas.map((k) => {
+                const v = nilaiPin(m.nama, k);
+                return `<div class="pin-baris" data-model="${esc(m.nama)}" data-kelas="${esc(k)}">
+                    <span class="pin-kelas">${esc(k)}</span>
+                    <label class="pin-lab">Pin <select class="pin-sel">${opsi(v.pin)}</select></label>
+                    <label class="pin-lab">Aktif saat
+                        <select class="pin-aktif">
+                            <option value="HIGH" ${v.aktif !== 'LOW' ? 'selected' : ''}>HIGH</option>
+                            <option value="LOW" ${v.aktif === 'LOW' ? 'selected' : ''}>LOW</option>
+                        </select></label>
+                </div>`;
+            }).join('') : '<p class="muted" style="font-size:11px;margin:4px 0 0">Model ini belum punya kelas.</p>'}
+        </div>`).join('');
+
+    body.querySelectorAll('.pin-baris').forEach((row) => {
+        const simpanBaris = () => {
+            const model = row.dataset.model, kelas = row.dataset.kelas;
+            const p = row.querySelector('.pin-sel').value;
+            const a = row.querySelector('.pin-aktif').value;
+            cfg.pinKelas = (cfg.pinKelas || []).filter((x) => !(x.model === model && x.kelas === kelas));
+            cfg.pinKelas.push({ model, kelas, pin: p, aktif: a });
+            tandai();
+            tandaiBentrok();
+        };
+        row.querySelector('.pin-sel').onchange = simpanBaris;
+        row.querySelector('.pin-aktif').onchange = simpanBaris;
+    });
+    tandaiBentrok();
+}
+
+// Satu pin untuk dua kelas berarti keduanya tidak bisa dibedakan di sisi
+// mesin. Ditandai saat itu juga, bukan ditahan sampai ditekan Simpan.
+function tandaiBentrok() {
+    const hitung = {};
+    document.querySelectorAll('.pin-baris').forEach((row) => {
+        const v = row.querySelector('.pin-sel').value;
+        if (v) hitung[v] = (hitung[v] || 0) + 1;
+    });
+    document.querySelectorAll('.pin-baris').forEach((row) => {
+        const v = row.querySelector('.pin-sel').value;
+        row.classList.toggle('bentrok', !!v && hitung[v] > 1);
+    });
+}
+
+// ---------------- kode kustom ----------------
+async function uji(verdict) {
+    const out = document.getElementById('testOut');
+    const r = await window.api.testOutputScript(document.getElementById('script').value, verdict);
+    out.className = 'test-out ' + (r.ok ? 'ok' : 'err');
+    out.textContent = r.ok
+        ? `Script jalan tanpa error.\n${r.logs.join('\n')}`
+        : `Error: ${r.error}\n${r.logs.join('\n')}`;
+}
+
+// ---------------- simpan ----------------
+let simpanTimer = null;
+function pesanSimpan(teks, jenis) {
+    const el = document.getElementById('simpanMsg');
+    clearTimeout(simpanTimer);
+    el.textContent = teks;
+    el.className = 'save-msg ' + jenis + ' tampil';
+    if (jenis === 'ok') simpanTimer = setTimeout(() => el.classList.remove('tampil'), 3000);
+}
+
+async function simpan() {
+    cfg.script = document.getElementById('script').value;
+    const r = await window.api.saveOutputConfig(projectName, {
+        mode: cfg.mode, script: cfg.script, device: cfg.device, pinKelas: cfg.pinKelas,
+    });
+    if (!r.ok) { pesanSimpan(r.masalah.join(' '), 'err'); return; }
+    adaPerubahan = false;
+    pesanSimpan('✓ Tersimpan', 'ok');
+}
+
 window.addEventListener('beforeunload', (e) => {
     if (adaPerubahan) { e.preventDefault(); e.returnValue = ''; }
 });
 
-async function test(verdict) {
-    const out = document.getElementById('testOut');
-    const r = await window.api.testOutputScript(document.getElementById('script').value, verdict);
-    if (r.ok) {
-        out.className = 'test-out ok';
-        out.textContent = `Script jalan tanpa error.\n${r.logs.join('\n')}`;
-    } else {
-        out.className = 'test-out err';
-        out.textContent = `Error: ${r.error}\n${r.logs.join('\n')}`;
-    }
-}
-
-async function save() {
-    await window.api.saveOutputConfig(projectName, mode, document.getElementById('script').value);
-    adaPerubahan = false;
-    const el = document.getElementById('saved');
-    el.style.display = '';
-    setTimeout(() => { el.style.display = 'none'; }, 1800);
+async function init() {
+    document.getElementById('pTitle').textContent = `Output — ${projectName}`;
+    katalog = await window.api.deviceKatalog();
+    cfg = await window.api.getOutputConfig(projectName);
+    if (!cfg.device.baud) cfg.device.baud = katalog.katalog[cfg.device.jenis].baudBawaan;
+    document.getElementById('script').value = cfg.script;
+    document.getElementById('script').addEventListener('input', tandai);
+    renderPerangkat();
+    if (cfg.mode === 'device') await renderPin();
+    siap = true;
 }
 
 init();

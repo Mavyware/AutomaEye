@@ -12,6 +12,7 @@ const fs = require('fs');
 const yaml = require('js-yaml');
 
 const projects = require('./lib/projects');
+const perangkat = require('./lib/perangkat');
 const workflow = require('./lib/workflow');
 const arduino = require('./lib/arduino');
 const inference = require('./lib/inference');
@@ -807,10 +808,38 @@ const customoutput = require('./lib/customoutput');
 ipcMain.handle('output:get', (_, { project }) => {
     const p = projects.load(projectsRoot, project);
     const out = p.output || {};
-    return { mode: out.mode || 'signal', script: out.script || customoutput.DEFAULT_SCRIPT };
+    const dev = out.device || {};
+    return {
+        mode: out.mode || 'signal',
+        script: out.script || customoutput.DEFAULT_SCRIPT,
+        device: {
+            jenis: dev.jenis || 'arduino',
+            papan: dev.papan || '',
+            koneksi: dev.koneksi || 'usb',
+            port: dev.port || '',
+            baud: dev.baud || 9600,
+        },
+        pinKelas: out.pinKelas || [],
+        // Kelas diambil dari model project, bukan disimpan ulang: kalau
+        // modelnya berubah kelasnya, halaman Output ikut berubah sendiri.
+        model: (p.models || []).map((m) => ({ nama: m.name, jenis: m.type, kelas: m.classes || [] })),
+    };
 });
-ipcMain.handle('output:save', (_, { project, mode, script }) =>
-    projects.saveOutputConfig(projectsRoot, project, mode, script));
+ipcMain.handle('output:save', (_, { project, config }) => {
+    const masalah = perangkat.periksa(config);
+    if (config && config.mode === 'device' && masalah.length) {
+        return { ok: false, masalah };
+    }
+    return { ok: true, output: projects.saveOutputConfig(projectsRoot, project, config) };
+});
+
+// ---- Perangkat keluaran ----
+ipcMain.handle('device:katalog', () => ({
+    katalog: perangkat.KATALOG,
+    koneksi: perangkat.KONEKSI,
+}));
+ipcMain.handle('device:pindai', () => perangkat.pindai());
+ipcMain.handle('device:pin', (_, { jenis, papan }) => perangkat.pinPapan(jenis, papan));
 ipcMain.handle('output:test', (_, { script, verdict }) =>
     customoutput.test(script, arduino, verdict));
 

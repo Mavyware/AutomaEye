@@ -711,9 +711,36 @@ exports.saveLabels = (root, projectName, modelName, split, name, shapes) => {
     return { ok: true, path: lblPath, count: lines.length };
 };
 
-exports.saveOutputConfig = (root, projectName, mode, script) => {
+// Konfigurasi output. Selain kode kustom, kini menyimpan perangkat yang
+// dipakai (Arduino/ESP32) dan pemetaan tiap kelas model ke satu pin.
+// Bentuk lama { mode:'signal', script } tetap terbaca: mode 'signal' berarti
+// sinyal OK/NG bawaan, tanpa pemetaan pin.
+exports.saveOutputConfig = (root, projectName, cfg) => {
     const p = loadProject(root, projectName);
-    p.output = { mode: mode === 'script' ? 'script' : 'signal', script: String(script || '') };
+    const mode = ['signal', 'device', 'script'].includes(cfg && cfg.mode) ? cfg.mode : 'signal';
+
+    const dev = (cfg && cfg.device) || {};
+    const pinKelas = Array.isArray(cfg && cfg.pinKelas) ? cfg.pinKelas : [];
+
+    p.output = {
+        mode,
+        script: String((cfg && cfg.script) || ''),
+        device: {
+            jenis: String(dev.jenis || 'arduino'),
+            papan: String(dev.papan || ''),
+            koneksi: String(dev.koneksi || 'usb'),
+            port: String(dev.port || ''),
+            baud: parseInt(dev.baud, 10) || 9600,
+        },
+        // Hanya bentuknya yang dijaga di sini; keabsahan pin diperiksa
+        // lib/perangkat.js sebelum sampai ke sini.
+        pinKelas: pinKelas.map((m) => ({
+            model: String(m.model || ''),
+            kelas: String(m.kelas || ''),
+            pin: m.pin === '' || m.pin == null ? '' : String(m.pin),
+            aktif: m.aktif === 'LOW' ? 'LOW' : 'HIGH',
+        })).filter((m) => m.model && m.kelas),
+    };
     saveProject(root, p);
     return p.output;
 };
