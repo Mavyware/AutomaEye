@@ -11,7 +11,10 @@
 <main>
     <div class="page-header">
         <a class="back" id="backLink">← Project</a>
-        <button class="btn primary" onclick="saveWorkflow()">💾 Simpan Workflow</button>
+        <div class="row" style="align-items:center; gap:10px">
+            <button class="btn primary" onclick="saveWorkflow()">💾 Simpan Workflow</button>
+            <span class="save-msg" id="simpanMsg" role="status" aria-live="polite"></span>
+        </div>
     </div>
 
     <div class="workflow-layout">
@@ -356,13 +359,27 @@ window.addEventListener('beforeunload', (e) => {
     if (adaPerubahan) { e.preventDefault(); e.returnValue = ''; }
 });
 
+// Pesan disampaikan di halaman, bukan lewat alert. Selain menghentikan
+// seluruh jendela, alert menutupi susunan step yang baru saja diatur -
+// padahal justru itu yang ingin dilihat setelah menyimpan.
+let simpanTimer = null;
+function pesanSimpan(teks, jenis) {
+    const el = document.getElementById('simpanMsg');
+    if (!el) return;
+    clearTimeout(simpanTimer);
+    el.textContent = teks;
+    el.className = 'save-msg ' + jenis + ' tampil';
+    // Kabar baik boleh menghilang sendiri; kabar buruk harus tetap terbaca.
+    if (jenis === 'ok') simpanTimer = setTimeout(() => { el.classList.remove('tampil'); }, 3000);
+}
+
 async function saveWorkflow() {
     try {
         await window.api.saveWorkflow(projectName, steps, onFirstNG);
         adaPerubahan = false;
-        alert('✓ Workflow tersimpan');
+        pesanSimpan('✓ Workflow tersimpan', 'ok');
     } catch (e) {
-        alert('Gagal simpan workflow: ' + e.message);
+        pesanSimpan('Gagal menyimpan: ' + e.message, 'err');
     }
 }
 
