@@ -59,11 +59,11 @@ function toggleNewForm() {
 async function createProject() {
     const name = document.getElementById('newName').value.trim();
     const desc = document.getElementById('newDesc').value.trim();
-    if (!name) { alert('Nama wajib'); return; }
+    if (!name) { pesan('Nama wajib', 'warn'); return; }
     try {
         const p = await window.api.createProject(name, desc);
         window.api.goTo(`project.html?name=${encodeURIComponent(p.name)}`);
-    } catch (e) { alert('Gagal: ' + e.message); }
+    } catch (e) { pesan('Gagal: ' + e.message, 'err'); }
 }
 
 render();

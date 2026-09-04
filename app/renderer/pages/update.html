@@ -42,6 +42,7 @@
     </div>
 </div>
 
+<script src="../js/common.js"></script>
 <script>
 let info = null;
 
@@ -58,7 +59,7 @@ async function muat() {
 
 function unduh() {
     if (info && info.url) window.api.openExternal(info.url);
-    else alert('Tautan unduhan belum tersedia. Hubungi admin.');
+    else pesan('Tautan unduhan belum tersedia. Hubungi admin.', 'err');
 }
 
 async function cekLagi() { await window.api.updateRecheck(); }

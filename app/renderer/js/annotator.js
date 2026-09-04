@@ -181,7 +181,7 @@
         idx = i; dirty = false; polyPts = []; selected = -1;
         const im = images[i];
         const r = await window.api.annotImage(projectName, modelName, split, im.name);
-        if (!r.ok) { alert(r.error); return; }
+        if (!r.ok) { pesan(r.error, 'err'); return; }
 
         shapes = (im.boxes || []).map((b) => b.poly
             ? { cls: b.cls, poly: b.poly.slice() }
@@ -395,7 +395,7 @@
     async function save() {
         if (idx < 0) return;
         const r = await window.api.annotSave(projectName, modelName, split, images[idx].name, shapes);
-        if (!r.ok) { alert('Gagal simpan: ' + r.error); return; }
+        if (!r.ok) { pesan('Gagal simpan: ' + r.error, 'err'); return; }
         dirty = false;
         images[idx].boxes = shapes.map((s) => ({ ...s }));
         renderImgList();

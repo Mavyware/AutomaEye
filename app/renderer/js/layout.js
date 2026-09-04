@@ -148,7 +148,7 @@ window.switchToRunMode = function() {
     const p = new URLSearchParams(location.search).get('name')
         || new URLSearchParams(location.search).get('project');
     if (p) window.api.goTo(`run.html?project=${encodeURIComponent(p)}`);
-    else alert('Pilih project dulu');
+    else pesan('Pilih project dulu', 'warn');
 };
 
 // ===================== GitHub Sync (Save / Load) =====================
@@ -175,15 +175,12 @@ window.switchToRunMode = function() {
 function _syncShort(s) { s = String(s || ''); return s.length > 200 ? s.slice(-200) : s; }
 
 function _syncToast(msg, kind, ms) {
-    let box = document.getElementById('syncToast');
-    if (!box) { box = document.createElement('div'); box.id = 'syncToast'; document.body.appendChild(box); }
-    const t = document.createElement('div');
-    t.className = 'sync-toast ' + (kind || 'info');
-    t.textContent = msg;
-    box.appendChild(t);
-    if (ms !== 0) setTimeout(() => { t.remove(); }, ms || 4000);
-    return t;
+    // Menumpang pesan() di common.js: satu tampilan, satu tempat perbaikan.
+    // Gaya .sync-toast sendiri sempat hilang saat stylesheet ditulis ulang,
+    // sehingga pesan sinkronisasi tampil sebagai teks polos tanpa bingkai.
+    return pesan(msg, kind === 'ok' ? 'ok' : (kind === 'err' ? 'err' : 'info'), ms);
 }
+
 
 // Buka/tutup satu dropdown menubar; tutup yang lain.
 function toggleMenu(e, id) {
@@ -499,18 +496,18 @@ function _projectAktif() {
 
 async function _buatLaporan(judul, panggil, ringkas) {
     const project = _projectAktif();
-    if (!project) { alert('Buka salah satu project dulu.'); return; }
+    if (!project) { pesan('Buka salah satu project dulu.', 'warn'); return; }
     const tanggal = await _tanyaTanggal(judul);
     if (!tanggal) return;
     try {
         const r = await panggil(project, tanggal);
-        if (!r || !r.ok) { alert('Gagal membuat laporan: ' + ((r && r.error) || 'tidak diketahui')); return; }
+        if (!r || !r.ok) { pesan('Gagal membuat laporan: ' + ((r && r.error) || 'tidak diketahui'), 'err'); return; }
         if (confirm(`${ringkas(r)}
 ${r.xlsxPath}
 
 Buka sekarang?`)) window.api.openPath(r.xlsxPath);
     } catch (e) {
-        alert('Gagal membuat laporan: ' + e.message);
+        pesan('Gagal membuat laporan: ' + e.message, 'err');
     }
 }
 

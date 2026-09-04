@@ -568,7 +568,7 @@ window.addEventListener('DOMContentLoaded', () => {
 async function render() {
     const p = await window.api.loadProject(projectName);
     currentModel = p.models.find(m => m.name === modelName);
-    if (!currentModel) { alert('Model not found'); return; }
+    if (!currentModel) { pesan('Model not found', 'err'); return; }
     renderVersions();
     const stats = await window.api.modelStats(projectName, modelName);
     document.getElementById('title').innerHTML = `${esc(currentModel.name)} <span class="tag">${esc(currentModel.type)}</span>`;
@@ -626,7 +626,7 @@ async function upload() {
     const paths = await window.api.pickImageFiles();
     if (!paths.length) return;
     const res = await window.api.uploadImages(projectName, modelName, paths);
-    alert(`Uploaded ${res.saved} file`);
+    pesan(`Uploaded ${res.saved} file`, 'ok');
     render();
 }
 
@@ -971,7 +971,7 @@ async function useVersion(id) {
         await window.api.setActiveVersion(projectName, modelName, id);
         currentModel.activeVersion = id;
         renderVersions();
-    } catch (e) { alert('Gagal set versi: ' + e.message); }
+    } catch (e) { pesan('Gagal set versi: ' + e.message, 'err'); }
 }
 
 async function startTrain() {
@@ -1537,7 +1537,7 @@ function renderAddonRules() {
 function calcMmPerPx() {
     const mm = parseFloat(document.getElementById('gdtRefMM').value);
     const px = parseFloat(document.getElementById('gdtRefPx').value);
-    if (!mm || !px) { alert('Isi ref. mm dan piksel dulu.'); return; }
+    if (!mm || !px) { pesan('Isi ref. mm dan piksel dulu.', 'warn'); return; }
     document.getElementById('gdtMmPerPx').value = (mm / px).toFixed(5);
 }
 
@@ -1594,15 +1594,15 @@ function openGdtCalib() {
             // Deteksi layar hitam: kalau 3 dtk tak ada frame → kamera sibuk/dipakai app lain.
             _calib.blackTimer = setTimeout(() => {
                 if (_calib && (!video.videoWidth || video.readyState < 2)) {
-                    alert('Kamera terbuka tapi tidak mengirim gambar (layar hitam).\n\n' +
+                    pesan('Kamera terbuka tapi tidak mengirim gambar (layar hitam).\n\n' +
                         'Biasanya kamera sedang dipakai aplikasi lain (Discord, WhatsApp, Brave) ' +
-                        'atau halaman Run masih memegang kamera. Tutup dulu aplikasi itu / Stop kamera di Run, lalu coba lagi.');
+                        'atau halaman Run masih memegang kamera. Tutup dulu aplikasi itu / Stop kamera di Run, lalu coba lagi.', 'warn');
                 }
             }, 3000);
         })
         .catch(e => {
-            alert('Tidak bisa akses kamera: ' + e.message +
-                '\n\nPastikan tidak ada aplikasi lain (Discord/WhatsApp/Brave) yang sedang memakai kamera.');
+            pesan('Tidak bisa akses kamera: ' + e.message +
+                '\n\nPastikan tidak ada aplikasi lain (Discord/WhatsApp/Brave) yang sedang memakai kamera.', 'err');
             closeGdtCalib();
         });
 
@@ -1618,7 +1618,7 @@ function openGdtCalib() {
     document.getElementById('calibClose').onclick = closeGdtCalib;
     document.getElementById('calibApply').onclick = () => {
         const mm = parseFloat(document.getElementById('calibMM').value);
-        if (!mm || !_calib.pxLen) { alert('Tarik garis di benda & isi panjang asli (mm) dulu.'); return; }
+        if (!mm || !_calib.pxLen) { pesan('Tarik garis di benda & isi panjang asli (mm) dulu.', 'warn'); return; }
         const mmpp = mm / _calib.pxLen;
         document.getElementById('gdtMmPerPx').value = mmpp.toFixed(5);
         document.getElementById('gdtRefMM').value = mm;

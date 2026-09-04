@@ -637,3 +637,47 @@ textarea { resize: vertical; }
 .save-msg.tampil { opacity: 1; }
 .save-msg.ok { color: var(--ok); }
 .save-msg.err { color: var(--ng); }
+
+/* ================== PESAN DI HALAMAN ==================
+   Pengganti alert: muncul di sudut, tidak menghalangi pekerjaan, dan bisa
+   menumpuk kalau ada beberapa sekaligus. */
+.pesan-box {
+    position: fixed; right: 16px; bottom: 16px; z-index: 4000;
+    display: flex; flex-direction: column; gap: 8px;
+    max-width: min(420px, calc(100vw - 32px)); pointer-events: none;
+}
+.pesan {
+    display: flex; align-items: flex-start; gap: 10px;
+    padding: 10px 12px; border-radius: var(--radius);
+    border: 1px solid var(--border-strong); background: var(--panel);
+    box-shadow: var(--shadow-pop); font-size: 12px; line-height: 1.5;
+    color: var(--text); pointer-events: auto;
+    white-space: pre-wrap; word-break: break-word;
+    animation: pesan-masuk .16s ease;
+}
+@keyframes pesan-masuk { from { opacity: 0; transform: translateY(6px); } }
+.pesan.ok   { border-color: var(--ok);   background: var(--ok-bg);   color: var(--ok); }
+.pesan.err  { border-color: var(--ng);   background: var(--ng-bg);   color: var(--ng); }
+.pesan.warn { border-color: var(--warn); background: var(--warn-bg); color: var(--warn); }
+.pesan-x {
+    border: none; background: none; cursor: pointer; color: inherit;
+    opacity: .55; font-size: 12px; line-height: 1; padding: 2px; flex: none;
+}
+.pesan-x:hover { opacity: 1; }
+
+/* Toast sinkronisasi memakai tampilan yang sama. Gayanya sempat hilang saat
+   stylesheet ditulis ulang - blok yang disuntikkan layout.js ikut terbuang,
+   sehingga pesannya tampil sebagai teks polos tanpa bingkai. */
+#syncToast {
+    position: fixed; right: 16px; bottom: 16px; z-index: 4000;
+    display: flex; flex-direction: column; gap: 8px;
+    max-width: min(420px, calc(100vw - 32px));
+}
+.sync-toast {
+    padding: 10px 12px; border-radius: var(--radius);
+    border: 1px solid var(--border-strong); background: var(--panel);
+    box-shadow: var(--shadow-pop); font-size: 12px; line-height: 1.5;
+    white-space: pre-wrap; word-break: break-word;
+}
+.sync-toast.ok  { border-color: var(--ok);   background: var(--ok-bg);   color: var(--ok); }
+.sync-toast.err { border-color: var(--ng);   background: var(--ng-bg);   color: var(--ng); }

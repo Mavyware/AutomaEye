@@ -318,7 +318,7 @@ async function startCam() {
         loadCameras();   // refresh label device (kini tersedia setelah izin) tanpa ubah pilihan
     } catch (e) {
         // Bila device yang dipilih tak tersedia (exact gagal), beri tahu & muat ulang daftar.
-        alert('Camera error: ' + e.message + '\nCoba pilih kamera lain dari dropdown.');
+        pesan('Camera error: ' + e.message + '\nCoba pilih kamera lain dari dropdown.', 'err');
         loadCameras();
     }
 }
@@ -428,7 +428,7 @@ async function inspectFrame(forceFull) {
     if (busy) return;
     const dataUrl = grabDataUrl();
     if (!dataUrl) {
-        if (!live) alert('Kamera belum siap / gagal ambil frame. Coba Stop lalu Start Camera lagi.');
+        if (!live) pesan('Kamera belum siap / gagal ambil frame. Coba Stop lalu Start Camera lagi.', 'err');
         return;
     }
     busy = true;
@@ -457,7 +457,7 @@ async function inspectFrame(forceFull) {
             renderResult(result, dataUrl);
         }
     } catch (e) {
-        if (!live) alert('Inspect error: ' + e.message);
+        if (!live) pesan('Inspect error: ' + e.message, 'err');
         else console.warn('inspect:', e.message);
     } finally { busy = false; }
 }
@@ -904,11 +904,11 @@ function gdtShapeOf(model, cls) {
 
 function openGdtTuning() {
     const model = (projectData.models || []).find(m => (m.addons || []).includes('GD&T Measurement'));
-    if (!model) { alert('Tidak ada model Inspection ber-add-on GD&T Measurement.'); return; }
-    if (!lastFull) { alert('Belum ada hasil ukur. Jalankan Capture & Inspect / Live dulu sampai objek terukur, baru Tuning.'); return; }
+    if (!model) { pesan('Tidak ada model Inspection ber-add-on GD&T Measurement.', 'warn'); return; }
+    if (!lastFull) { pesan('Belum ada hasil ukur. Jalankan Capture & Inspect / Live dulu sampai objek terukur, baru Tuning.', 'warn'); return; }
     const step = (lastFull.steps || []).find(s => s.modelName === model.name);
     const dets = ((step && step.detections) || []).filter(d => d.x1 != null);
-    if (!dets.length) { alert('Tidak ada objek terdeteksi pada model GD&T di hasil terakhir.'); return; }
+    if (!dets.length) { pesan('Tidak ada objek terdeteksi pada model GD&T di hasil terakhir.', 'warn'); return; }
     gdtTuneModel = model; gdtTuneDets = dets; gdtTuneSel = -1;
 
     const rows = dets.map((d, i) => {
@@ -962,7 +962,7 @@ function selectTuneDet(i) {
 }
 
 async function applyGdtTuning() {
-    if (gdtTuneSel < 0) { alert('Pilih objek dulu.'); return; }
+    if (gdtTuneSel < 0) { pesan('Pilih objek dulu.', 'warn'); return; }
     const d = gdtTuneDets[gdtTuneSel];
     const cls = d.class_name || ('#' + d.class_id);
     const shape = gdtShapeOf(gdtTuneModel, cls);
@@ -970,7 +970,7 @@ async function applyGdtTuning() {
     if (shape === 'circle') {
         const real = parseFloat((document.getElementById('tuneDia') || {}).value);
         const px = detPx(d, 'diameterPx');
-        if (!real || !px) { alert('Isi diameter asli (mm).'); return; }
+        if (!real || !px) { pesan('Isi diameter asli (mm).', 'warn'); return; }
         mmpp = real / px;
     } else {
         const ratios = [];
@@ -978,10 +978,10 @@ async function applyGdtTuning() {
         const rw = parseFloat((document.getElementById('tuneW') || {}).value);
         if (rl) ratios.push(rl / detPx(d, 'heightPx'));
         if (rw) ratios.push(rw / detPx(d, 'widthPx'));
-        if (!ratios.length) { alert('Isi panjang atau lebar asli (mm).'); return; }
+        if (!ratios.length) { pesan('Isi panjang atau lebar asli (mm).', 'warn'); return; }
         mmpp = ratios.reduce((a, b) => a + b, 0) / ratios.length;
     }
-    if (!isFinite(mmpp) || mmpp <= 0) { alert('Perhitungan tidak valid (piksel objek 0?).'); return; }
+    if (!isFinite(mmpp) || mmpp <= 0) { pesan('Perhitungan tidak valid (piksel objek 0?).', 'err'); return; }
     const addonConfig = gdtTuneModel.addonConfig || {};
     addonConfig.gdt = addonConfig.gdt || {};
     addonConfig.gdt.mmPerPixel = Number(mmpp.toFixed(6));
@@ -990,8 +990,8 @@ async function applyGdtTuning() {
         gdtTuneModel.addonConfig = addonConfig;
         logEvent(`mm/piksel di-tuning = <strong>${mmpp.toFixed(5)}</strong> (dari ${esc(cls)})`, 'ok');
         closeGdtTuning();
-        alert(`✓ mm/piksel disetel ke ${mmpp.toFixed(5)}.\nSemua ukuran GD&T sekarang memakai nilai ini.`);
-    } catch (e) { alert('Gagal simpan: ' + e.message); }
+        pesan(`✓ mm/piksel disetel ke ${mmpp.toFixed(5)}.\nSemua ukuran GD&T sekarang memakai nilai ini.`, 'ok');
+    } catch (e) { pesan('Gagal simpan: ' + e.message, 'err'); }
 }
 
 function closeGdtTuning() {

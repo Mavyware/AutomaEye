@@ -74,9 +74,9 @@ function toggleAddon(a) {
 async function submit() {
     const name = document.getElementById('modelName').value.trim();
     const classesStr = document.getElementById('classes').value.trim();
-    if (!name) { alert('Nama wajib'); return; }
+    if (!name) { pesan('Nama wajib', 'warn'); return; }
     const classes = classesStr.split(',').map(s => s.trim()).filter(Boolean);
-    if (!classes.length) { alert('Kelas minimal 1'); return; }
+    if (!classes.length) { pesan('Kelas minimal 1', 'warn'); return; }
     try {
         const addonConfig = {};
         if (selectedAddons.has('Count')) {
@@ -86,7 +86,7 @@ async function submit() {
             name, aiType, addons: Array.from(selectedAddons), classes, addonConfig,
         });
         window.api.goTo(`project.html?name=${encodeURIComponent(projectName)}`);
-    } catch (e) { alert('Gagal: ' + e.message); }
+    } catch (e) { pesan('Gagal: ' + e.message, 'err'); }
 }
 
 function cancel() { window.api.goTo(`project.html?name=${encodeURIComponent(projectName)}`); }

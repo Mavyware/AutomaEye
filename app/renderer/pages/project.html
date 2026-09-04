@@ -76,7 +76,7 @@ function renderFlowProject() {
         b.onclick = () => {
             const ke = b.dataset.ke;
             if (!ke) { document.getElementById('modelsList').scrollIntoView({ behavior: 'smooth', block: 'start' }); return; }
-            if (ke === 'run.html' && !langkah.length) { alert('Susun Workflow dulu sebelum menjalankan.'); return; }
+            if (ke === 'run.html' && !langkah.length) { pesan('Susun Workflow dulu sebelum menjalankan.', 'warn'); return; }
             window.api.goTo(`${ke}?project=${encodeURIComponent(projectName)}`);
         };
     });
@@ -177,15 +177,15 @@ function confirmDeleteModel(name) {
             await window.api.deleteModel(projectName, name);
             overlay.remove();
             render();
-        } catch (e2) { alert('Gagal hapus: ' + e2.message); }
+        } catch (e2) { pesan('Gagal hapus: ' + e2.message, 'err'); }
     };
 }
 function editWorkflow() {
-    if (!currentProject.models.length) { alert('Buat model dulu'); return; }
+    if (!currentProject.models.length) { pesan('Buat model dulu', 'warn'); return; }
     window.api.goTo(`workflow.html?project=${encodeURIComponent(projectName)}`);
 }
 function runWorkflow() {
-    if (!currentProject.workflow.steps.length) { alert('Workflow kosong'); return; }
+    if (!currentProject.workflow.steps.length) { pesan('Workflow kosong', 'warn'); return; }
     window.api.goTo(`run.html?project=${encodeURIComponent(projectName)}`);
 }
 async function deleteProject() {

@@ -123,7 +123,8 @@ async function save() {
     const res = await window.api.setConfig(patch);
     if (res && !res.__error) cfg = res;
     const saved = !res || !res.__save || res.__save.ok;
-    alert(saved ? '✓ Settings tersimpan ke config.yaml' : 'Gagal simpan: ' + (res.__save && res.__save.error));
+    if (saved) pesan('✓ Settings tersimpan ke config.yaml', 'ok');
+    else pesan('Gagal simpan: ' + ((res.__save && res.__save.error) || 'tidak diketahui'), 'err');
 }
 
 load();
