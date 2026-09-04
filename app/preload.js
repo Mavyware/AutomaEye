@@ -78,6 +78,13 @@ contextBridge.exposeInMainWorld('api', {
     reportDailyXlsx: (project, date) => ipcRenderer.invoke('report:dailyXlsx', { project, date }),
     openPath: (p) => ipcRenderer.invoke('file:open', p),
 
+    // Prasyarat Python
+    prereqCheck: () => ipcRenderer.invoke('prereq:check'),
+    prereqInstall: () => ipcRenderer.invoke('prereq:install'),
+    prereqDone: () => ipcRenderer.invoke('prereq:done'),
+    prereqSkip: () => ipcRenderer.invoke('prereq:skip'),
+    onPrereqLog: (cb) => ipcRenderer.on('prereq:log', (_, line) => cb(line)),
+
     // Pembaruan aplikasi
     updateInfo: () => ipcRenderer.invoke('update:info'),
     updateRecheck: () => ipcRenderer.invoke('update:recheck'),

@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>Persiapan — AutomaEyes</title>
+<link rel="stylesheet" href="../css/style.css">
+<style>
+  body { display: flex; align-items: center; justify-content: center; min-height: 100vh; margin: 0; }
+  .gate { width: 560px; }
+  .gate h1 { font-size: 19px; margin: 0 0 4px; }
+  .gate .sub { color: #666; font-size: 12px; margin-bottom: 16px; }
+  .req { display: flex; align-items: center; gap: 10px; padding: 8px 4px; border-bottom: 1px solid #f0f0f0; font-size: 13px; }
+  .req:last-child { border-bottom: none; }
+  .req .ic { width: 18px; text-align: center; font-weight: 700; }
+  .req .ok { color: #22a34c; } .req .no { color: #dc2626; } .req .wait { color: #f59e0b; }
+  .req .nm { flex: 1; }
+  .req .note { font-size: 11px; color: #888; }
+  #log { background: #111; color: #b8e6c8; font-family: Consolas, monospace; font-size: 11px;
+         padding: 10px; border-radius: 4px; height: 190px; overflow: auto; white-space: pre-wrap;
+         margin-top: 12px; display: none; }
+  .status { font-size: 12px; margin-top: 10px; min-height: 18px; }
+  .status.err { color: #dc2626; } .status.ok { color: #22a34c; } .status.wait { color: #f59e0b; }
+</style>
+</head>
+<body>
+
+<div class="gate">
+    <h1>Persiapan sekali jalan</h1>
+    <div class="sub">
+        AutomaEyes memakai Python untuk melatih dan menjalankan model AI.
+        Berikut yang masih perlu disiapkan di komputer ini.
+    </div>
+
+    <div class="card">
+        <div class="section-title">Kebutuhan</div>
+        <div style="padding:10px 14px" id="reqList">
+            <div class="req"><span class="ic wait">…</span><span class="nm">Memeriksa…</span></div>
+        </div>
+    </div>
+
+    <div class="row" style="margin-top:12px">
+        <button class="btn primary" id="btnInstall" onclick="pasang()" style="display:none">Pasang otomatis</button>
+        <button class="btn" id="btnPython" onclick="unduhPython()" style="display:none">Unduh Python</button>
+        <button class="btn" onclick="periksa()">Periksa ulang</button>
+        <button class="btn" id="btnSkip" onclick="lewati()">Lanjut tanpa ini</button>
+    </div>
+    <div class="status" id="st"></div>
+    <div id="log"></div>
+</div>
+
+<script>
+let info = null;
+
+function setStatus(msg, cls = '') {
+    const e = document.getElementById('st');
+    e.textContent = msg; e.className = 'status ' + cls;
+}
+
+function baris(ok, nama, catatan) {
+    return `<div class="req">
+        <span class="ic ${ok ? 'ok' : 'no'}">${ok ? '✓' : '✕'}</span>
+        <span class="nm">${nama}</span>
+        <span class="note">${catatan || ''}</span>
+    </div>`;
+}
+
+async function periksa() {
+    setStatus('Memeriksa…', 'wait');
+    document.getElementById('reqList').innerHTML =
+        '<div class="req"><span class="ic wait">…</span><span class="nm">Memeriksa…</span></div>';
+    info = await window.api.prereqCheck();
+
+    const p = info.python;
+    let html = baris(p.found && !p.tooOld, 'Python 3.10 atau lebih baru',
+        p.found ? (p.tooOld ? `terpasang ${p.version} — terlalu lama` : `terpasang ${p.version}`) : 'belum terpasang');
+    for (const m of info.modules) {
+        html += baris(m.found, 'Paket ' + m.name, m.found ? 'siap' : 'belum ada');
+    }
+    document.getElementById('reqList').innerHTML = html;
+
+    const perluPython = !p.found || p.tooOld;
+    document.getElementById('btnPython').style.display = perluPython ? '' : 'none';
+    document.getElementById('btnInstall').style.display = (!perluPython && info.missing.length) ? '' : 'none';
+
+    if (info.ok) {
+        setStatus('Semua siap.', 'ok');
+        setTimeout(() => window.api.prereqDone(), 900);
+    } else if (perluPython) {
+        setStatus('Python belum ada. Unduh dan pasang dulu, lalu klik Periksa ulang.', 'err');
+    } else {
+        setStatus(`${info.missing.length} paket belum ada. Unduhannya lebih dari 1 GB, jadi siapkan koneksi yang stabil.`, 'wait');
+    }
+}
+
+function unduhPython() { window.api.openExternal(info.pythonUrl); }
+
+async function pasang() {
+    const log = document.getElementById('log');
+    log.style.display = ''; log.textContent = '';
+    document.getElementById('btnInstall').disabled = true;
+    setStatus('Memasang… ini bisa memakan waktu lama (unduhan >1 GB). Jangan tutup aplikasi.', 'wait');
+
+    window.api.onPrereqLog((line) => {
+        log.textContent += line + '\n';
+        log.scrollTop = log.scrollHeight;
+    });
+
+    const r = await window.api.prereqInstall();
+    document.getElementById('btnInstall').disabled = false;
+    if (r.ok) { setStatus('Pemasangan selesai. Memeriksa ulang…', 'ok'); periksa(); }
+    else setStatus('Gagal: ' + r.error, 'err');
+}
+
+function lewati() {
+    if (!confirm('Lanjut tanpa Python?\n\nProject dan pengaturan tetap bisa dibuka, tapi melatih model dan menjalankan inspeksi belum bisa sampai kebutuhan di atas terpenuhi.')) return;
+    window.api.prereqSkip();
+}
+
+periksa();
+</script>
+</body>
+</html>

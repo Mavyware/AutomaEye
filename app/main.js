@@ -22,9 +22,12 @@ const userstore = require('./lib/userstore');
 const appauth = require('./lib/appauth');
 const github = require('./lib/github');
 const updater = require('./lib/updater');
+const prereq = require('./lib/prereq');
 
 let _autoPullDone = false, _autoPullResult = null;
 let _updateInfo = null;   // hasil cek versi terakhir
+let _prereqOk = null;    // null = belum diperiksa
+let _prereqSkipped = false;
 
 let mainWindow;
 let cfg;
@@ -161,6 +164,10 @@ function startPage() {
     // didukung, melanjutkan ke login hanya akan menimbulkan kegagalan aneh
     // yang sulit ditelusuri user.
     if (_updateInfo && _updateInfo.mustUpdate) return 'renderer/pages/update.html';
+    // Prasyarat Python: ditawarkan lebih dulu, tapi BOLEH dilewati - user
+    // masih bisa membuka project dan pengaturan tanpa Python; yang tidak bisa
+    // hanya melatih model dan menjalankan inspeksi.
+    if (_prereqOk === false && !_prereqSkipped) return 'renderer/pages/setup.html';
     if (!userstore.getSession()) return 'renderer/pages/login.html';
     if (!userstore.getGithub()) return 'renderer/pages/connect-github.html';
     return 'renderer/pages/projects.html';
@@ -301,6 +308,14 @@ app.whenReady().then(() => {
 
     // Cek versi di latar; halaman diarahkan ulang begitu hasilnya tiba.
     checkUpdate();
+
+    // Prasyarat Python diperiksa sekali saat start.
+    prereq.check(cfg).then((r) => {
+        _prereqOk = r.ok;
+        console.log('[prereq] python:', r.python.found ? r.python.version : 'tidak ada',
+                    '| kurang:', r.missing.length ? r.missing.join(', ') : '-');
+        if (!r.ok && mainWindow && !_prereqSkipped) mainWindow.loadFile(startPage());
+    }).catch((e) => console.warn('[prereq]', e.message));
 
     // Cold start lewat deep link: Windows menaruh URL-nya di argv proses ini.
     const coldUrl = process.argv.find((a) => a.startsWith('automaeye://'));
@@ -463,6 +478,32 @@ ipcMain.handle('git:autoPullOnce', async () => {
         _autoPullResult = { ok: false, log: String(e && e.message || e) };
     }
     return { skipped: false, result: _autoPullResult };
+});
+
+// ---- Prasyarat Python ----
+ipcMain.handle('prereq:check', async () => {
+    const r = await prereq.check(cfg);
+    _prereqOk = r.ok;
+    return { ...r, pythonUrl: prereq.pythonDownloadUrl() };
+});
+ipcMain.handle('prereq:install', async (event) => {
+    const r = await prereq.installPackages(cfg, (line) => {
+        if (!event.sender.isDestroyed()) event.sender.send('prereq:log', line);
+    });
+    if (r.ok) _prereqOk = (await prereq.check(cfg)).ok;
+    return r;
+});
+ipcMain.handle('prereq:done', () => {
+    _prereqOk = true;
+    if (mainWindow) mainWindow.loadFile(startPage());
+    return { ok: true };
+});
+ipcMain.handle('prereq:skip', () => {
+    // Hanya untuk sesi ini: kalau aplikasi dibuka lagi dan prasyarat masih
+    // kurang, tawarannya muncul lagi - bukan didiamkan selamanya.
+    _prereqSkipped = true;
+    if (mainWindow) mainWindow.loadFile(startPage());
+    return { ok: true };
 });
 
 // ---- Pembaruan aplikasi ----
