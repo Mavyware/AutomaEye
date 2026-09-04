@@ -1,44 +1,44 @@
 # AutomaEyes
 
-Sistem Quality Control berbasis computer vision untuk inspeksi part di lini
-produksi: mendeteksi cacat, mengukur dimensi (GD&T), dan mengirim hasil
-OK/NG ke Arduino/PLC secara otomatis.
+Computer-vision quality control for production lines: detect defects, measure
+dimensions (GD&T), and send OK/NG results straight to an Arduino or PLC.
 
-## Data Anda milik Anda
+## Your data stays yours
 
-AutomaEyes tidak punya server penyimpanan. Tidak ada foto produk, dataset,
-atau model Anda yang dikirim ke kami.
+AutomaEyes has no storage server. None of your product photos, datasets, or
+trained models are sent to us.
 
-- **Project, dataset, dan model** tersimpan di **repositori GitHub milik Anda
-  sendiri**. Anda yang memilih repo tujuannya, dan bisa menjadikannya privat.
-  Kami tidak punya akses ke sana.
-- **Hasil inspeksi dan foto NG** tersimpan di komputer Anda sendiri.
-- **Sesi login dan izin akses** disimpan terenkripsi oleh sistem operasi di
-  komputer itu, bukan di dalam aplikasi maupun di server kami.
-- **Izin GitHub diberikan langsung oleh Anda** lewat halaman resmi GitHub.
-  Aplikasi tidak pernah meminta, melihat, atau menyimpan kata sandi GitHub
-  Anda. Izin itu bisa Anda cabut kapan saja dari pengaturan akun GitHub.
+- **Projects, datasets, and models** live in **your own GitHub repository**.
+  You choose which repo, and you can keep it private. We have no access to it.
+- **Inspection results and NG photos** stay on your own computer.
+- **Your login session and access grant** are stored encrypted by your
+  operating system on that machine — not inside the app, and not on any
+  server of ours.
+- **You grant GitHub access yourself**, through GitHub's own authorization
+  page. The app never asks for, sees, or stores your GitHub password, and you
+  can revoke the grant at any time from your GitHub account settings.
 
-Kalau Anda berhenti memakai AutomaEyes, seluruh data tetap ada di repo dan
-komputer Anda — tidak ada yang perlu ditarik kembali dari mana pun.
+If you stop using AutomaEyes, everything remains in your repository and on
+your computer. There is nothing to retrieve from us.
 
-## Kemampuan
+## What it does
 
-- **Deteksi cacat** dengan model AI yang Anda latih sendiri dari foto part Anda
-- **Pengukuran GD&T** — diameter lubang, panjang/lebar, dengan toleransi
-  per kelas dan verifikasi kalibrasi
-- **Anotasi di dalam aplikasi** — kotak, poligon, dan lingkaran, sehingga
-  bentuk mengikuti tepi benda dan hasil ukur lebih akurat
-- **Alur inspeksi bertahap** ala sistem vision industri: Capture → Positioning
-  → Inspection → Communication → Options
-- **Pembacaan kode** 1D/2D dan verifikasi teks cetak
-- **Keluaran fleksibel** — sinyal Arduino/PLC bawaan, atau skrip buatan Anda
-  sendiri untuk menghubungkan ke MES/dashboard
-- **Laporan harian** dan data pengukuran dalam format Excel
+- **Defect detection** using models you train yourself from photos of your
+  own parts
+- **GD&T measurement** — hole diameters, lengths and widths, with per-class
+  tolerances and a calibration-drift check
+- **Built-in annotation** — boxes, polygons, and circles, so shapes follow
+  the real edges of a part and measurements stay accurate
+- **Staged inspection flow** modelled on industrial vision systems:
+  Capture → Positioning → Inspection → Communication → Options
+- **1D/2D code reading** and printed-text verification
+- **Flexible output** — built-in Arduino/PLC signalling, or your own script
+  to push results to an MES or dashboard
+- **Daily reports** and measurement data exported to Excel
 
-## Menjalankan
+## Running it
 
-Prasyarat: Node.js LTS dan Python 3.10+.
+Requires Node.js LTS and Python 3.10+.
 
 ```bash
 cd app
@@ -46,14 +46,17 @@ npm install
 npm start
 ```
 
-Alur pemakaian: **buat project → buat model → kumpulkan foto → anotasi →
-latih → susun alur inspeksi → jalankan**.
+On first launch the app checks for Python and the packages it needs, and can
+install the missing ones for you.
 
-## Lisensi & kontribusi
+Typical flow: **create a project → create a model → collect photos → annotate
+→ train → build the inspection flow → run**.
 
-Kode ini terbuka agar bisa diaudit dan disesuaikan. Laporan bug dan usulan
-perbaikan dipersilakan lewat Issues.
+## License & contributing
 
-Menemukan celah keamanan? Mohon laporkan ke **mavyware@automaeyes.my.id**,
-jangan melalui Issue publik, agar bisa diperbaiki lebih dulu sebelum
-diketahui umum. Lihat [SECURITY.md](SECURITY.md).
+The source is open so it can be audited and adapted. Bug reports and
+suggestions are welcome through Issues.
+
+Found a security problem? Please report it to **mavyware@automaeyes.my.id**
+rather than opening a public Issue, so it can be fixed before it becomes
+widely known. See [SECURITY.md](SECURITY.md).

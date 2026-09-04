@@ -1,44 +1,45 @@
-# Kebijakan Keamanan
+# Security Policy
 
-## Melaporkan celah keamanan
+## Reporting a vulnerability
 
-Kirim ke **mavyware@automaeyes.my.id**.
+Email **mavyware@automaeyes.my.id**.
 
-Mohon **jangan** membuka Issue publik untuk celah keamanan — laporan publik
-membuat pengguna terekspos sebelum perbaikannya tersedia.
+Please do **not** open a public Issue for security problems — a public report
+exposes users before a fix is available.
 
-Sertakan bila memungkinkan: versi aplikasi, langkah untuk memunculkan
-masalahnya, dan dampak yang Anda perkirakan. Laporan akan dibalas, dan Anda
-akan dikabari saat perbaikannya dirilis.
+Where you can, include the app version, the steps to reproduce, and the impact
+you believe it has. You will get a reply, and you will be told when the fix
+ships.
 
-## Cakupan
+## Scope
 
-Yang termasuk:
+In scope:
 
-- Aplikasi desktop (`app/`) — termasuk penanganan IPC, protokol `automaeye://`,
-  dan penyimpanan sesi/token
-- Situs (`web/`) — autentikasi, alur OAuth, dan penyerahan izin ke aplikasi
+- The desktop app (`app/`) — including IPC handling, the `automaeye://`
+  protocol, and how sessions and tokens are stored
+- The website (`web/`) — authentication, the OAuth flow, and how access is
+  handed to the desktop app
 
-Yang **tidak** termasuk: kerentanan pada dependensi pihak ketiga (laporkan ke
-proyek terkait), serta serangan yang mensyaratkan penyerang sudah memegang
-akses fisik atau akun administrator di komputer korban.
+Out of scope: vulnerabilities in third-party dependencies (please report those
+to the projects concerned), and attacks that require the attacker to already
+have physical access or an administrator account on the victim's machine.
 
-## Cara aplikasi menjaga data Anda
+## How the app protects your data
 
-- **Tidak ada server penyimpanan.** Project, dataset, dan model tersimpan di
-  repositori GitHub milik Anda sendiri. Hasil inspeksi tersimpan di komputer
-  Anda.
-- **Kata sandi GitHub tidak pernah diminta.** Izin diberikan lewat halaman
-  resmi GitHub (OAuth), dan bisa dicabut kapan saja dari pengaturan akun Anda.
-- **Token disimpan terenkripsi** oleh sistem operasi (DPAPI di Windows), di
-  folder data pengguna — bukan di dalam folder aplikasi, dan tidak pernah
-  ikut masuk ke repositori.
-- **Rahasia server tidak ada di repo ini.** Kunci OAuth dan kredensial
-  database berada di berkas konfigurasi server yang tidak pernah di-commit.
-- **Tautan `automaeye://` wajib membawa nonce sekali pakai** yang dibuat saat
-  aplikasi memulai proses login. Tanpa itu, halaman web mana pun bisa memaksa
-  aplikasi masuk ke akun orang lain.
-- **Masukan dari antarmuka dibatasi** agar tidak bisa keluar dari folder kerja
-  aplikasi saat membaca atau menulis berkas.
+- **No storage server.** Projects, datasets, and models live in your own
+  GitHub repository. Inspection results stay on your computer.
+- **Your GitHub password is never requested.** Access is granted through
+  GitHub's own authorization page, and can be revoked at any time from your
+  account settings.
+- **Tokens are stored encrypted** by the operating system (DPAPI on Windows),
+  in your user data folder — not inside the application folder, and never
+  committed to a repository.
+- **Server secrets are not in this repository.** OAuth keys and database
+  credentials live in a server configuration file that is never committed.
+- **`automaeye://` links must carry a single-use nonce** created when the app
+  starts a sign-in. Without it, any web page could push the app into someone
+  else's account.
+- **Input from the interface is constrained** so it cannot escape the app's
+  working folders when reading or writing files.
 
-Kode ini sengaja dibuka agar klaim-klaim di atas bisa Anda periksa sendiri.
+The source is deliberately open so you can verify these claims yourself.
