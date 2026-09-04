@@ -23,7 +23,7 @@
     <div class="tabs">
         <div class="tab-headers">
             <button class="active" onclick="showTab(this,'dataset')">📁 Dataset</button>
-            <button onclick="showTab(this,'annotate')">✏️ Annotation & Augment</button>
+            <button onclick="showTab(this,'annotate')">✏️ Anotasi & Augmentasi</button>
             <button onclick="showTab(this,'train')">🚀 Train</button>
             <button onclick="showTab(this,'test')">🧪 Test</button>
         </div>
@@ -52,10 +52,10 @@
             <div class="card">
                 <div class="section-title">Anotasi</div>
                 <div style="padding:12px">
-                    <p>Beri label gambar langsung di aplikasi — kotak untuk deteksi, poligon untuk segmentasi. Label tersimpan dalam format YOLO dan langsung siap dilatih.</p>
-                    <p class="muted">Pertama kali: buat akun (offline, disimpan lokal) → New Project → Data Import upload gambar dari folder dataset → Labeling Setup pilih Object Detection with Bounding Boxes → set kelas (OK, waterspot, dll) → mulai anotasi.</p>
+                    <p class="muted">Langkah <strong>1</strong>: beri label pada gambar yang sudah diunggah — kotak untuk deteksi, poligon untuk segmentasi, lingkaran untuk lubang dan poros. Label tersimpan dalam format YOLO dan langsung siap dilatih.</p>
+                    <p class="muted" style="font-size:11px">Anotasi berjalan di dalam aplikasi ini, layar penuh supaya gambarnya besar. Selesai menandai, kembali ke sini untuk lanjut ke Langkah 2.</p>
                     <div class="row">
-                        <button class="btn primary" onclick="openAnnotStudio()">🖊️ Buka Anotasi</button>
+                        <button class="btn primary" onclick="openAnnotStudio()">✏️ Mulai Anotasi</button>
                         <button class="btn" onclick="openFolder()">📁 Buka Folder Dataset</button>
                     </div>
                     <p class="muted" id="annotStatus" style="margin-top:8px"></p>
@@ -92,7 +92,7 @@
             <div class="card">
                 <div class="section-title">Data Augmentation</div>
                 <div style="padding:12px">
-                    <p class="muted">Generate variasi gambar per opsi (tidak dicampur). Contoh: centang Rotate + Blur, multiplier=2, dari 1 gambar → 4 output baru (2 rotate, 2 blur), gambar asli tetap ada. <strong>Label ikut ditransform otomatis.</strong> Secara default hanya <em>train</em> yang diaugmentasi; pilih split di bawah bila perlu juga Val/Test.</p>
+                    <p class="muted">Langkah <strong>3</strong>: generate variasi gambar per opsi (tidak dicampur). Contoh: centang Rotate + Blur, multiplier=2, dari 1 gambar → 4 output baru (2 rotate, 2 blur), gambar asli tetap ada. <strong>Label ikut ditransform otomatis.</strong> Secara default hanya <em>train</em> yang diaugmentasi; pilih split di bawah bila perlu juga Val/Test.</p>
 
                     <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
                         <p class="muted" style="font-size:11px; margin:0">Preview dari <strong id="sampleName">—</strong></p>
@@ -186,7 +186,7 @@
             <div class="card">
                 <div class="section-title">Preview Dataset + Anotasi</div>
                 <div style="padding:12px">
-                    <p class="muted">Langkah <strong>4</strong>: cek hasil. Pilih grup untuk lihat gambar + kotak anotasinya (termasuk hasil augmentasi di train) — seperti Roboflow. Pastikan kotaknya pas.</p>
+                    <p class="muted">Langkah <strong>4</strong>: cek hasil. Pilih grup untuk lihat gambar + kotak anotasinya (termasuk hasil augmentasi di train). Pastikan kotaknya pas.</p>
                     <div class="row" id="galleryTabs" style="margin-bottom:8px">
                         <button class="btn small" onclick="loadGallery('train')" id="galtrain">🟩 Train</button>
                         <button class="btn small" onclick="loadGallery('val')" id="galval">🟧 Val</button>
@@ -256,7 +256,7 @@
             <div class="card">
                 <div class="section-title">Versi Model (tiap training = versi baru)</div>
                 <div style="padding:12px">
-                    <p class="muted" style="font-size:12px">Tiap training selesai, hasilnya disimpan sebagai <strong>versi baru (v1, v2, …)</strong> tanpa menimpa yang lama — mirip Roboflow. Pilih <strong>versi aktif</strong> di sini; di <strong>Workflow</strong> kamu bisa memilih versi mana yang dipakai per step.</p>
+                    <p class="muted" style="font-size:12px">Tiap training selesai, hasilnya disimpan sebagai <strong>versi baru (v1, v2, …)</strong> tanpa menimpa yang lama. Pilih <strong>versi aktif</strong> di sini; di <strong>Workflow</strong> kamu bisa memilih versi mana yang dipakai per step.</p>
                     <div id="versionList" class="muted" style="font-size:12px">Belum ada versi (train dulu).</div>
                 </div>
             </div>
