@@ -250,11 +250,12 @@ exports.conflictInfo = async (cwd, token) => {
 
 /**
  * Selesaikan konflik dengan memilih satu sisi.
- * @param {'local'|'remote'} pilihan
+ * @param {'local'|'remote'|'branch'} pilihan
  *   'local'  : isi komputer ini dipakai, GitHub ditimpa
  *   'remote' : isi GitHub dipakai, perubahan lokal dibuang
+ *   'branch' : keduanya disimpan - punya sendiri didorong ke cabang baru
  */
-exports.resolveConflict = async (cwd, token, pilihan) => {
+exports.resolveConflict = async (cwd, token, pilihan, namaCabang) => {
     const st = await exports.status(cwd);
     if (!st.repo || !st.hasRemote) return { ok: false, log: 'Belum tersambung ke GitHub.' };
 
@@ -287,6 +288,40 @@ exports.resolveConflict = async (cwd, token, pilihan) => {
             log: (push.code === 0
                 ? `Versi komputer ini sekarang dipakai di GitHub.\nVersi GitHub sebelumnya disimpan di branch "${backup}".`
                 : 'Gagal menimpa GitHub.\n') + '\n' + log.trim(),
+        };
+    }
+
+    if (pilihan === 'branch') {
+        // Pilihan paling aman: tidak ada yang ditimpa maupun dibuang.
+        // Pekerjaan lokal didorong ke cabang baru di GitHub, lalu komputer
+        // ini mengikuti versi bersama. Keduanya tetap ada, dan penggabungan
+        // bisa dilakukan belakangan lewat Pull Request.
+        if (st.dirty) {
+            await git(cwd, ['add', '-A']);
+            const c = await git(cwd, ['commit', '-m', `AutomaEyes: simpan sebelum pisah cabang ${stamp}`]);
+            log += c.out + '\n';
+        }
+
+        const nama = (namaCabang && namaCabang.trim())
+            ? namaCabang.trim().replace(/[^\w.\-\/]/g, '-')
+            : `cabang-${stamp}`;
+
+        const push = await git(cwd, ['push', 'origin', `HEAD:refs/heads/${nama}`], token);
+        log += push.out + '\n';
+        if (push.code !== 0) {
+            return { ok: false, log: 'Gagal membuat cabang baru di GitHub.\n' + log.trim() };
+        }
+
+        const fetch = await git(cwd, ['fetch', 'origin'], token);
+        log += fetch.out + '\n';
+        const reset = await git(cwd, ['reset', '--hard', `origin/${branch}`]);
+        log += reset.out;
+        return {
+            ok: reset.code === 0,
+            backupBranch: nama,
+            log: (reset.code === 0
+                ? `Pekerjaan Anda tersimpan di cabang "${nama}" di GitHub, dan komputer ini sekarang mengikuti "${branch}".\nTidak ada yang hilang - keduanya bisa digabung lewat Pull Request.`
+                : `Cabang "${nama}" berhasil dibuat, tapi gagal mengikuti "${branch}".\n`) + '\n' + log.trim(),
         };
     }
 

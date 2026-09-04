@@ -73,12 +73,19 @@ html, body {
 /* ================== SHELL: SIDEBAR + TOPBAR ==================
    Menggantikan empat baris chrome bertumpuk. Navigasi jadi satu kolom
    tetap di kiri, dan sisa layar sepenuhnya jadi area kerja. */
-body { display: grid; grid-template-columns: 216px 1fr; }
+/* Grid hanya aktif kalau layout.js benar-benar memasang kerangka. Tanpa
+   penjaga ini, halaman yang tidak memuat layout.js tetap kena grid dan
+   isinya terjepit ke kolom selebar sidebar yang tidak pernah ada. */
+body.has-shell { display: grid; grid-template-columns: 216px 1fr; }
+body:not(.has-shell) { display: block; overflow: auto; }
 
 .sidebar {
     display: flex; flex-direction: column;
     background: var(--menubar-bg); color: var(--menubar-text);
-    height: 100vh; overflow: hidden; user-select: none;
+    height: 100vh; user-select: none;
+    /* overflow dibiarkan terlihat: dropdown akun keluar dari batas sidebar.
+       Yang perlu digulung hanyalah .nav. */
+    overflow: visible;
 }
 .brand {
     display: flex; align-items: center; gap: 9px;

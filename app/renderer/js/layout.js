@@ -256,6 +256,7 @@ window.switchToRunMode = function() {
         </header>`;
 
     // Konten halaman dibungkus supaya bisa di-scroll terpisah dari sidebar.
+    document.body.classList.add('has-shell');
     document.body.insertAdjacentHTML('afterbegin', sidebarHTML + '<div class="workarea">' + topbarHTML + '</div>');
     const workarea = document.querySelector('.workarea');
     const main = document.querySelector('body > main');
@@ -529,10 +530,22 @@ async function showConflictDialog() {
                 <div style="font-family:Consolas,monospace;font-size:10px;max-height:130px;overflow:auto">${daftar(info.remoteFiles, info.remoteMore)}</div>
             </div>
         </div>
+        <div style="border:1px solid #cfe0f7;background:#f2f8ff;border-radius:6px;padding:10px 12px;margin-bottom:12px">
+            <label style="font-size:12px;display:block;margin:0">
+                Nama cabang baru
+                <input type="text" id="ckBranch" value="cabang-saya" style="width:100%;margin-top:4px">
+            </label>
+            <p style="font-size:11px;color:#555;margin:6px 0 0">
+                Pilihan teraman: tidak ada yang ditimpa. Pekerjaan Anda didorong ke cabang
+                ini, komputer mengikuti versi GitHub, dan keduanya bisa digabung nanti
+                lewat Pull Request.
+            </p>
+        </div>
         <div style="display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap">
             <button class="btn" id="ckCancel">Batal</button>
             <button class="btn" id="ckRemote">Pakai versi GitHub</button>
-            <button class="btn primary" id="ckLocal">Pakai versi komputer ini</button>
+            <button class="btn" id="ckLocal">Pakai versi komputer ini</button>
+            <button class="btn primary" id="ckBranchBtn">Simpan sebagai cabang baru</button>
         </div>
         <p id="ckMsg" style="font-size:12px;margin:12px 0 0;white-space:pre-wrap"></p>`;
     overlay.appendChild(box);
@@ -541,15 +554,21 @@ async function showConflictDialog() {
 
     const jalankan = async (choice, label) => {
         const msg = box.querySelector('#ckMsg');
-        if (!confirm(`${label}\n\nVersi satunya akan disimpan sebagai cadangan, tidak dihapus. Lanjutkan?`)) return;
+        const nama = (box.querySelector('#ckBranch').value || '').trim();
+        if (choice === 'branch' && !nama) { msg.style.color = '#dc2626'; msg.textContent = 'Nama cabang tidak boleh kosong.'; return; }
+        if (!confirm(`${label}\n\nLanjutkan?`)) return;
         box.querySelectorAll('button').forEach((b) => (b.disabled = true));
         msg.textContent = 'Menyelesaikan…';
-        const r = await window.api.gitResolveConflict(choice);
+        const r = await window.api.gitResolveConflict(choice, nama);
         msg.style.color = r.ok ? '#22a34c' : '#dc2626';
         msg.textContent = r.log;
         if (r.ok) setTimeout(() => { overlay.remove(); location.reload(); }, 2600);
         else box.querySelectorAll('button').forEach((b) => (b.disabled = false));
     };
-    box.querySelector('#ckLocal').onclick = () => jalankan('local', 'Isi komputer ini akan dipakai, dan versi di GitHub ditimpa.');
-    box.querySelector('#ckRemote').onclick = () => jalankan('remote', 'Isi GitHub akan dipakai, dan perubahan di komputer ini dibuang.');
+    box.querySelector('#ckLocal').onclick = () => jalankan('local',
+        'Isi komputer ini akan dipakai, dan versi di GitHub ditimpa.\nVersi GitHub tetap disimpan sebagai cadangan.');
+    box.querySelector('#ckRemote').onclick = () => jalankan('remote',
+        'Isi GitHub akan dipakai, dan perubahan di komputer ini dibuang.\nKeadaan lokal tetap disimpan sebagai cadangan.');
+    box.querySelector('#ckBranchBtn').onclick = () => jalankan('branch',
+        'Pekerjaan Anda disimpan ke cabang baru di GitHub, lalu komputer ini mengikuti versi GitHub.\nTidak ada yang ditimpa maupun dibuang.');
 }

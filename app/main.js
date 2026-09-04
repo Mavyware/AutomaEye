@@ -502,8 +502,8 @@ ipcMain.handle('git:status', () => gitsync.status(projectsRoot));
 ipcMain.handle('git:push', (_e, { message } = {}) => gitsync.push(projectsRoot, message, ghToken()));
 ipcMain.handle('git:pull', () => gitsync.pull(projectsRoot, ghToken()));
 ipcMain.handle('git:conflictInfo', () => gitsync.conflictInfo(projectsRoot, ghToken()));
-ipcMain.handle('git:resolveConflict', (_e, { choice }) =>
-    gitsync.resolveConflict(projectsRoot, ghToken(), choice));
+ipcMain.handle('git:resolveConflict', (_e, { choice, branchName }) =>
+    gitsync.resolveConflict(projectsRoot, ghToken(), choice, branchName));
 ipcMain.handle('app:quit', () => { app.quit(); });
 // Auto-load versi terbaru sekali saja saat app pertama dibuka.
 ipcMain.handle('git:autoPullOnce', async () => {
