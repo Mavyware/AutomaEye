@@ -402,7 +402,6 @@ window.addEventListener('beforeunload', (e) => {
 });
 
 async function init() {
-    document.getElementById('pTitle').textContent = `Output — ${projectName}`;
     katalog = await window.api.deviceKatalog();
     cfg = await window.api.getOutputConfig(projectName);
     if (!cfg.device.baud) cfg.device.baud = katalog.katalog[cfg.device.jenis].baudBawaan;
