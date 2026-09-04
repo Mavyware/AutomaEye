@@ -42,9 +42,9 @@
     /* Chrome */
     --topbar: #ffffff;
     --toolbar: #f7f9fb;
-    --menubar-bg: #1b2330;
-    --menubar-text: #d8dEE9;
-    --menubar-hover: #2a3548;
+    --sidebar-bg: #1b2330;
+    --sidebar-text: #d8dEE9;
+    --sidebar-hover: #2a3548;
     --header-title-bg: #1b2330;
 
     --radius: 6px;
@@ -81,7 +81,7 @@ body:not(.has-shell) { display: block; overflow: auto; }
 
 .sidebar {
     display: flex; flex-direction: column;
-    background: var(--menubar-bg); color: var(--menubar-text);
+    background: var(--sidebar-bg); color: var(--sidebar-text);
     height: 100vh; user-select: none;
     /* overflow dibiarkan terlihat: dropdown akun keluar dari batas sidebar.
        Yang perlu digulung hanyalah .nav. */
@@ -109,11 +109,11 @@ body:not(.has-shell) { display: block; overflow: auto; }
     display: flex; align-items: center; gap: 10px; width: 100%;
     padding: 9px 10px; margin-bottom: 2px;
     background: none; border: none; border-radius: var(--radius-sm);
-    color: var(--menubar-text); font: inherit; font-size: 12.5px;
+    color: var(--sidebar-text); font: inherit; font-size: 12.5px;
     cursor: pointer; text-align: left;
     transition: background .12s ease, color .12s ease;
 }
-.nav-item:hover:not(:disabled) { background: var(--menubar-hover); color: #fff; }
+.nav-item:hover:not(:disabled) { background: var(--sidebar-hover); color: #fff; }
 .nav-item.active { background: var(--accent); color: #fff; font-weight: 600; }
 .nav-item:disabled { opacity: .38; cursor: default; }
 .nav-ic { width: 16px; text-align: center; flex: none; opacity: .9; }
@@ -124,9 +124,9 @@ body:not(.has-shell) { display: block; overflow: auto; }
     position: relative; display: flex; align-items: center; gap: 9px; width: 100%;
     margin-top: 4px; padding: 8px 10px;
     background: none; border: none; border-radius: var(--radius-sm);
-    color: var(--menubar-text); font: inherit; cursor: pointer; text-align: left;
+    color: var(--sidebar-text); font: inherit; cursor: pointer; text-align: left;
 }
-.acct:hover { background: var(--menubar-hover); }
+.acct:hover { background: var(--sidebar-hover); }
 .acct-avatar {
     width: 26px; height: 26px; flex: none; border-radius: 50%;
     background: #2b3648; display: grid; place-items: center; font-size: 13px;
@@ -171,10 +171,10 @@ body:not(.has-shell) { display: block; overflow: auto; }
     min-width: 232px; padding: 5px; z-index: 2000;
 }
 .util-opt {
-    padding: 8px 11px; font-size: 12px; color: var(--menubar-text);
+    padding: 8px 11px; font-size: 12px; color: var(--sidebar-text);
     border-radius: var(--radius-sm); cursor: pointer; white-space: nowrap;
 }
-.util-opt:hover { background: var(--menubar-hover); }
+.util-opt:hover { background: var(--sidebar-hover); }
 
 /* ================== MAIN ================== */
 main { flex: 1; overflow: auto; padding: 22px 24px 30px; min-width: 0; }
@@ -477,3 +477,15 @@ textarea { resize: vertical; }
 #syncToast > div.ok { border-left-color: #35c97b; }
 #syncToast > div.err { border-left-color: #f06b6b; }
 #syncToast > div.info { border-left-color: var(--accent); }
+
+/* Vonis akhir di topbar halaman Run. Dibuat lebar dan tebal karena
+   dibaca sekilas dari jarak beberapa langkah, bukan dari depan layar. */
+.total-status-box {
+    min-width: 92px; margin-left: 8px; padding: 5px 14px;
+    border: 1px solid var(--border-strong); border-radius: var(--radius-sm);
+    font-size: 15px; font-weight: 700; letter-spacing: .04em; text-align: center;
+    font-variant-numeric: tabular-nums;
+}
+.total-status-box.idle { background: var(--panel-sunken); color: var(--muted); border-color: var(--border); }
+.total-status-box.pass { background: var(--ok-bg); color: var(--ok); border-color: var(--ok); }
+.total-status-box.fail { background: var(--ng-bg); color: var(--ng); border-color: var(--ng); }

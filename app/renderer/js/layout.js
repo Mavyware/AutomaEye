@@ -1,156 +1,15 @@
-// Layout injector — otomatis pasang menu bar + toolbar + status bar
-// pada semua page yang include script ini.
+// Kerangka aplikasi: dipasang otomatis oleh setiap halaman yang memuat
+// berkas ini. Halaman gerbang (login, connect-github, setup, update)
+// sengaja TIDAK memuatnya - halaman itu tampil polos tanpa navigasi.
 //
-// Cara pakai di HTML page:
 //   <body>
-//     <div id="page-content">...</div>
+//     <main>...</main>
 //     <script src="../js/layout.js"></script>
 //   </body>
 //
-// Options bisa di-set sebelum load layout.js:
-//   window.LAYOUT_OPTS = { title: 'Model xyz', showTotalStatus: true, mode: 'setting' };
+// Opsi disetel sebelum memuat berkas ini:
+//   window.LAYOUT_OPTS = { title: 'Model xyz', subtitle: '...', showTotalStatus: true };
 
-(function() {
-    const opts = window.LAYOUT_OPTS || {};
-    const title = opts.title || 'AutomaEyes';
-    const subtitle = opts.subtitle || 'AI Quality Control';
-    const mode = opts.mode || 'setting';
-    const showTotalStatus = opts.showTotalStatus !== false;
-    const showFooter = opts.showFooter !== false;
-
-    // ==== MENU BAR ====
-    const menubarHTML = `
-        <div class="menubar">
-            <div class="menu-item" style="position:relative" onclick="toggleMenu(event,'fileMenu')">File &#9662;
-                <div id="fileMenu" class="util-menu" style="display:none">
-                    <div class="util-opt" onclick="window.api.goTo('projects.html')">&#127968; Home (Pilih Project)</div>
-                    <div class="util-opt" onclick="location.reload()">&#128260; Refresh Halaman</div>
-                    <div class="util-opt" onclick="appExit()">&#9211; Keluar</div>
-                </div>
-            </div>
-            <div class="menu-item" style="position:relative" onclick="toggleMenu(event,'execMenu')">Execute &#9662;
-                <div id="execMenu" class="util-menu" style="display:none">
-                    <div class="util-opt" onclick="switchToRunMode()">&#9654;&#65039; Mode Run (Inspeksi)</div>
-                </div>
-            </div>
-            <div class="menu-item" style="position:relative" onclick="toggleMenu(event,'utilMenu')">Utility &#9662;
-                <div id="utilMenu" class="util-menu" style="display:none">
-                    <div class="util-opt" onclick="syncSaveToCloud(event)">&#9729;&#65039; Save &amp; Upload ke GitHub</div>
-                    <div class="util-opt" onclick="syncLoadFromCloud(event)">&#11015;&#65039; Load versi terbaru</div>
-                    <div class="util-opt" onclick="showSyncStatus(event)">&#8505;&#65039; Status sinkronisasi</div>
-                </div>
-            </div>
-            <div class="menu-item" onclick="window.api.goTo('settings.html')">Setting</div>
-            <div style="flex:1"></div>
-            <div class="menu-item" style="position:relative" onclick="toggleMenu(event,'acctMenu')">
-                <span id="acctLabel">Akun</span> &#9662;
-                <div id="acctMenu" class="util-menu" style="display:none; left:auto; right:0; min-width:260px">
-                    <div class="util-opt" style="pointer-events:none; opacity:.75; white-space:normal"
-                         id="acctInfo">Memuat...</div>
-                    <div class="util-opt" onclick="changeRepo(event)">&#128193; Ganti repo penyimpanan</div>
-                    <div class="util-opt" onclick="window.api.goTo('settings.html')">&#9881;&#65039; Pengaturan</div>
-                    <div class="util-opt" style="color:#f87171" onclick="doLogout(event)">&#9211; Keluar akun</div>
-                </div>
-            </div>
-        </div>
-    `;
-
-    // ==== TOOLBAR ====
-    const toolbarHTML = `
-        <div class="toolbar">
-            <button class="toolbar-btn" title="Save & Upload ke GitHub" onclick="syncSaveToCloud(event)">💾</button>
-            <button class="toolbar-btn" title="Load versi terbaru dari GitHub" onclick="syncLoadFromCloud(event)">📂</button>
-            <div class="toolbar-separator"></div>
-            <button class="toolbar-btn" title="Refresh" onclick="location.reload()">🔄</button>
-            <div class="toolbar-separator"></div>
-            <button class="toolbar-btn" title="Settings" onclick="window.api.goTo('settings.html')">⚙️</button>
-        </div>
-    `;
-
-    // ==== HEADER ====
-    const totalStatusHTML = showTotalStatus ? `
-        <div class="total-status-box idle" id="totalStatusBadge">
-            <div>
-                <div class="label">Total Status</div>
-            </div>
-            <div class="value" id="totalStatusValue">—</div>
-        </div>
-    ` : '';
-
-    const modeToggleHTML = `
-        <div class="mode-toggle">
-            <button class="${mode === 'setting' ? 'active' : ''}" onclick="window.api.goTo('projects.html')">Setting</button>
-            <button class="${mode === 'run' ? 'active' : ''}" onclick="switchToRunMode()">Run</button>
-        </div>
-    `;
-
-    const headerHTML = `
-        <div class="header">
-            <div class="title-area">
-                <h1>${escapeHtml(title)}</h1>
-                <div class="subtitle">${escapeHtml(subtitle)}</div>
-            </div>
-            ${modeToggleHTML}
-            ${totalStatusHTML}
-        </div>
-    `;
-
-    // ==== STATUS BAR ====
-    const statusbarHTML = showFooter ? `
-        <div class="statusbar">
-            <div style="display:flex">
-                <span class="status-item">Resource: <strong>OK</strong></span>
-                <span class="status-item">Image: <span id="statImg">-</span></span>
-                <span class="status-item">Processing: <span id="statProc">-</span></span>
-            </div>
-            <div style="display:flex">
-                <span class="status-item">OK Ratio: <span id="statOk">-</span></span>
-                <span class="status-item">Time: <span id="statTime">-</span></span>
-            </div>
-        </div>
-    ` : '';
-
-    // Prepend menu/toolbar/header — TIDAK pakai innerHTML= (bisa hapus event listener
-    // yang sudah di-set inline script). Pakai insertAdjacentHTML instead.
-    document.body.insertAdjacentHTML('afterbegin', menubarHTML + toolbarHTML + headerHTML);
-    if (statusbarHTML) {
-        document.body.insertAdjacentHTML('beforeend', statusbarHTML);
-    }
-
-    function escapeHtml(s) {
-        return String(s || '').replace(/[&<>"']/g, c => ({
-            '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
-        }[c]));
-    }
-})();
-
-// Helper functions for pages to update total status
-window.setTotalStatus = function(verdict) {
-    const badge = document.getElementById('totalStatusBadge');
-    const value = document.getElementById('totalStatusValue');
-    if (!badge || !value) return;
-    badge.classList.remove('pass', 'fail', 'idle');
-    if (verdict === 'OK') {
-        badge.classList.add('pass');
-        value.textContent = 'PASS';
-    } else if (verdict === 'NG') {
-        badge.classList.add('fail');
-        value.textContent = 'FAIL';
-    } else {
-        badge.classList.add('idle');
-        value.textContent = '—';
-    }
-};
-
-window.switchToRunMode = function() {
-    // Nav to Run page for current project kalau ada
-    const p = new URLSearchParams(location.search).get('name')
-        || new URLSearchParams(location.search).get('project');
-    if (p) window.api.goTo(`run.html?project=${encodeURIComponent(p)}`);
-    else alert('Pilih project dulu');
-};
-
-// ===================== GitHub Sync (Save / Load) =====================
 // Kerangka aplikasi: sidebar navigasi + satu topbar.
 //
 // Sebelumnya ada empat baris chrome bertumpuk (menu bar, toolbar, header,
@@ -263,21 +122,16 @@ window.switchToRunMode = function() {
     if (main && workarea) workarea.appendChild(main);
 })();
 
-window.setTotalStatus = function(verdict) {
-    const badge = document.getElementById('totalStatusBadge');
+// Vonis akhir satu part. Elemennya dirender oleh topbar hanya kalau
+// halaman meminta showTotalStatus, jadi ketidakhadirannya bukan kesalahan.
+window.setTotalStatus = function (verdict) {
+    const box = document.getElementById('totalStatusBox');
     const value = document.getElementById('totalStatusValue');
-    if (!badge || !value) return;
-    badge.classList.remove('pass', 'fail', 'idle');
-    if (verdict === 'OK') {
-        badge.classList.add('pass');
-        value.textContent = 'PASS';
-    } else if (verdict === 'NG') {
-        badge.classList.add('fail');
-        value.textContent = 'FAIL';
-    } else {
-        badge.classList.add('idle');
-        value.textContent = '—';
-    }
+    if (!box || !value) return;
+    box.classList.remove('pass', 'fail', 'idle');
+    if (verdict === 'OK') { box.classList.add('pass'); value.textContent = 'PASS'; }
+    else if (verdict === 'NG') { box.classList.add('fail'); value.textContent = 'FAIL'; }
+    else { box.classList.add('idle'); value.textContent = '—'; }
 };
 
 window.switchToRunMode = function() {
