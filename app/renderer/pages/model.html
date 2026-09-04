@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <title>Model — AutomaEyes</title>
 <link rel="stylesheet" href="../css/style.css">
-<script>window.LAYOUT_OPTS = { title: 'Model Workspace', subtitle: 'Dataset · Annotation · Training', mode: 'setting', showTotalStatus: false };</script>
+<script>window.LAYOUT_OPTS = { title: 'Model Workspace', subtitle: 'Langkah 1-6 · dari gambar sampai model teruji', mode: 'setting', showTotalStatus: false };</script>
 </head>
 <body>
 
@@ -15,6 +15,8 @@
     </div>
     <div class="meta-row" id="meta"></div>
 
+    <nav class="flow" id="flow" aria-label="Urutan pengerjaan"></nav>
+
     <div class="card" id="addonRulesCard" style="display:none">
         <div class="section-title">Aturan Inspeksi (Add-ons)</div>
         <div style="padding:12px" id="addonRulesBody"></div>
@@ -22,15 +24,15 @@
 
     <div class="tabs">
         <div class="tab-headers">
-            <button class="active" onclick="showTab(this,'dataset')">📁 Dataset</button>
-            <button onclick="showTab(this,'annotate')">✏️ Anotasi & Augmentasi</button>
-            <button onclick="showTab(this,'train')">🚀 Train</button>
-            <button onclick="showTab(this,'test')">🧪 Test</button>
+            <button class="active" onclick="showTab(this,'dataset')">📁 1 &middot; Dataset</button>
+            <button onclick="showTab(this,'annotate')">✏️ 2-4 &middot; Anotasi & Data</button>
+            <button onclick="showTab(this,'train')">🚀 5 &middot; Train</button>
+            <button onclick="showTab(this,'test')">🧪 6 &middot; Test</button>
         </div>
 
         <div id="tab-dataset" class="tab-content active">
-            <div class="card">
-                <div class="section-title">Dataset Management</div>
+            <div class="card" id="cardDataset">
+                <div class="section-title">Langkah 1 &middot; Kumpulkan Gambar</div>
                 <div style="padding:12px">
                     <div class="row">
                         <button class="btn primary" onclick="upload()">📁 Upload Gambar</button>
@@ -49,10 +51,10 @@
         </div>
 
         <div id="tab-annotate" class="tab-content">
-            <div class="card">
-                <div class="section-title">Anotasi</div>
+            <div class="card" id="cardAnotasi">
+                <div class="section-title">Langkah 2 &middot; Anotasi</div>
                 <div style="padding:12px">
-                    <p class="muted">Langkah <strong>1</strong>: beri label pada gambar yang sudah diunggah — kotak untuk deteksi, poligon untuk segmentasi, lingkaran untuk lubang dan poros. Label tersimpan dalam format YOLO dan langsung siap dilatih.</p>
+                    <p class="muted">Langkah <strong>2</strong>: beri label pada gambar yang sudah diunggah — kotak untuk deteksi, poligon untuk segmentasi, lingkaran untuk lubang dan poros. Label tersimpan dalam format YOLO dan langsung siap dilatih.</p>
                     <div class="row" style="margin-bottom:10px">
                         <button class="btn" onclick="openFolder()">📁 Buka Folder Dataset</button>
                         <span class="muted" id="annotStatus" style="font-size:11px"></span>
@@ -65,10 +67,10 @@
                 </div>
             </div>
 
-            <div class="card">
-                <div class="section-title">Split Dataset (Train / Val / Test)</div>
+            <div class="card" id="cardSplit">
+                <div class="section-title">Langkah 3 &middot; Split Dataset (Train / Val / Test)</div>
                 <div style="padding:12px">
-                    <p class="muted">Langkah <strong>2</strong>: setelah semua gambar dianotasi, bagi gambar <strong>asli</strong> (beserta anotasinya) jadi train / val / test. Geser 2 titik slider untuk atur proporsi. Baru <strong>setelah</strong> ini augmentasi dijalankan — dan hanya untuk <strong>train</strong>.</p>
+                    <p class="muted">Langkah <strong>3</strong>: setelah semua gambar dianotasi, bagi gambar <strong>asli</strong> (beserta anotasinya) jadi train / val / test. Geser 2 titik slider untuk atur proporsi. Baru <strong>setelah</strong> ini augmentasi dijalankan — dan hanya untuk <strong>train</strong>.</p>
                     <div class="tvt">
                         <div class="tvt-bar" id="tvtBar"></div>
                         <input type="range" min="0" max="100" value="70" id="thumbA" class="tvt-range" oninput="onSlide('A')">
@@ -92,10 +94,10 @@
                 </div>
             </div>
 
-            <div class="card">
-                <div class="section-title">Data Augmentation</div>
+            <div class="card" id="cardAug">
+                <div class="section-title">Langkah 4 &middot; Augmentasi <span class="flow-opt">(opsional)</span></div>
                 <div style="padding:12px">
-                    <p class="muted">Langkah <strong>3</strong>: generate variasi gambar per opsi (tidak dicampur). Contoh: centang Rotate + Blur, multiplier=2, dari 1 gambar → 4 output baru (2 rotate, 2 blur), gambar asli tetap ada. <strong>Label ikut ditransform otomatis.</strong> Secara default hanya <em>train</em> yang diaugmentasi; pilih split di bawah bila perlu juga Val/Test.</p>
+                    <p class="muted">Langkah <strong>4</strong> (opsional): generate variasi gambar per opsi (tidak dicampur). Contoh: centang Rotate + Blur, multiplier=2, dari 1 gambar → 4 output baru (2 rotate, 2 blur), gambar asli tetap ada. <strong>Label ikut ditransform otomatis.</strong> Secara default hanya <em>train</em> yang diaugmentasi; pilih split di bawah bila perlu juga Val/Test.</p>
 
                     <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
                         <p class="muted" style="font-size:11px; margin:0">Preview dari <strong id="sampleName">—</strong></p>
@@ -186,10 +188,10 @@
                 </div>
             </div>
 
-            <div class="card">
-                <div class="section-title">Preview Dataset + Anotasi</div>
+            <div class="card" id="cardPreview">
+                <div class="section-title">Periksa Hasil</div>
                 <div style="padding:12px">
-                    <p class="muted">Langkah <strong>4</strong>: cek hasil. Pilih grup untuk lihat gambar + kotak anotasinya (termasuk hasil augmentasi di train). Pastikan kotaknya pas.</p>
+                    <p class="muted">Cek hasil. Pilih grup untuk lihat gambar + kotak anotasinya (termasuk hasil augmentasi di train). Pastikan kotaknya pas.</p>
                     <div class="row" id="galleryTabs" style="margin-bottom:8px">
                         <button class="btn small" onclick="loadGallery('train')" id="galtrain">🟩 Train</button>
                         <button class="btn small" onclick="loadGallery('val')" id="galval">🟧 Val</button>
@@ -264,8 +266,8 @@
                 </div>
             </div>
 
-            <div class="card">
-                <div class="section-title">Hyperparameter</div>
+            <div class="card" id="cardTrain">
+                <div class="section-title">Langkah 5 &middot; Training</div>
                 <div style="padding:12px">
                     <div class="grid-2">
                         <label>Epochs <input type="number" id="epochs"></label>
@@ -343,8 +345,8 @@
         </div>
 
         <div id="tab-test" class="tab-content">
-            <div class="card">
-                <div class="section-title">Test / Evaluasi Model</div>
+            <div class="card" id="cardTest">
+                <div class="section-title">Langkah 6 &middot; Test / Evaluasi Model</div>
                 <div style="padding:12px">
                     <p class="muted">Jalankan model terlatih pada set <strong>test</strong> (atau val/train) untuk mendapat metrik, confusion matrix, kurva, dan prediksi visual. Hasil otomatis disimpan ke folder model (<code>models/&lt;model&gt;/eval/&lt;waktu&gt;</code>).</p>
                     <div class="row" style="align-items:center; gap:8px">
@@ -412,6 +414,112 @@ const modelName = param('model');
 let currentModel = null;
 document.getElementById('backLink').onclick = () => window.api.goTo(`project.html?name=${encodeURIComponent(projectName)}`);
 
+// ===================== Penunjuk alur =====================
+// Urutan kerjanya tetap: kumpulkan gambar, beri label, bagi, (augmentasi),
+// latih, uji. Rantai ini ditampilkan terus supaya penggunanya tidak perlu
+// menebak mana dulu - dan tanda centang datang dari keadaan dataset yang
+// sebenarnya, bukan dari tombol yang pernah ditekan.
+const ALUR = [
+    { n: 1, nama: 'Dataset',    tab: 'dataset',  kartu: 'cardDataset' },
+    { n: 2, nama: 'Anotasi',    tab: 'annotate', kartu: 'cardAnotasi' },
+    { n: 3, nama: 'Split',      tab: 'annotate', kartu: 'cardSplit' },
+    { n: 4, nama: 'Augmentasi', tab: 'annotate', kartu: 'cardAug', opsional: true },
+    { n: 5, nama: 'Train',      tab: 'train',    kartu: 'cardTrain' },
+    { n: 6, nama: 'Test',       tab: 'test',     kartu: 'cardTest' },
+];
+
+let alurBeres = {};
+
+function hitungBeres(stats) {
+    const total = (stats.train || 0) + (stats.val || 0) + (stats.test || 0);
+    return {
+        1: total > 0,                               // ada gambar
+        2: (stats.annotated || 0) > 0,              // ada yang sudah dilabeli
+        3: (stats.val || 0) > 0 || (stats.test || 0) > 0,   // sudah dibagi
+        4: false,                                   // opsional, tidak pernah "wajib beres"
+        5: !!(currentModel && currentModel.trained),
+        6: !!lastEval,
+    };
+}
+
+// Sorotan menunjuk posisi pengguna sekarang, bukan tebakan: langkah yang
+// tabnya sedang terbuka. Satu tab memuat tiga langkah (2-4), jadi di dalam
+// tab itu dipilih yang pertama belum beres - itulah yang sedang dikerjakan.
+// Pekerjaan berikutnya tetap terbaca sendiri: langkah pertama tanpa centang.
+function langkahSekarang() {
+    const tabAktif = (document.querySelector('.tab-content.active') || {}).id || '';
+    const nama = tabAktif.replace('tab-', '');
+    const dalamTab = ALUR.filter((l) => l.tab === nama);
+    if (!dalamTab.length) return 1;
+    const belum = dalamTab.find((l) => !l.opsional && !alurBeres[l.n]);
+    return (belum || dalamTab[0]).n;
+}
+
+function renderFlow() {
+    const el = document.getElementById('flow');
+    if (!el) return;
+    const kini = langkahSekarang();
+    el.innerHTML = ALUR.map((l) => {
+        const kelas = alurBeres[l.n] ? 'done' : (l.n === kini ? 'now' : '');
+        return `<button class="flow-step ${kelas}" data-n="${l.n}" title="Buka langkah ${l.n}">
+                    <span class="flow-n">${alurBeres[l.n] ? '&check;' : l.n}</span>
+                    <span>${l.nama}${l.opsional ? ' <span class="flow-opt">opsional</span>' : ''}</span>
+                </button>`;
+    }).join('<span class="flow-sep">&rsaquo;</span>');
+    el.querySelectorAll('.flow-step').forEach((b) => { b.onclick = () => bukaLangkah(+b.dataset.n); });
+}
+
+// Tiap tahap diakhiri ajakan ke tahap berikutnya, supaya alurnya bisa
+// diikuti lurus tanpa kembali ke rantai di atas.
+const LANJUT = {
+    cardDataset: { ke: 2, teks: 'Gambar sudah terkumpul? Lanjut beri label.' },
+    cardAnotasi: { ke: 3, teks: 'Semua gambar sudah dilabeli? Lanjut bagi datasetnya.' },
+    cardSplit:   { ke: 5, teks: 'Sudah dibagi. Augmentasi di bawah bersifat opsional — boleh langsung latih.' },
+    cardAug:     { ke: 5, teks: 'Variasi sudah dibuat? Lanjut latih modelnya.' },
+    cardTrain:   { ke: 6, teks: 'Training selesai? Lanjut uji hasilnya.' },
+};
+
+function pasangLanjut() {
+    for (const [idKartu, info] of Object.entries(LANJUT)) {
+        const kartu = document.getElementById(idKartu);
+        if (!kartu || kartu.querySelector('.flow-next')) continue;
+        const l = ALUR.find((x) => x.n === info.ke);
+        const bar = document.createElement('div');
+        bar.className = 'flow-next';
+        bar.innerHTML = `<span class="muted">${info.teks}</span>
+            <button class="btn small primary">Langkah ${l.n} &middot; ${l.nama} &rarr;</button>`;
+        bar.querySelector('button').onclick = () => bukaLangkah(info.ke);
+        (kartu.lastElementChild || kartu).appendChild(bar);
+    }
+
+    // Ujung rantai: setelah model teruji, pekerjaan pindah ke tingkat project.
+    const test = document.getElementById('cardTest');
+    if (test && !test.querySelector('.flow-next')) {
+        const bar = document.createElement('div');
+        bar.className = 'flow-next';
+        bar.innerHTML = `<span class="muted">Model sudah teruji. Langkah berikutnya di tingkat project:
+            susun <strong>Workflow</strong>, atur <strong>Output</strong>, lalu <strong>Jalankan</strong>.</span>
+            <span style="display:flex;gap:6px">
+                <button class="btn small" data-go="workflow">Workflow &rarr;</button>
+                <button class="btn small" data-go="output">Output</button>
+            </span>`;
+        bar.querySelector('[data-go="workflow"]').onclick =
+            () => window.api.goTo(`workflow.html?project=${encodeURIComponent(projectName)}`);
+        bar.querySelector('[data-go="output"]').onclick =
+            () => window.api.goTo(`output.html?project=${encodeURIComponent(projectName)}`);
+        (test.lastElementChild || test).appendChild(bar);
+    }
+}
+
+function bukaLangkah(n) {
+    const l = ALUR.find((x) => x.n === n);
+    if (!l) return;
+    const btn = document.querySelector(`.tab-headers button[onclick*="'${l.tab}'"]`);
+    if (btn) showTab(btn, l.tab);
+    const kartu = document.getElementById(l.kartu);
+    if (kartu) kartu.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
 function showTab(btn, id) {
     // Pakai kelas, bukan style inline: dengan begitu tab pertama sudah
     // tampil dari markup dan tidak bergantung skrip yang belum jalan.
@@ -424,6 +532,7 @@ function showTab(btn, id) {
     document.getElementById('tab-' + id).classList.add('active');
     if (id === 'train') { try { checkResumeState(); } catch (_) {} }
     if (id === 'annotate') mountAnnotator();
+    try { renderFlow(); } catch (_) {}
 }
 
 // Anotasi menyatu dengan halaman ini, tapi baru dipasang saat tabnya dibuka:
@@ -468,6 +577,10 @@ async function render() {
         <span>Add-ons: ${(currentModel.addons || []).map(a => `<span class="tag">${esc(a)}</span>`).join('') || '—'}</span>
         <span>Dataset: <strong>${stats.train}</strong> train / <strong>${stats.val || 0}</strong> val / <strong>${stats.test || 0}</strong> test · <strong>${stats.annotated}</strong> anot</span>
     `;
+    alurBeres = hitungBeres(stats);
+    renderFlow();
+    pasangLanjut();
+
     const splitInfo = document.getElementById('splitCounts');
     if (splitInfo) splitInfo.innerHTML =
         `Sekarang: <strong>${stats.train}</strong> train · <strong>${stats.val || 0}</strong> val · <strong>${stats.test || 0}</strong> test`;

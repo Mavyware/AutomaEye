@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <title>Project — AutomaEyes</title>
 <link rel="stylesheet" href="../css/style.css">
-<script>window.LAYOUT_OPTS = { title: 'Project Dashboard', subtitle: 'AutomaEyes', mode: 'setting', showTotalStatus: false };</script>
+<script>window.LAYOUT_OPTS = { title: 'Project', subtitle: 'Model · Workflow · Output', mode: 'setting', showTotalStatus: false };</script>
 </head>
 <body>
 
@@ -19,13 +19,15 @@
     </div>
     <p class="muted" id="desc"></p>
 
+    <nav class="flow" id="flowProject" aria-label="Urutan pengerjaan project"></nav>
+
     <section>
-        <div class="section-title">Models</div>
+        <div class="section-title">Langkah 1 &middot; Model</div>
         <div id="modelsList" style="background:var(--panel); border:1px solid var(--border); border-top:none;"></div>
     </section>
 
     <section style="margin-top: 16px;">
-        <div class="section-title">Workflow (Palette Task View)</div>
+        <div class="section-title">Langkah 2 &middot; Workflow</div>
         <div style="background:var(--panel); border:1px solid var(--border); border-top:none; padding:10px;">
             <div id="workflowView"></div>
             <div class="row">
@@ -41,11 +43,52 @@
 const projectName = param('name');
 let currentProject = null;
 
+// Alur tingkat project: siapkan model dulu, susun urutan pemeriksaannya,
+// tentukan cara hasilnya keluar, baru dijalankan di lini produksi. Tanda
+// centang dibaca dari keadaan project, bukan dari tombol yang pernah ditekan.
+const ALUR_PROJECT = [
+    { n: 1, nama: 'Model',    ke: null },
+    { n: 2, nama: 'Workflow', ke: 'workflow.html' },
+    { n: 3, nama: 'Output',   ke: 'output.html' },
+    { n: 4, nama: 'Jalankan', ke: 'run.html' },
+];
+
+function renderFlowProject() {
+    const el = document.getElementById('flowProject');
+    if (!el || !currentProject) return;
+    const model = currentProject.models || [];
+    const adaTerlatih = model.some((m) => m.trained);
+    const langkah = (currentProject.workflow && currentProject.workflow.steps) || [];
+
+    const beres = { 1: adaTerlatih, 2: langkah.length > 0, 3: false, 4: false };
+    let kini = 4;
+    for (const n of [1, 2]) if (!beres[n]) { kini = n; break; }
+    if (beres[1] && beres[2]) kini = 3;
+
+    el.innerHTML = ALUR_PROJECT.map((l) => {
+        const kelas = beres[l.n] ? 'done' : (l.n === kini ? 'now' : '');
+        return `<button class="flow-step ${kelas}" data-ke="${l.ke || ''}" data-n="${l.n}">
+                    <span class="flow-n">${beres[l.n] ? '&check;' : l.n}</span><span>${l.nama}</span>
+                </button>`;
+    }).join('<span class="flow-sep">&rsaquo;</span>');
+
+    el.querySelectorAll('.flow-step').forEach((b) => {
+        b.onclick = () => {
+            const ke = b.dataset.ke;
+            if (!ke) { document.getElementById('modelsList').scrollIntoView({ behavior: 'smooth', block: 'start' }); return; }
+            if (ke === 'run.html' && !langkah.length) { alert('Susun Workflow dulu sebelum menjalankan.'); return; }
+            window.api.goTo(`${ke}?project=${encodeURIComponent(projectName)}`);
+        };
+    });
+}
+
 async function render() {
     if (!projectName) { window.api.goTo('projects.html'); return; }
     currentProject = await window.api.loadProject(projectName);
     document.getElementById('pTitle').textContent = currentProject.name;
     document.getElementById('desc').textContent = currentProject.description || '';
+
+    renderFlowProject();
 
     const models = currentProject.models;
     const mList = document.getElementById('modelsList');

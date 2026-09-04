@@ -573,3 +573,50 @@ textarea { resize: vertical; }
     .an-wrap { grid-template-columns: 160px 1fr; }
     .an-wrap > .an-pane:last-child { grid-column: 1 / -1; height: 190px; }
 }
+
+/* ================== PENUNJUK ALUR ==================
+   Rantai langkah yang selalu terlihat, supaya urutan kerja tidak perlu
+   ditebak: apa yang sudah beres, sedang dikerjakan, dan apa berikutnya. */
+.flow {
+    display: flex; align-items: stretch; flex-wrap: wrap; gap: 2px;
+    margin: 0 0 16px; padding: 6px; border: 1px solid var(--border);
+    background: var(--panel); border-radius: var(--radius);
+}
+.flow-step {
+    display: flex; align-items: center; gap: 7px;
+    padding: 7px 12px; border: none; background: none; cursor: pointer;
+    font: inherit; font-size: 12px; color: var(--text-secondary);
+    border-radius: var(--radius-sm); white-space: nowrap;
+}
+.flow-step:hover { background: var(--panel-sunken); color: var(--text); }
+.flow-n {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 19px; height: 19px; border-radius: 50%; flex: none;
+    font-size: 11px; font-weight: 700;
+    background: var(--panel-sunken); color: var(--muted);
+    border: 1px solid var(--border-strong);
+}
+.flow-opt { font-size: 10px; color: var(--muted); font-weight: 400; }
+
+/* Sudah beres: dicentang, tapi tetap bisa dibuka lagi. */
+.flow-step.done .flow-n { background: var(--ok-bg); color: var(--ok); border-color: var(--ok); }
+.flow-step.done { color: var(--text); }
+
+/* Sedang dikerjakan. */
+.flow-step.now { background: var(--accent-light); color: var(--accent-dark); font-weight: 600; }
+.flow-step.now .flow-n { background: var(--accent); color: #fff; border-color: var(--accent); }
+
+.flow-sep { align-self: center; color: var(--border-strong); font-size: 13px; }
+
+/* Ajakan ke langkah berikutnya, ditaruh di ujung tiap tahap. */
+.flow-next {
+    display: flex; align-items: center; justify-content: space-between; gap: 10px;
+    flex-wrap: wrap; margin-top: 14px; padding: 10px 12px;
+    background: var(--panel-alt); border: 1px solid var(--border);
+    border-radius: var(--radius-sm); font-size: 12px;
+}
+.flow-next .muted { margin: 0; }
+
+@media (max-width: 900px) {
+    .flow-sep { display: none; }
+}
