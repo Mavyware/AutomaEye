@@ -17,19 +17,16 @@
     <div class="workflow-layout">
         <div class="palette" id="palette"></div>
         <div class="props" id="props">
-            <div class="props-header">Properties</div>
+            <div class="props-header">Pengaturan Step</div>
             <div class="props-body" id="propsBody">
-                <p class="muted">Pilih step di Palette (kiri) untuk edit properties.</p>
+                <p class="muted">Pilih salah satu step di kiri untuk mengatur rinciannya.</p>
                 <hr style="margin: 12px 0; border: none; border-top: 1px solid var(--border);">
-                <label>Saat step NG pertama:
-                    <select id="onFirstNG">
-                        <option value="stop_and_report">stop_and_report</option>
-                        <option value="continue">continue</option>
-                    </select>
-                </label>
+            <div id="ngRuleHost"></div>
             </div>
         </div>
     </div>
+
+    <div id="periksa" class="flow-next"></div>
 </main>
 
 <script src="../js/common.js"></script>
@@ -38,6 +35,16 @@ const projectName = param('project');
 document.getElementById('backLink').onclick = () => window.api.goTo(`project.html?name=${encodeURIComponent(projectName)}`);
 
 const CATEGORIES = ['Capture', 'Positioning', 'Inspection', 'Communication', 'Options'];
+// Workflow dijalankan berurutan dari atas ke bawah. Tanpa keterangan ini
+// urutannya harus ditebak - dan menaruh Communication sebelum Inspection
+// berarti mengirim hasil sebelum ada yang dinilai.
+const CAT_INFO = {
+    Capture:       'Ambil gambarnya dulu',
+    Positioning:   'Kunci posisi part (opsional)',
+    Inspection:    'Nilai OK / NG',
+    Communication: 'Kirim hasil ke Arduino / catat log',
+    Options:       'Simpan gambar (opsional)',
+};
 // Kategori yang memakai MODEL AI (butuh model terlatih). Lainnya pakai "tool".
 const MODEL_CATS = ['Inspection', 'Positioning'];
 // Katalog tool non-AI per kategori (Capture/Communication/Options).
@@ -58,11 +65,30 @@ let steps = [];
 let availableModels = [];
 let selectedIdx = -1;
 
+// Disimpan di variabel, bukan dibaca dari DOM. Panel properti ditulis ulang
+// setiap render, jadi select-nya lahir baru dengan nilai bawaan: project yang
+// menyimpan "continue" tetap tampil "stop_and_report", dan menekan Simpan
+// menimpanya diam-diam. Ini pengaturan keselamatan - apakah inspeksi berhenti
+// saat menemukan NG - jadi tidak boleh berubah sendiri.
+let onFirstNG = 'stop_and_report';
+let adaPerubahan = false;
+
+function aturanNG() {
+    return `<label>Kalau ada step yang menilai NG:
+        <select onchange="setOnFirstNG(this.value)">
+            <option value="stop_and_report" ${onFirstNG === 'stop_and_report' ? 'selected' : ''}>Berhenti dan laporkan NG</option>
+            <option value="continue" ${onFirstNG === 'continue' ? 'selected' : ''}>Lanjutkan sisa step-nya</option>
+        </select></label>
+        <p class="muted" style="font-size:11px;margin:4px 0 0">Berhenti lebih cepat; melanjutkan memberi laporan lengkap semua step.</p>`;
+}
+
+function setOnFirstNG(v) { onFirstNG = v; adaPerubahan = true; }
+
 async function init() {
     const p = await window.api.loadProject(projectName);
     steps = (p.workflow.steps || []).map(s => ({ ...s }));
     availableModels = p.models || [];
-    document.getElementById('onFirstNG').value = p.workflow.onFirstNG || 'stop_and_report';
+    onFirstNG = p.workflow.onFirstNG || 'stop_and_report';
     render();
 }
 
@@ -73,7 +99,8 @@ function render() {
         return `
             <div class="palette-cat">
                 <div class="palette-header">
-                    <div><span class="cat-icon"></span>${esc(cat)}</div>
+                    <div><span class="cat-icon"></span>${esc(cat)}
+                        <span class="cat-info">${esc(CAT_INFO[cat] || '')}</span></div>
                     <button class="palette-add-btn" onclick="addStep('${esc(cat)}')" title="Tambah step">+</button>
                 </div>
                 <div class="palette-body">
@@ -91,19 +118,50 @@ function render() {
     }).join('');
 
     renderProps();
+    renderPeriksa();
+}
+
+// Workflow yang tidak lengkap baru ketahuan saat dijalankan di lini produksi.
+// Lebih baik dikatakan di sini, sebagai catatan - bukan larangan, karena
+// workflow setengah jadi wajar disimpan dulu.
+function renderPeriksa() {
+    const el = document.getElementById('periksa');
+    if (!el) return;
+    const punya = (c) => steps.some((s2) => s2.category === c);
+    const kurang = [];
+    if (!punya('Capture')) kurang.push('belum ada step <strong>Capture</strong> — tidak ada gambar yang masuk');
+    if (!punya('Inspection')) kurang.push('belum ada step <strong>Inspection</strong> — tidak ada yang dinilai OK/NG');
+
+    const belumLatih = steps.filter((s2) => {
+        if (!s2.modelName) return false;
+        const m = availableModels.find((x) => x.name === s2.modelName);
+        return !m || !m.trained;
+    }).map((s2) => s2.modelName);
+    if (belumLatih.length) kurang.push(`model belum dilatih: <strong>${belumLatih.map(esc).join(', ')}</strong>`);
+
+    if (!steps.length) {
+        el.className = 'flow-next';
+        el.innerHTML = '<span class="muted">Belum ada step. Mulai dari <strong>Capture</strong> di kiri, lalu tambahkan <strong>Inspection</strong>.</span>';
+        return;
+    }
+    if (kurang.length) {
+        el.className = 'flow-next periksa-warn';
+        el.innerHTML = `<span class="muted">Masih perlu dilengkapi: ${kurang.join(' · ')}.</span>`;
+        return;
+    }
+    el.className = 'flow-next';
+    el.innerHTML = `<span class="muted">Workflow lengkap: ${steps.length} step. Berikutnya atur cara hasilnya dikirim keluar.</span>
+        <button class="btn small primary" id="keOutput">Langkah 3 &middot; Output &rarr;</button>`;
+    el.querySelector('#keOutput').onclick =
+        () => window.api.goTo(`output.html?project=${encodeURIComponent(projectName)}`);
 }
 
 function renderProps() {
     const body = document.getElementById('propsBody');
     if (selectedIdx < 0) {
-        body.innerHTML = `<p class="muted">Pilih step di Palette (kiri) untuk edit properties.</p>
+        body.innerHTML = `<p class="muted">Pilih salah satu step di kiri untuk mengatur rinciannya.</p>
             <hr style="margin:12px 0; border:none; border-top:1px solid var(--border);">
-            <label>Saat step NG pertama:
-                <select id="onFirstNG">
-                    <option value="stop_and_report">stop_and_report</option>
-                    <option value="continue">continue</option>
-                </select>
-            </label>`;
+            ${aturanNG()}`;
         return;
     }
     const s = steps[selectedIdx];
@@ -111,9 +169,9 @@ function renderProps() {
     let head, configHtml = '';
     if (isModel) {
         const m = availableModels.find(x => x.name === s.modelName);
-        const trained = m && m.trained ? (m.lastMAP != null ? `mAP=${m.lastMAP.toFixed(3)}` : 'terlatih') : 'belum trained';
+        const trained = m && m.trained ? (m.lastMAP != null ? `sudah dilatih (mAP ${m.lastMAP.toFixed(3)})` : 'sudah dilatih') : '⚠ belum dilatih';
         head = `<h3>Step [${selectedIdx + 1}] — ${esc(s.modelName)}</h3>
-            <p class="muted">Type: <strong>${m ? esc(m.type) : '?'}</strong> · Status: ${trained}<br>
+            <p class="muted">Jenis: <strong>${m ? esc(m.type) : '?'}</strong> · ${trained}<br>
             ${s.category === 'Positioning' ? 'Peran: mengunci lokasi part (bukan menilai).' : 'Peran: menilai OK/NG lewat add-on.'}</p>`;
         // Pilih VERSI model (v1, v2, …) untuk step ini. Kosong = pakai versi aktif.
         let verHtml = '';
@@ -134,25 +192,20 @@ function renderProps() {
     body.innerHTML = `${head}
         <hr style="margin:12px 0; border:none; border-top:1px solid var(--border);">
         ${configHtml}
-        <label>Continue on
+        <label>Lanjut ke step berikutnya
             <select onchange="updateStep('continueOn', this.value)">
-                <option ${s.continueOn === 'always' ? 'selected' : ''}>always</option>
-                <option ${s.continueOn === 'on_ok' ? 'selected' : ''}>on_ok</option>
-                <option ${s.continueOn === 'on_ng' ? 'selected' : ''}>on_ng</option>
+                <option value="always" ${s.continueOn === 'always' ? 'selected' : ''}>Selalu</option>
+                <option value="on_ok" ${s.continueOn === 'on_ok' ? 'selected' : ''}>Hanya kalau step ini OK</option>
+                <option value="on_ng" ${s.continueOn === 'on_ng' ? 'selected' : ''}>Hanya kalau step ini NG</option>
             </select>
         </label>
         <div class="row">
-            <button class="btn small" onclick="move(-1)">↑ Up</button>
-            <button class="btn small" onclick="move(1)">↓ Down</button>
-            <button class="btn small danger" onclick="removeStep()">🗑 Delete</button>
+            <button class="btn small" onclick="move(-1)">↑ Naik</button>
+            <button class="btn small" onclick="move(1)">↓ Turun</button>
+            <button class="btn small danger" onclick="removeStep()">🗑 Hapus step</button>
         </div>
         <hr style="margin:12px 0; border:none; border-top:1px solid var(--border);">
-        <label>Saat step NG pertama:
-            <select id="onFirstNG">
-                <option value="stop_and_report">stop_and_report</option>
-                <option value="continue">continue</option>
-            </select>
-        </label>`;
+            ${aturanNG()}`;
 }
 
 // Editor konfigurasi untuk step non-model (Capture/Communication/Options).
@@ -184,6 +237,7 @@ function renderStepConfig(s) {
 }
 
 function updateStepConfig(key, value) {
+    adaPerubahan = true;
     if (selectedIdx < 0) return;
     const s = steps[selectedIdx];
     s.config = s.config || {};
@@ -204,7 +258,7 @@ function addStep(cat) {
     if (isModelCat && !availableModels.length) {
         box.innerHTML = `<h3 style="margin-top:0">Tambah step — ${esc(cat)}</h3>
             <p class="muted">Belum ada model di project ini. Buat &amp; latih model dulu:
-            <strong>Project → + New Model → Dataset → Annotate → Train</strong>.</p>
+            <strong>Project → Model Baru → Langkah 1-5</strong>.</p>
             <div class="row" style="justify-content:flex-end"><button class="btn" id="pkClose">Tutup</button></div>`;
     } else {
         const hint = isModelCat
@@ -233,6 +287,7 @@ function addStep(cat) {
                 `<span class="muted" style="font-size:11px">— ${esc(m.type)}${m.trained ? ' · trained' : ' · belum trained'}</span>`;
             btn.onclick = () => {
                 steps.push({ modelName: m.name, category: cat, continueOn: 'always' });
+                adaPerubahan = true;
                 selectedIdx = steps.length - 1;
                 closePicker();
                 render();
@@ -247,6 +302,7 @@ function addStep(cat) {
             btn.innerHTML = `<strong>${esc(t.label)}</strong>`;
             btn.onclick = () => {
                 steps.push({ category: cat, tool: t.tool, label: t.label, config: { ...t.config }, continueOn: 'always' });
+                adaPerubahan = true;
                 selectedIdx = steps.length - 1;
                 closePicker();
                 render();
@@ -267,12 +323,14 @@ function selectStep(idx) {
 }
 
 function updateStep(key, value) {
+    adaPerubahan = true;
     if (selectedIdx < 0) return;
     steps[selectedIdx][key] = value;
     render();
 }
 
 function move(dir) {
+    adaPerubahan = true;
     if (selectedIdx < 0) return;
     const ni = selectedIdx + dir;
     if (ni < 0 || ni >= steps.length) return;
@@ -284,17 +342,24 @@ function move(dir) {
 }
 
 function removeStep() {
+    adaPerubahan = true;
     if (selectedIdx < 0) return;
     steps.splice(selectedIdx, 1);
     selectedIdx = -1;
     render();
 }
 
+// Susunan step hanya ada di memori sampai ditekan Simpan. Tanpa peringatan
+// ini, menutup jendela atau menekan "Project" membuang seluruh pekerjaan
+// tanpa sepatah kata pun.
+window.addEventListener('beforeunload', (e) => {
+    if (adaPerubahan) { e.preventDefault(); e.returnValue = ''; }
+});
+
 async function saveWorkflow() {
-    const sel = document.getElementById('onFirstNG');
-    const onFirstNG = sel ? sel.value : 'stop_and_report';
     try {
         await window.api.saveWorkflow(projectName, steps, onFirstNG);
+        adaPerubahan = false;
         alert('✓ Workflow tersimpan');
     } catch (e) {
         alert('Gagal simpan workflow: ' + e.message);

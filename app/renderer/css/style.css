@@ -620,3 +620,9 @@ textarea { resize: vertical; }
 @media (max-width: 900px) {
     .flow-sep { display: none; }
 }
+
+/* Keterangan singkat tiap kategori workflow: urutannya penting, dan tanpa
+   ini pengguna harus menebak mana yang lebih dulu. */
+.cat-info { display: block; font-size: 10px; font-weight: 400; color: var(--muted); margin-top: 1px; }
+.periksa-warn { background: var(--warn-bg); border-color: var(--warn); }
+.periksa-warn .muted { color: var(--warn); }
