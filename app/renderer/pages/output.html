@@ -228,7 +228,7 @@ function renderPerangkat() {
         const sambungan = cfg.device.koneksi === 'tcp'
             ? `<strong>${esc(cfg.device.host || 'IP belum diisi')}:${cfg.device.porta || 502}</strong> · unit ${cfg.device.unit || 1}`
             : (cfg.device.jenis === 'plc'
-                ? `port <strong>${esc(cfg.device.port || 'belum dipilih')}</strong> · ${cfg.device.baud} baud · unit ${cfg.device.unit || 1}`
+                ? `port <strong>${esc(cfg.device.port || 'belum dipilih')}</strong> · ${cfg.device.baud} 8${({ none: 'N', even: 'E', odd: 'O' })[cfg.device.paritas || 'none']}${cfg.device.stopBits || 1} · unit ${cfg.device.unit || 1}`
                 : `port <strong>${esc(cfg.device.port || 'belum dipilih')}</strong> · ${cfg.device.baud} baud`);
         ring.innerHTML = papan
             ? `${esc(papan.nama)} · ${namaKoneksi} · ${sambungan} &nbsp; <a href="#" id="ubahDev">ubah</a>`
@@ -301,9 +301,25 @@ function dialogPerangkat(jenis) {
                         <span class="muted" id="dpStatus" style="font-size:11px"></span>
                     </div>
                     <div id="dpPort" class="dp-port"></div>
-                    <label style="display:block;font-size:12px;margin-top:10px">Baud
-                        <input type="number" id="dpBaud" value="${cfg.device.baud || j.baudBawaan}" style="width:140px;margin-top:4px">
-                    </label>
+                    <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:10px">
+                        <label style="font-size:12px">Baud
+                            <input type="number" id="dpBaud" value="${cfg.device.baud || j.baudBawaan}" style="width:120px;margin-top:4px">
+                        </label>
+                        <label style="font-size:12px" id="dpParitasBungkus">Paritas
+                            <select id="dpParitas" style="width:120px;margin-top:4px">
+                                <option value="none" ${(cfg.device.paritas || 'none') === 'none' ? 'selected' : ''}>None (8N)</option>
+                                <option value="even" ${cfg.device.paritas === 'even' ? 'selected' : ''}>Even (8E)</option>
+                                <option value="odd" ${cfg.device.paritas === 'odd' ? 'selected' : ''}>Odd (8O)</option>
+                            </select>
+                        </label>
+                        <label style="font-size:12px" id="dpStopBungkus">Stop bit
+                            <select id="dpStop" style="width:90px;margin-top:4px">
+                                <option value="1" ${String(cfg.device.stopBits || 1) === '1' ? 'selected' : ''}>1</option>
+                                <option value="2" ${String(cfg.device.stopBits) === '2' ? 'selected' : ''}>2</option>
+                            </select>
+                        </label>
+                    </div>
+                    <p class="muted" style="font-size:11px;margin:6px 0 0" id="dpSerialKet"></p>
                 </div>
 
                 <div id="dpJaringan" style="display:none">
@@ -380,6 +396,17 @@ function dialogPerangkat(jenis) {
             latar.querySelector('#dpSerial').style.display = jaringan ? 'none' : '';
             latar.querySelector('#dpJaringan').style.display = jaringan ? '' : 'none';
             latar.querySelector('#dpUnit').style.display = jenis === 'plc' ? '' : 'none';
+            // Sketsa Arduino/ESP32 selalu 8N1; menawarkan pilihan di sana hanya
+            // memberi tombol yang bisa merusak tanpa memberi manfaat.
+            const utkPlc = jenis === 'plc';
+            latar.querySelector('#dpParitasBungkus').style.display = utkPlc ? '' : 'none';
+            latar.querySelector('#dpStopBungkus').style.display = utkPlc ? '' : 'none';
+            const ket = latar.querySelector('#dpSerialKet');
+            if (ket) {
+                ket.textContent = utkPlc
+                    ? 'Harus sama persis dengan setelan port di PLC. Bawaan spesifikasi Modbus RTU adalah 8E1 (paritas Even), tapi banyak PLC dikirim 8N1 — cek di program PLC-nya.'
+                    : 'Sketsa AutomaEyes memakai 8N1. Baud harus sama dengan yang tertulis di sketsa: 9600 untuk Arduino, 115200 untuk ESP32.';
+            }
             const b = j.papan[latar.querySelector('#dpPapan').value];
             const ct = latar.querySelector('#dpCatatan');
             if (ct) ct.textContent = (b && b.catatan) ? b.catatan : '';
@@ -414,6 +441,8 @@ function dialogPerangkat(jenis) {
             cfg.device.host = latar.querySelector('#dpHost').value.trim();
             cfg.device.porta = parseInt(latar.querySelector('#dpPorta').value, 10) || 502;
             cfg.device.unit = parseInt(latar.querySelector('#dpUnitId').value, 10) || 1;
+            cfg.device.paritas = latar.querySelector('#dpParitas').value;
+            cfg.device.stopBits = parseInt(latar.querySelector('#dpStop').value, 10) || 1;
             tandai();
             tutup(true);
         };

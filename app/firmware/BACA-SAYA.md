@@ -79,6 +79,26 @@ Aplikasi menulis coil lewat Modbus, dengan dua cara sambung:
 - **Modbus RTU** — kabel serial atau RS-485 lewat konverter USB
 - **Modbus TCP** — jaringan Ethernet, umumnya port 502
 
+### Setelan port untuk RTU
+
+Baud, paritas, dan stop bit harus **sama persis** dengan setelan port di PLC.
+Kalau berbeda, PLC tidak menjawab sama sekali — tidak ada pesan kesalahan yang
+menunjuk penyebabnya.
+
+Bawaan spesifikasi Modbus RTU adalah **8E1** (paritas Even, 1 stop bit), tapi
+banyak PLC dikirim **8N1**. Cek di program PLC-nya, jangan menebak.
+
+Pada konverter USB–RS485:
+
+- **A dan B tertukar** adalah penyebab paling sering: sama sekali tidak ada
+  komunikasi, persis seperti kabel putus. Kalau ragu, tukar saja dan coba lagi.
+- Sebagian besar konverter mengatur arah kirim/terima sendiri. Yang berbasis
+  CH340 murah kadang meleset pada baud tinggi — kalau 19200 ke atas tidak
+  stabil, turunkan dulu ke 9600 untuk memastikan kabelnya benar.
+- Jalur panjang butuh resistor terminasi 120 Ω di kedua ujungnya.
+- **Unit / slave ID** harus cocok. Satu ID yang salah membuat PLC diam,
+  bukan menolak.
+
 Kalau alamat coil yang Anda petakan berurutan tanpa lubang, semuanya dikirim
 dalam **satu bingkai** (fungsi `0x0F`) — satu perjalanan bolak-balik, dan PLC
 menerapkannya sekaligus. Kalau ada lubang, tiap coil dikirim sendiri-sendiri
