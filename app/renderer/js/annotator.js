@@ -16,7 +16,7 @@
 
     let host = null, projectName = '', modelName = '';
     let classes = [], aiType = 'AI Detection';
-    let images = [], idx = -1, split = 'train';
+    let images = [], idx = -1;
     let shapes = [], activeCls = 0, selected = -1;
     let tool = 'rect';
     let polyPts = [], drag = null, vertexDrag = null, dirty = false;
@@ -32,9 +32,7 @@
     const MARKUP = `
         <div class="an-head">
             <span class="an-title" id="an-title">Anotasi</span>
-            <select id="an-splitSel" style="font-size:12px">
-                <option value="train">train</option><option value="val">val</option><option value="test">test</option>
-            </select>
+            <span class="an-catatan">Semua gambar dianotasi di sini &mdash; pembagian train/val/test di Langkah 3</span>
             <span style="flex:1"></span>
             <button class="btn small" id="an-prev">&larr; Sebelumnya</button>
             <button class="btn small" id="an-next">Berikutnya &rarr;</button>
@@ -87,7 +85,6 @@
         ctx = canvas.getContext('2d');
         imgEl = $('img');
 
-        $('splitSel').onchange = loadSplit;
         $('prev').onclick = prevImg;
         $('next').onclick = nextImg;
         $('save').onclick = save;
@@ -114,7 +111,7 @@
         // pengukuran GD&T jauh lebih akurat daripada kotak.
         setTool(aiType === 'AI Segmentation' ? 'poly' : 'rect');
         renderClasses();
-        await loadSplit();
+        await muatSemua();
     }
 
     function unmount() {
@@ -157,9 +154,19 @@
     }
 
     // ---------- daftar gambar ----------
-    async function loadSplit() {
-        split = $('splitSel').value;
-        images = await window.api.annotList(projectName, modelName, split);
+    // Anotasi tidak mengenal train/val/test. Pembagian itu urusan Langkah 3,
+    // dan splitDataset memang mengembalikan val/test ke train dulu sebelum
+    // membagi ulang - jadi sebelum di-split semuanya memang ada di satu tempat.
+    // Sesudah di-split pun gambarnya tetap bisa diperbaiki di sini, karena
+    // ketiga folder dibaca sebagai satu daftar. Tiap gambar mengingat folder
+    // asalnya sendiri, supaya labelnya tersimpan kembali ke tempat yang benar.
+    async function muatSemua() {
+        const kumpulan = [];
+        for (const s2 of ['train', 'val', 'test']) {
+            const daftar = await window.api.annotList(projectName, modelName, s2);
+            for (const im of daftar) kumpulan.push(Object.assign({ split: s2 }, im));
+        }
+        images = kumpulan;
         $('imgCount').textContent = images.length;
         renderImgList();
         if (images.length) selectImg(0);
@@ -168,9 +175,13 @@
 
     function renderImgList() {
         const el = $('imgList');
+        // Penanda folder hanya muncul kalau datasetnya memang sudah dibagi:
+        // sebelum Langkah 3 semuanya di train, dan menuliskannya cuma ramai.
+        const sudahDibagi = images.some((im) => im.split !== 'train');
         el.innerHTML = images.map((im, i) => `
             <div class="an-item ${i === idx ? 'active' : ''}" data-i="${i}" title="${esc(im.name)}">
                 <span class="an-nm">${esc(im.name)}</span>
+                ${sudahDibagi && im.split !== 'train' ? `<span class="an-split">${esc(im.split)}</span>` : ''}
                 <span class="an-dot ${(im.boxes && im.boxes.length) ? 'on' : 'off'}"></span>
             </div>`).join('') || '<p class="an-hint">Belum ada gambar. Upload dulu di tab Dataset.</p>';
         el.querySelectorAll('.an-item').forEach((d) => { d.onclick = () => selectImg(+d.dataset.i); });
@@ -181,7 +192,7 @@
             { judul: 'Perubahan belum disimpan', ya: 'Lanjut tanpa menyimpan' })) return;
         idx = i; dirty = false; polyPts = []; selected = -1;
         const im = images[i];
-        const r = await window.api.annotImage(projectName, modelName, split, im.name);
+        const r = await window.api.annotImage(projectName, modelName, im.split, im.name);
         if (!r.ok) { pesan(r.error, 'err'); return; }
 
         shapes = (im.boxes || []).map((b) => b.poly
@@ -399,10 +410,11 @@
 
     async function save() {
         if (idx < 0) return;
-        const r = await window.api.annotSave(projectName, modelName, split, images[idx].name, shapes);
+        const im = images[idx];
+        const r = await window.api.annotSave(projectName, modelName, im.split, im.name, shapes);
         if (!r.ok) { pesan('Gagal simpan: ' + r.error, 'err'); return; }
         dirty = false;
-        images[idx].boxes = shapes.map((s) => ({ ...s }));
+        im.boxes = shapes.map((x) => ({ ...x }));
         renderImgList();
         const el = $('savedMsg');
         el.textContent = `Tersimpan (${r.count} objek)`;

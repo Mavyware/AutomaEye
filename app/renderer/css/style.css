@@ -701,3 +701,26 @@ textarea { resize: vertical; }
     white-space: pre-wrap; word-break: break-word;
 }
 .tanya-tombol { display: flex; gap: 8px; justify-content: flex-end; margin-top: 18px; }
+
+/* Rantai langkah menempel di atas saat digulung. Isi tab anotasi panjang,
+   dan begitu rantainya tergulung hilang, urutan kerjanya harus ditebak lagi. */
+.flow-lekat {
+    position: sticky; top: 0; z-index: 30;
+    /* Bayangan pertama tanpa blur memakai warna latar untuk menutup celah
+       padding di atas: tanpa itu isi halaman terlihat mengintip di sela
+       antara topbar dan rantai saat digulung. Kelebihannya terpotong oleh
+       area gulir, jadi aman dilebihkan. */
+    box-shadow: 0 -28px 0 0 var(--bg),
+                0 1px 0 var(--border),
+                0 6px 12px -10px rgba(20, 30, 50, .35);
+}
+
+/* Keterangan di kepala ruang anotasi: menegaskan bahwa di sini tidak ada
+   urusan train/val/test. */
+.an-catatan { font-size: 10.5px; color: var(--muted); }
+/* Penanda folder pada daftar gambar, muncul hanya setelah dataset dibagi. */
+.an-split {
+    font-size: 9px; padding: 1px 5px; border-radius: 8px; align-self: center;
+    background: var(--panel-sunken); color: var(--muted);
+    border: 1px solid var(--border); flex: none; text-transform: uppercase;
+}

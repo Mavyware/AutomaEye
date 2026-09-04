@@ -15,7 +15,7 @@
     </div>
     <div class="meta-row" id="meta"></div>
 
-    <nav class="flow" id="flow" aria-label="Urutan pengerjaan"></nav>
+    <nav class="flow flow-lekat" id="flow" aria-label="Urutan pengerjaan"></nav>
 
     <div class="card" id="addonRulesCard" style="display:none">
         <div class="section-title">Aturan Inspeksi (Add-ons)</div>
@@ -25,7 +25,7 @@
     <div class="tabs">
         <div class="tab-headers">
             <button class="active" onclick="showTab(this,'dataset')">📁 1 &middot; Dataset</button>
-            <button onclick="showTab(this,'annotate')">✏️ 2-4 &middot; Anotasi & Data</button>
+            <button onclick="showTab(this,'annotate')">✏️ 2-4 &middot; Anotasi, Split & Augmentasi</button>
             <button onclick="showTab(this,'train')">🚀 5 &middot; Train</button>
             <button onclick="showTab(this,'test')">🧪 6 &middot; Test</button>
         </div>
@@ -97,7 +97,7 @@
             <div class="card" id="cardAug">
                 <div class="section-title">Langkah 4 &middot; Augmentasi <span class="flow-opt">(opsional)</span></div>
                 <div style="padding:12px">
-                    <p class="muted">Langkah <strong>4</strong> (opsional): generate variasi gambar per opsi (tidak dicampur). Contoh: centang Rotate + Blur, multiplier=2, dari 1 gambar → 4 output baru (2 rotate, 2 blur), gambar asli tetap ada. <strong>Label ikut ditransform otomatis.</strong> Secara default hanya <em>train</em> yang diaugmentasi; pilih split di bawah bila perlu juga Val/Test.</p>
+                    <p class="muted">Langkah <strong>4</strong> (opsional): generate variasi gambar per opsi (tidak dicampur). Contoh: centang Rotate + Blur, multiplier=2, dari 1 gambar → 4 output baru (2 rotate, 2 blur), gambar asli tetap ada. <strong>Label ikut ditransform otomatis.</strong></p>
 
                     <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
                         <p class="muted" style="font-size:11px; margin:0">Preview dari <strong id="sampleName">—</strong></p>
@@ -171,13 +171,11 @@
                     <hr style="margin: 12px 0; border: none; border-top: 1px solid var(--border);">
                     <label>Multiplier (varian per opsi per gambar) <input type="number" id="augMult" value="2" min="1" max="5" style="max-width:120px"></label>
 
-                    <div style="margin-top:10px">
-                        <div style="font-size:12px; font-weight:600; margin-bottom:4px">Split yang di-augment (output ke folder masing-masing)</div>
-                        <label style="margin-right:14px"><input type="checkbox" id="augSplitTrain" checked> Train</label>
-                        <label style="margin-right:14px"><input type="checkbox" id="augSplitVal"> Val</label>
-                        <label><input type="checkbox" id="augSplitTest"> Test</label>
-                        <p class="muted" style="font-size:11px; margin:4px 0 0">Default: hanya <em>train</em> (praktik ML standar). Centang Val/Test hanya bila diminta (mis. syarat pembimbing) — tiap split di-augment ke foldernya sendiri, tidak dicampur.</p>
-                    </div>
+                    <p class="muted" style="font-size:11px; margin:10px 0 0">
+                        Hanya <strong>train</strong> yang diaugmentasi. Val dan test harus tetap
+                        apa adanya — melatih model pada variasi gambar yang juga dipakai
+                        untuk mengujinya membuat nilai ujinya terlihat bagus secara palsu.
+                    </p>
 
                     <label style="display:block; margin-top:10px"><input type="checkbox" id="augClean" checked> Regenerasi bersih (hapus augmentasi lama dulu)</label>
                     <p class="muted" style="font-size:11px; margin:2px 0 0">Aktif = set augmentasi baru (aug lama seperti rotasi dibuang). Matikan hanya bila ingin menumpuk aug lama.</p>
@@ -769,14 +767,10 @@ async function generateAug() {
         return;
     }
 
-    const splits = [];
-    if (document.getElementById('augSplitTrain').checked) splits.push('train');
-    if (document.getElementById('augSplitVal').checked) splits.push('val');
-    if (document.getElementById('augSplitTest').checked) splits.push('test');
-    if (!splits.length) {
-        document.getElementById('augStatus').textContent = '⚠️ Pilih minimal 1 split (Train/Val/Test)';
-        return;
-    }
+    // Selalu hanya train. Mengaugmentasi val/test adalah kebocoran data:
+    // varian dari gambar yang sama muncul di sisi latih dan sisi uji, sehingga
+    // metriknya mengukur hafalan, bukan kemampuan menggeneralisasi.
+    const splits = ['train'];
 
     const bar = document.getElementById('augBar');
     const fill = document.getElementById('augFill');
