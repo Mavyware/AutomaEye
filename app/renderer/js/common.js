@@ -72,3 +72,80 @@ function pesan(teks, jenis, ms) {
     if (lama > 0) setTimeout(() => { p.remove(); }, lama);
     return p;
 }
+
+// ===================== Pertanyaan ya / tidak =====================
+// Pengganti window.confirm. Berbeda dari pesan(), yang ini memang menuntut
+// jawaban, jadi tetap menghalangi - tapi tampil sebagai dialog aplikasi,
+// bukan kotak sistem, dan teksnya bisa lebih panjang tanpa terpotong.
+//
+//   if (!await tanya('Hapus project ini?', { bahaya: true })) return;
+//
+// Mengembalikan Promise<boolean>. Enter menjawab ya, Esc menjawab tidak,
+// dan mengklik latar di luar kotak juga berarti tidak.
+//
+// Untuk tindakan yang merusak, fokus awal jatuh pada tombol Batal: menekan
+// Enter refleks tidak boleh berujung menghapus sesuatu.
+function tanya(teks, opsi) {
+    opsi = opsi || {};
+    const labelYa = opsi.ya || 'Lanjutkan';
+    const labelTidak = opsi.tidak || 'Batal';
+    const bahaya = !!opsi.bahaya;
+
+    return new Promise((jawab) => {
+        const bekas = document.getElementById('dlgTanya');
+        if (bekas) bekas.remove();
+
+        const latar = document.createElement('div');
+        latar.id = 'dlgTanya';
+        latar.className = 'tanya-latar';
+
+        const kotak = document.createElement('div');
+        kotak.className = 'tanya-kotak';
+        kotak.setAttribute('role', 'dialog');
+        kotak.setAttribute('aria-modal', 'true');
+
+        if (opsi.judul) {
+            const h = document.createElement('h3');
+            h.className = 'tanya-judul';
+            h.textContent = opsi.judul;
+            kotak.appendChild(h);
+        }
+
+        const p = document.createElement('p');
+        p.className = 'tanya-teks';
+        p.textContent = teks;          // teks apa adanya, tidak pernah jadi HTML
+        kotak.appendChild(p);
+
+        const baris = document.createElement('div');
+        baris.className = 'tanya-tombol';
+        const btnTidak = document.createElement('button');
+        btnTidak.className = 'btn';
+        btnTidak.type = 'button';
+        btnTidak.textContent = labelTidak;
+        const btnYa = document.createElement('button');
+        btnYa.className = 'btn ' + (bahaya ? 'danger' : 'primary');
+        btnYa.type = 'button';
+        btnYa.textContent = labelYa;
+        baris.appendChild(btnTidak);
+        baris.appendChild(btnYa);
+        kotak.appendChild(baris);
+        latar.appendChild(kotak);
+        document.body.appendChild(latar);
+
+        const selesai = (hasil) => {
+            document.removeEventListener('keydown', kunci, true);
+            latar.remove();
+            jawab(hasil);
+        };
+        const kunci = (e) => {
+            if (e.key === 'Escape') { e.preventDefault(); selesai(false); }
+            else if (e.key === 'Enter') { e.preventDefault(); selesai(document.activeElement === btnYa); }
+        };
+        document.addEventListener('keydown', kunci, true);
+        btnTidak.onclick = () => selesai(false);
+        btnYa.onclick = () => selesai(true);
+        latar.onclick = (e) => { if (e.target === latar) selesai(false); };
+
+        (bahaya ? btnTidak : btnYa).focus();
+    });
+}

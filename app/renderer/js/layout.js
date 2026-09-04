@@ -288,7 +288,8 @@ function _esc(s) {
 async function doLogout(e) {
     if (e) e.stopPropagation();
     _closeUtilMenu();
-    if (!confirm('Keluar dari akun? Koneksi GitHub juga dilepas, tapi project yang sudah ter-push tetap aman di repo Anda.')) return;
+    if (!await tanya('Koneksi GitHub ikut dilepas. Project yang sudah ter-push tetap aman di repo Anda.',
+        { judul: 'Keluar dari akun', ya: 'Keluar' })) return;
     await window.api.authLogout();
 }
 
@@ -416,7 +417,7 @@ async function showConflictDialog() {
         const msg = box.querySelector('#ckMsg');
         const nama = (box.querySelector('#ckBranch').value || '').trim();
         if (choice === 'branch' && !nama) { msg.style.color = '#dc2626'; msg.textContent = 'Nama cabang tidak boleh kosong.'; return; }
-        if (!confirm(`${label}\n\nLanjutkan?`)) return;
+        if (!await tanya(label, { judul: 'Selesaikan perbedaan', ya: 'Lanjutkan' })) return;
         box.querySelectorAll('button').forEach((b) => (b.disabled = true));
         msg.textContent = 'Menyelesaikan…';
         const r = await window.api.gitResolveConflict(choice, nama);
@@ -502,10 +503,8 @@ async function _buatLaporan(judul, panggil, ringkas) {
     try {
         const r = await panggil(project, tanggal);
         if (!r || !r.ok) { pesan('Gagal membuat laporan: ' + ((r && r.error) || 'tidak diketahui'), 'err'); return; }
-        if (confirm(`${ringkas(r)}
-${r.xlsxPath}
-
-Buka sekarang?`)) window.api.openPath(r.xlsxPath);
+        if (await tanya(`${ringkas(r)}\n${r.xlsxPath}`,
+            { judul: 'Laporan siap', ya: 'Buka berkas', tidak: 'Nanti saja' })) window.api.openPath(r.xlsxPath);
     } catch (e) {
         pesan('Gagal membuat laporan: ' + e.message, 'err');
     }

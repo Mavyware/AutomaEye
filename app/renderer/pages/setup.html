@@ -48,6 +48,7 @@
     <div id="log"></div>
 </div>
 
+<script src="../js/common.js"></script>
 <script>
 let info = null;
 
@@ -111,8 +112,9 @@ async function pasang() {
     else setStatus('Gagal: ' + r.error, 'err');
 }
 
-function lewati() {
-    if (!confirm('Lanjut tanpa Python?\n\nProject dan pengaturan tetap bisa dibuka, tapi melatih model dan menjalankan inspeksi belum bisa sampai kebutuhan di atas terpenuhi.')) return;
+async function lewati() {
+    if (!await tanya('Project dan pengaturan tetap bisa dibuka, tapi melatih model dan menjalankan inspeksi belum bisa sampai kebutuhan di atas terpenuhi.',
+        { judul: 'Lanjut tanpa Python?', ya: 'Lanjut tanpa Python' })) return;
     window.api.prereqSkip();
 }
 

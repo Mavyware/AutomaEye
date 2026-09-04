@@ -68,8 +68,9 @@ let adaPerubahan = false;
 let siap = false;   // supaya penyiapan awal tidak dihitung sebagai perubahan
 
 function back() { window.api.goTo(`project.html?name=${encodeURIComponent(projectName)}`); }
-function keRun() {
-    if (adaPerubahan && !confirm('Ada perubahan yang belum disimpan. Tetap lanjut ke Jalankan?')) return;
+async function keRun() {
+    if (adaPerubahan && !await tanya('Kode output yang baru diubah belum disimpan.',
+        { judul: 'Perubahan belum disimpan', ya: 'Lanjut tanpa menyimpan' })) return;
     window.api.goTo(`run.html?project=${encodeURIComponent(projectName)}`);
 }
 

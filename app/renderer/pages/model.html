@@ -913,7 +913,8 @@ async function doSplit() {
 }
 
 async function doCleanRebuild() {
-    if (!confirm('Clean & Rebuild akan MENGHAPUS semua gambar augmentasi (*.aug*) lalu split ulang. Gambar & label asli tetap aman. Lanjut?')) return;
+    if (!await tanya('Semua gambar augmentasi (*.aug*) akan dihapus, lalu dataset dibagi ulang.\n\nGambar dan label asli tetap aman.',
+        { judul: 'Clean & Rebuild', ya: 'Hapus & bagi ulang', bahaya: true })) return;
     const ratios = readRatios();
     if (!ratios) { document.getElementById('splitStatus').textContent = '⚠️ Total ratio tidak boleh 0'; return; }
     await runSplitOp(() => window.api.cleanRebuildDataset(projectName, modelName, ratios), true);
@@ -1308,13 +1309,15 @@ function openPreview(idx) {
 async function deleteOne(idx) {
     const img = currentImages[idx];
     if (!img) return;
-    if (!confirm(`Hapus gambar "${img.name}" beserta anotasinya? Tidak bisa di-undo.`)) return;
+    if (!await tanya(`Gambar "${img.name}" beserta anotasinya akan dihapus permanen.`,
+        { judul: 'Hapus gambar', ya: 'Hapus', bahaya: true })) return;
     await window.api.deleteImages(projectName, modelName, [img.name]);
     render();
 }
 async function deleteSelected() {
     if (!selectedImgs.size) return;
-    if (!confirm(`Hapus ${selectedImgs.size} gambar terpilih beserta anotasinya? Tidak bisa di-undo.`)) return;
+    if (!await tanya(`${selectedImgs.size} gambar terpilih beserta anotasinya akan dihapus permanen.`,
+        { judul: 'Hapus gambar terpilih', ya: 'Hapus', bahaya: true })) return;
     await window.api.deleteImages(projectName, modelName, [...selectedImgs]);
     selectedImgs.clear();
     render();

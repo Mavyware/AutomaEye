@@ -141,12 +141,14 @@ async function refreshAccount() {
 }
 
 async function doLogout() {
-    if (!confirm('Keluar dari akun? Koneksi GitHub juga dilepas.')) return;
+    if (!await tanya('Koneksi GitHub ikut dilepas. Project yang sudah ter-push tetap aman di repo Anda.',
+        { judul: 'Keluar dari akun', ya: 'Keluar' })) return;
     await window.api.authLogout();
 }
 
 async function doDisconnectGithub() {
-    if (!confirm('Putuskan koneksi GitHub? Project yang sudah ter-push tetap aman di repo Anda.')) return;
+    if (!await tanya('Project yang sudah ter-push tetap aman di repo Anda, dan bisa disambungkan lagi kapan saja.',
+        { judul: 'Putuskan koneksi GitHub', ya: 'Putuskan' })) return;
     await window.api.githubDisconnect();
     refreshAccount();
 }

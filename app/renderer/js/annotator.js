@@ -177,7 +177,8 @@
     }
 
     async function selectImg(i) {
-        if (dirty && !confirm('Perubahan belum disimpan. Lanjut tanpa menyimpan?')) return;
+        if (dirty && !await tanya('Anotasi pada gambar ini belum disimpan.',
+            { judul: 'Perubahan belum disimpan', ya: 'Lanjut tanpa menyimpan' })) return;
         idx = i; dirty = false; polyPts = []; selected = -1;
         const im = images[i];
         const r = await window.api.annotImage(projectName, modelName, split, im.name);
@@ -390,7 +391,11 @@
 
     function delShape(i) { shapes.splice(i, 1); if (selected >= i) selected--; dirty = true; redraw(); }
     function undoShape() { if (polyPts.length) polyPts.pop(); else { shapes.pop(); selected = -1; } dirty = true; redraw(); }
-    function clearShapes() { if (confirm('Kosongkan semua objek di gambar ini?')) { shapes = []; polyPts = []; selected = -1; dirty = true; redraw(); } }
+    async function clearShapes() {
+        if (!await tanya('Semua objek pada gambar ini akan dihapus.',
+            { judul: 'Kosongkan anotasi', ya: 'Kosongkan', bahaya: true })) return;
+        shapes = []; polyPts = []; selected = -1; dirty = true; redraw();
+    }
 
     async function save() {
         if (idx < 0) return;

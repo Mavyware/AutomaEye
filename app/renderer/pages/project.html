@@ -189,7 +189,8 @@ function runWorkflow() {
     window.api.goTo(`run.html?project=${encodeURIComponent(projectName)}`);
 }
 async function deleteProject() {
-    if (!confirm(`Hapus project "${projectName}"?`)) return;
+    if (!await tanya(`Project "${projectName}" beserta seluruh model, dataset, dan hasilnya akan dihapus.`,
+        { judul: 'Hapus project', ya: 'Hapus project', bahaya: true })) return;
     await window.api.deleteProject(projectName);
     window.api.goTo('projects.html');
 }

@@ -681,3 +681,23 @@ textarea { resize: vertical; }
 }
 .sync-toast.ok  { border-color: var(--ok);   background: var(--ok-bg);   color: var(--ok); }
 .sync-toast.err { border-color: var(--ng);   background: var(--ng-bg);   color: var(--ng); }
+
+/* ================== DIALOG YA / TIDAK ================== */
+.tanya-latar {
+    position: fixed; inset: 0; z-index: 4200;
+    background: rgba(16, 24, 40, .5);
+    display: flex; align-items: center; justify-content: center; padding: 16px;
+}
+.tanya-kotak {
+    background: var(--panel); color: var(--text);
+    border: 1px solid var(--border-strong); border-radius: var(--radius);
+    box-shadow: var(--shadow-pop); padding: 20px;
+    width: 420px; max-width: 100%; max-height: 80vh; overflow: auto;
+    animation: pesan-masuk .16s ease;
+}
+.tanya-judul { margin: 0 0 8px; font-size: 15px; }
+.tanya-teks {
+    margin: 0; font-size: 13px; line-height: 1.6; color: var(--text-secondary);
+    white-space: pre-wrap; word-break: break-word;
+}
+.tanya-tombol { display: flex; gap: 8px; justify-content: flex-end; margin-top: 18px; }
