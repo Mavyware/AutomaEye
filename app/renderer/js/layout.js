@@ -238,6 +238,7 @@ async function syncSaveToCloud(e) {
         const r = await window.api.gitPush();
         t.remove();
         if (r.ok) _syncToast(r.nothing ? '✓ Sudah terbaru — tidak ada perubahan untuk diunggah.' : '✓ Tersimpan & terunggah ke GitHub.', 'ok', 5000);
+        else if (r.rejected) showConflictDialog();   // versi GitHub lebih baru: biarkan user memilih
         else _syncToast('⚠️ ' + _syncShort(r.log), 'err', 9000);
     } catch (err) { t.remove(); _syncToast('⚠️ Error: ' + err.message, 'err', 9000); }
 }
@@ -250,6 +251,7 @@ async function syncLoadFromCloud(e) {
         const r = await window.api.gitPull();
         t.remove();
         if (r.ok) _syncToast(r.upToDate ? '✓ Sudah versi terbaru.' : '✓ Versi terbaru dimuat. Refresh halaman bila perlu.', 'ok', 6000);
+        else if (r.diverged) showConflictDialog();   // riwayat bercabang: biarkan user memilih
         else _syncToast('⚠️ ' + _syncShort(r.log), 'err', 9000);
     } catch (err) { t.remove(); _syncToast('⚠️ Error: ' + err.message, 'err', 9000); }
 }
@@ -356,3 +358,72 @@ async function changeRepo(e) {
 }
 
 _loadAccount();
+
+
+// ==== Penyelesaian konflik GitHub ====
+//
+// Muncul saat riwayat lokal dan GitHub sudah bercabang - dua device
+// sama-sama menyimpan sejak titik yang sama. Untuk gambar dan bobot model,
+// menggabungkan isi berkas tidak masuk akal, jadi user memilih satu sisi.
+// Sisi yang dibuang selalu dicadangkan lebih dulu.
+async function showConflictDialog() {
+    const info = await window.api.gitConflictInfo();
+    if (!info.ok) { _syncToast('&#9888;&#65039; ' + info.log, 'err', 8000); return; }
+
+    const daftar = (arr, sisa) => {
+        if (!arr.length) return '<span style="color:#888">tidak ada perubahan berkas</span>';
+        const tampil = arr.slice(0, 12).map((f) => `<div>${_esc(f)}</div>`).join('');
+        const lebih = (arr.length > 12 || sisa) ? `<div style="color:#888">…dan ${arr.length - 12 + sisa} berkas lain</div>` : '';
+        return tampil + lebih;
+    };
+
+    const overlay = document.createElement('div');
+    overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:5000;display:flex;align-items:center;justify-content:center;padding:18px';
+    const box = document.createElement('div');
+    box.style.cssText = 'background:#fff;color:#222;border-radius:8px;padding:22px;max-width:720px;width:100%;max-height:88vh;overflow:auto';
+    box.innerHTML = `
+        <h3 style="margin:0 0 4px">Versi di GitHub dan di komputer ini berbeda</h3>
+        <p style="font-size:12px;color:#555;margin:0 0 14px">
+            Keduanya sama-sama berubah sejak terakhir disamakan, jadi tidak bisa
+            digabung otomatis. Pilih versi mana yang dipakai.
+            <strong>Versi yang tidak dipilih tetap disimpan</strong> sebagai cadangan,
+            jadi pilihan ini masih bisa dibatalkan.
+        </p>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:14px">
+            <div style="border:1px solid #d0d7de;border-radius:6px;padding:12px">
+                <div style="font-weight:600;margin-bottom:2px">Komputer ini</div>
+                <div style="font-size:11px;color:#666;margin-bottom:8px">
+                    ${info.ahead} perubahan belum ada di GitHub${info.uncommitted ? ` · ${info.uncommitted} belum disimpan` : ''}
+                </div>
+                <div style="font-family:Consolas,monospace;font-size:10px;max-height:130px;overflow:auto">${daftar(info.localFiles, info.localMore)}</div>
+            </div>
+            <div style="border:1px solid #d0d7de;border-radius:6px;padding:12px">
+                <div style="font-weight:600;margin-bottom:2px">GitHub</div>
+                <div style="font-size:11px;color:#666;margin-bottom:8px">${info.behind} perubahan belum ada di komputer ini</div>
+                <div style="font-family:Consolas,monospace;font-size:10px;max-height:130px;overflow:auto">${daftar(info.remoteFiles, info.remoteMore)}</div>
+            </div>
+        </div>
+        <div style="display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap">
+            <button class="btn" id="ckCancel">Batal</button>
+            <button class="btn" id="ckRemote">Pakai versi GitHub</button>
+            <button class="btn primary" id="ckLocal">Pakai versi komputer ini</button>
+        </div>
+        <p id="ckMsg" style="font-size:12px;margin:12px 0 0;white-space:pre-wrap"></p>`;
+    overlay.appendChild(box);
+    document.body.appendChild(overlay);
+    box.querySelector('#ckCancel').onclick = () => overlay.remove();
+
+    const jalankan = async (choice, label) => {
+        const msg = box.querySelector('#ckMsg');
+        if (!confirm(`${label}\n\nVersi satunya akan disimpan sebagai cadangan, tidak dihapus. Lanjutkan?`)) return;
+        box.querySelectorAll('button').forEach((b) => (b.disabled = true));
+        msg.textContent = 'Menyelesaikan…';
+        const r = await window.api.gitResolveConflict(choice);
+        msg.style.color = r.ok ? '#22a34c' : '#dc2626';
+        msg.textContent = r.log;
+        if (r.ok) setTimeout(() => { overlay.remove(); location.reload(); }, 2600);
+        else box.querySelectorAll('button').forEach((b) => (b.disabled = false));
+    };
+    box.querySelector('#ckLocal').onclick = () => jalankan('local', 'Isi komputer ini akan dipakai, dan versi di GitHub ditimpa.');
+    box.querySelector('#ckRemote').onclick = () => jalankan('remote', 'Isi GitHub akan dipakai, dan perubahan di komputer ini dibuang.');
+}

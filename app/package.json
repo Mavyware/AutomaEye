@@ -1,6 +1,6 @@
 {
   "name": "automaeyes",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "AutomaEyes — Sistem Quality Control berbasis YOLOv11",
   "main": "main.js",
   "author": "Reno Mardiputra",

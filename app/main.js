@@ -31,23 +31,54 @@ let cfg;
 let projectsRoot; // absolute path hasil resolve saat runtime (JANGAN disimpan ke config.yaml)
 
 // ---- Config ----
-// Path deterministik ke folder app (tempat main.js berada), bukan cwd
-// karena cwd tergantung dari mana `run.bat` di-launch.
-const CONFIG_PATH = path.join(__dirname, 'config.yaml');
+// Saat TERPASANG, kode aplikasi berada di dalam app.asar yang bersifat
+// read-only - menulis config.yaml ke sana gagal dengan ENOENT dan membuat
+// aplikasi tidak bisa start sama sekali. Maka konfigurasi per-device
+// disimpan di folder data pengguna. Saat dev tetap di sebelah kode supaya
+// mudah dilihat dan diedit.
+const CONFIG_PATH = app.isPackaged
+    ? path.join(app.getPath('userData'), 'config.yaml')
+    : path.join(__dirname, 'config.yaml');
 
 function loadConfig() {
     if (!fs.existsSync(CONFIG_PATH)) {
-        // config.yaml di-gitignore (berisi kunci per-device). Kalau belum ada
-        // — mis. setelah clone bersih — buat otomatis dari template.
+        // Template ikut dipaketkan di dalam asar. Membacanya boleh; yang tidak
+        // boleh hanya menulis ke sana. Dibaca lalu ditulis ke tujuan yang bisa
+        // ditulisi - copyFileSync lintas-asar tidak selalu didukung.
         const example = path.join(__dirname, 'config.example.yaml');
         if (fs.existsSync(example)) {
-            fs.copyFileSync(example, CONFIG_PATH);
-            console.log('[config] config.yaml dibuat dari config.example.yaml (isi kunci di Settings).');
+            fs.mkdirSync(path.dirname(CONFIG_PATH), { recursive: true });
+            fs.writeFileSync(CONFIG_PATH, fs.readFileSync(example, 'utf8'), 'utf8');
+            console.log('[config] config.yaml dibuat dari template di ' + CONFIG_PATH);
         } else {
-            throw new Error('config.yaml & config.example.yaml tidak ada di ' + __dirname);
+            throw new Error('config.example.yaml tidak ditemukan di ' + __dirname);
         }
     }
-    cfg = yaml.load(fs.readFileSync(CONFIG_PATH, 'utf8'));
+    cfg = yaml.load(fs.readFileSync(CONFIG_PATH, 'utf8')) || {};
+
+    // Config milik user bisa tertinggal versi lama atau kehilangan bagian.
+    // Tanpa penambal ini, satu bagian yang hilang (mis. arduino) membuat
+    // aplikasi gagal start - kegagalan yang sangat membingungkan user.
+    const DEFAULTS = {
+        app: { name: 'AutomaEyes', version: app.getVersion() },
+        website: { url: 'https://automaeyes.my.id' },
+        python: {
+            exe: 'python', infer_script: 'infer.py', train_script: 'train.py',
+            eval_script: 'evaluate.py', infer_server_script: 'infer_server.py',
+        },
+        arduino: {
+            port: 'COM3', baud: 9600, ok_signal: '0', ng_signal: '1',
+            signal_on_ok: false, handshake_token: '', handshake_timeout_ms: 5000,
+            open_signal: 'O', close_signal: 'C',
+        },
+        model: { confidence: 0.35, iou: 0.45, imgsz: 640 },
+        auto_calibration: { enabled: false },
+        paths: { projects_root: 'projects' },
+        output: { save_ok_images: false },
+    };
+    for (const [bagian, isi] of Object.entries(DEFAULTS)) {
+        cfg[bagian] = { ...isi, ...(cfg[bagian] || {}) };
+    }
     console.log(`[config] Loaded from ${CONFIG_PATH}`);
     // Resolve projects_root ke path absolut UNTUK RUNTIME saja.
     // PENTING: jangan mutasi cfg.paths.projects_root, karena saveConfig() menulis
@@ -417,6 +448,9 @@ const ghToken = () => (userstore.getGithub() || {}).token || null;
 ipcMain.handle('git:status', () => gitsync.status(projectsRoot));
 ipcMain.handle('git:push', (_e, { message } = {}) => gitsync.push(projectsRoot, message, ghToken()));
 ipcMain.handle('git:pull', () => gitsync.pull(projectsRoot, ghToken()));
+ipcMain.handle('git:conflictInfo', () => gitsync.conflictInfo(projectsRoot, ghToken()));
+ipcMain.handle('git:resolveConflict', (_e, { choice }) =>
+    gitsync.resolveConflict(projectsRoot, ghToken(), choice));
 ipcMain.handle('app:quit', () => { app.quit(); });
 // Auto-load versi terbaru sekali saja saat app pertama dibuka.
 ipcMain.handle('git:autoPullOnce', async () => {

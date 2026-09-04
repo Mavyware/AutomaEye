@@ -193,3 +193,126 @@ exports.pull = async (cwd, token) => {
     }
     return { ok: pull.code === 0, upToDate, log: pull.out };
 };
+
+// ---- Penyelesaian konflik ----
+//
+// Konflik terjadi kalau riwayat lokal dan GitHub sudah bercabang: dua device
+// sama-sama menyimpan sejak titik yang sama. Untuk data seperti gambar dan
+// bobot model, "menggabungkan" isi berkas tidak masuk akal - yang masuk akal
+// adalah memilih sisi mana yang dipakai.
+//
+// Prinsipnya: user boleh memilih, tapi sisi yang dibuang SELALU dicadangkan
+// lebih dulu ke branch tersendiri. Salah pilih jadi bisa dibatalkan, bukan
+// kehilangan permanen.
+
+/** Rangkum perbedaan antara lokal dan GitHub, untuk ditampilkan sebelum memilih. */
+exports.conflictInfo = async (cwd, token) => {
+    const st = await exports.status(cwd);
+    if (!st.repo || !st.hasRemote) return { ok: false, log: 'Belum tersambung ke GitHub.' };
+
+    const fetch = await git(cwd, ['fetch', 'origin'], token);
+    if (fetch.code !== 0) return { ok: false, log: 'Gagal menghubungi GitHub.\n' + fetch.out };
+
+    const branch = st.branch || 'main';
+    const remoteRef = `origin/${branch}`;
+
+    // Berapa commit yang hanya ada di masing-masing sisi.
+    const counts = await git(cwd, ['rev-list', '--left-right', '--count', `${remoteRef}...HEAD`]);
+    let behind = 0, ahead = 0;
+    if (counts.code === 0) {
+        const m = counts.out.trim().split(/\s+/);
+        behind = parseInt(m[0], 10) || 0;   // hanya ada di GitHub
+        ahead = parseInt(m[1], 10) || 0;    // hanya ada di lokal
+    }
+
+    const fileList = async (range) => {
+        const r = await git(cwd, ['diff', '--name-only', range]);
+        return r.code === 0 && r.out ? r.out.split(/\r?\n/).filter(Boolean) : [];
+    };
+    const localFiles = await fileList(`${remoteRef}...HEAD`);
+    const remoteFiles = await fileList(`HEAD...${remoteRef}`);
+
+    // Perubahan yang belum di-commit sama sekali juga penting diketahui user.
+    const uncommitted = st.changes;
+
+    return {
+        ok: true,
+        branch,
+        ahead, behind,
+        diverged: ahead > 0 && behind > 0,
+        uncommitted,
+        localFiles: localFiles.slice(0, 200),
+        remoteFiles: remoteFiles.slice(0, 200),
+        localMore: Math.max(0, localFiles.length - 200),
+        remoteMore: Math.max(0, remoteFiles.length - 200),
+    };
+};
+
+/**
+ * Selesaikan konflik dengan memilih satu sisi.
+ * @param {'local'|'remote'} pilihan
+ *   'local'  : isi komputer ini dipakai, GitHub ditimpa
+ *   'remote' : isi GitHub dipakai, perubahan lokal dibuang
+ */
+exports.resolveConflict = async (cwd, token, pilihan) => {
+    const st = await exports.status(cwd);
+    if (!st.repo || !st.hasRemote) return { ok: false, log: 'Belum tersambung ke GitHub.' };
+
+    const branch = st.branch || 'main';
+    const stamp = new Date().toISOString().replace(/[-:T]/g, '').slice(0, 14);
+    let log = '';
+
+    if (pilihan === 'local') {
+        // Simpan dulu perubahan lokal yang belum di-commit, supaya ikut terbawa.
+        if (st.dirty) {
+            await git(cwd, ['add', '-A']);
+            const c = await git(cwd, ['commit', '-m', `AutomaEyes: simpan sebelum selesaikan konflik ${stamp}`]);
+            log += c.out + '\n';
+        }
+
+        // Cadangkan versi GitHub ke branch lain SEBELUM ditimpa, supaya
+        // pilihan ini masih bisa dibatalkan.
+        const backup = `cadangan-github-${stamp}`;
+        const bk = await git(cwd, ['push', 'origin', `origin/${branch}:refs/heads/${backup}`], token);
+        log += bk.out + '\n';
+        if (bk.code !== 0) {
+            return { ok: false, log: 'Gagal mencadangkan versi GitHub, jadi penimpaan dibatalkan.\n' + bk.out };
+        }
+
+        const push = await git(cwd, ['push', '--force-with-lease', 'origin', `HEAD:${branch}`], token);
+        log += push.out;
+        return {
+            ok: push.code === 0,
+            backupBranch: backup,
+            log: (push.code === 0
+                ? `Versi komputer ini sekarang dipakai di GitHub.\nVersi GitHub sebelumnya disimpan di branch "${backup}".`
+                : 'Gagal menimpa GitHub.\n') + '\n' + log.trim(),
+        };
+    }
+
+    if (pilihan === 'remote') {
+        // Cadangkan keadaan lokal (termasuk yang belum di-commit) ke branch lokal.
+        const backup = `cadangan-lokal-${stamp}`;
+        if (st.dirty) {
+            await git(cwd, ['add', '-A']);
+            const c = await git(cwd, ['commit', '-m', `AutomaEyes: cadangan sebelum ambil versi GitHub ${stamp}`]);
+            log += c.out + '\n';
+        }
+        const br = await git(cwd, ['branch', backup]);
+        log += br.out + '\n';
+
+        const fetch = await git(cwd, ['fetch', 'origin'], token);
+        log += fetch.out + '\n';
+        const reset = await git(cwd, ['reset', '--hard', `origin/${branch}`]);
+        log += reset.out;
+        return {
+            ok: reset.code === 0,
+            backupBranch: backup,
+            log: (reset.code === 0
+                ? `Versi GitHub sekarang dipakai.\nKeadaan lokal sebelumnya disimpan di branch "${backup}" (masih di komputer ini).`
+                : 'Gagal mengambil versi GitHub.\n') + '\n' + log.trim(),
+        };
+    }
+
+    return { ok: false, log: 'Pilihan tidak dikenal.' };
+};

@@ -52,6 +52,8 @@ contextBridge.exposeInMainWorld('api', {
     gitPush: (message) => ipcRenderer.invoke('git:push', { message }),
     gitPull: () => ipcRenderer.invoke('git:pull'),
     gitAutoPullOnce: () => ipcRenderer.invoke('git:autoPullOnce'),
+    gitConflictInfo: () => ipcRenderer.invoke('git:conflictInfo'),
+    gitResolveConflict: (choice) => ipcRenderer.invoke('git:resolveConflict', { choice }),
     quitApp: () => ipcRenderer.invoke('app:quit'),
 
     // Workflow
