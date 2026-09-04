@@ -651,6 +651,20 @@ function drawLiveOverlay(result) {
 function renderResult(result, dataUrl) {
     // Update Total Status via layout.js helper (opsional — run.html tak selalu punya badge)
     if (typeof window.setTotalStatus === 'function') window.setTotalStatus(result.finalVerdict);
+
+    // Pin yang digerakkan siklus ini. Operator perlu bisa memastikan sinyalnya
+    // benar-benar keluar - kalau tidak, satu-satunya cara tahu adalah menunggu
+    // mesin di ujung lini bertingkah aneh.
+    if (result.pinout) {
+        if (result.pinout.ok) {
+            const nyala = result.pinout.nyala || [];
+            logEvent(nyala.length
+                ? `Pin → <strong>${esc(nyala.join(', '))}</strong> menyala`
+                : 'Pin → semua padam (tidak ada kelas terdeteksi)', 'sig');
+        } else {
+            logEvent(`Pin <strong style="color:#ef4444">GAGAL</strong> — ${esc(result.pinout.alasan || '')}`, 'ng');
+        }
+    }
     lastFull = result;   // hasil penuh (Capture manual) → bisa dipakai Tuning GD&T
     if (live) drawLiveOverlay(result); else drawOverlay(result, dataUrl);
 

@@ -48,6 +48,13 @@
           "requirements*.txt",
           "*.pt"
         ]
+      },
+      {
+        "from": "firmware",
+        "to": "firmware",
+        "filter": [
+          "**/*.ino"
+        ]
       }
     ],
     "win": {

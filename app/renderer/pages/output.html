@@ -39,6 +39,11 @@
             <p class="muted" style="margin-top:0">
                 Tiap kelas pada model Anda dikirim ke satu pin. Kosongkan pin yang tidak dipakai.
             </p>
+            <div class="row" style="margin-bottom:10px; align-items:center; gap:8px">
+                <button class="btn small" onclick="sambung()">🔌 Sambungkan</button>
+                <button class="btn small" onclick="bukaSketsa()">📄 Sketsa untuk papan</button>
+                <span class="muted" id="devStatus" style="font-size:11px"></span>
+            </div>
             <div id="pinBody"></div>
         </div>
     </div>
@@ -298,6 +303,7 @@ async function renderPin() {
                             <option value="HIGH" ${v.aktif !== 'LOW' ? 'selected' : ''}>HIGH</option>
                             <option value="LOW" ${v.aktif === 'LOW' ? 'selected' : ''}>LOW</option>
                         </select></label>
+                    <button class="btn small pin-uji" type="button" title="Nyalakan pin ini sebentar">Uji</button>
                 </div>`;
             }).join('') : '<p class="muted" style="font-size:11px;margin:4px 0 0">Model ini belum punya kelas.</p>'}
         </div>`).join('');
@@ -314,6 +320,8 @@ async function renderPin() {
         };
         row.querySelector('.pin-sel').onchange = simpanBaris;
         row.querySelector('.pin-aktif').onchange = simpanBaris;
+        row.querySelector('.pin-uji').onclick = () =>
+            ujiPin(row.querySelector('.pin-sel').value, row.querySelector('.pin-aktif').value);
     });
     tandaiBentrok();
 }
@@ -330,6 +338,33 @@ function tandaiBentrok() {
         const v = row.querySelector('.pin-sel').value;
         row.classList.toggle('bentrok', !!v && hitung[v] > 1);
     });
+}
+
+// ---------------- sambungan & uji ----------------
+// Papan perlu menjalankan sketsa AutomaEyes supaya mengerti baris "PINS ...".
+// Tanpa itu perintahnya terkirim tapi tidak berarti apa-apa - jadi jalannya
+// disediakan tepat di sebelah tombol sambung.
+async function sambung() {
+    const st = document.getElementById('devStatus');
+    if (adaPerubahan) { pesan('Simpan dulu, supaya port yang dipakai sesuai yang Anda pilih.', 'warn'); return; }
+    st.textContent = 'Menyambungkan…';
+    const r = await window.api.deviceSambung(projectName);
+    if (!r.ok) { st.textContent = ''; pesan('Gagal menyambung: ' + r.error, 'err'); return; }
+    st.textContent = `Tersambung ke ${r.port} @ ${r.baud} baud.`;
+    pesan(`Tersambung ke ${r.port}.`, 'ok');
+}
+
+async function bukaSketsa() {
+    const r = await window.api.deviceSketsa();
+    if (!r.ada) { pesan('Berkas sketsa tidak ditemukan.', 'err'); return; }
+    window.api.openPath(r.berkas);
+}
+
+async function ujiPin(pin, aktif) {
+    if (!pin) { pesan('Pilih pinnya dulu.', 'warn'); return; }
+    const r = await window.api.deviceUjiPin(pin, aktif);
+    if (!r.ok) { pesan('Gagal menguji pin: ' + r.error, 'err'); return; }
+    pesan(`Pin ${pin} dinyalakan 0,6 detik lalu dipadamkan.`, 'ok');
 }
 
 // ---------------- kode kustom ----------------

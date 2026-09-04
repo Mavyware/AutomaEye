@@ -515,7 +515,13 @@ exports.execute = async (cfg, project, imageDataUrl, arduino, output, opts = {})
     // hindari kirim dobel).
     try {
         const outCfg = project.output || {};
-        if (outCfg.mode === 'script' && outCfg.script && !opts.noSignal) {
+        if (outCfg.mode === 'device' && !opts.noSignal) {
+            // Pemetaan kelas -> pin. Dikirim untuk SEMUA pin yang terpetakan,
+            // termasuk yang padam: tanpa itu keadaan siklus sebelumnya
+            // menempel dan mesin membaca kelas yang sudah tidak ada.
+            const pinout = require('./pinout');
+            result.pinout = await pinout.kirim(arduino, outCfg, result);
+        } else if (outCfg.mode === 'script' && outCfg.script && !opts.noSignal) {
             const customoutput = require('./customoutput');
             const r = customoutput.run(outCfg.script, result, arduino);
             result.customOutput = { ok: r.ok, error: r.error, logs: r.logs };

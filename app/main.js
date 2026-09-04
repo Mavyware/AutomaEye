@@ -834,12 +834,56 @@ ipcMain.handle('output:save', (_, { project, config }) => {
 });
 
 // ---- Perangkat keluaran ----
+// Sambungkan memakai port & baud yang dipilih di halaman Output project ini,
+// bukan setelan global di Settings: satu komputer bisa melayani beberapa
+// project dengan papan berbeda.
+ipcMain.handle('device:sambung', async (_, { project }) => {
+    try {
+        const p = projects.load(projectsRoot, project);
+        const dev = (p.output || {}).device || {};
+        if (!dev.port) return { ok: false, error: 'Port belum dipilih di halaman Output.' };
+        arduino.close();
+        await arduino.init({ port: dev.port, baud: dev.baud || 9600 });
+        const conn = arduino.connectedPort ? arduino.connectedPort() : null;
+        if (!conn) return { ok: false, error: `Port ${dev.port} tidak bisa dibuka.` };
+        return { ok: true, port: conn, baud: dev.baud || 9600 };
+    } catch (e) {
+        return { ok: false, error: e.message };
+    }
+});
+
+// Uji satu pin: nyalakan sebentar lalu padamkan lagi. Dipakai untuk
+// memastikan kabelnya benar sebelum lini dijalankan.
+ipcMain.handle('device:ujiPin', async (_, { pin, aktif }) => {
+    try {
+        const pinout = require('./lib/pinout');
+        const nyala = pinout.baris([{ pin: String(pin), aktif: aktif === 'LOW' ? 'LOW' : 'HIGH', nyala: true }]);
+        const padam = pinout.baris([{ pin: String(pin), aktif: aktif === 'LOW' ? 'LOW' : 'HIGH', nyala: false }]);
+        await arduino.send(nyala);
+        await new Promise((r) => setTimeout(r, 600));
+        await arduino.send(padam);
+        return { ok: true, dikirim: [nyala.trim(), padam.trim()] };
+    } catch (e) {
+        return { ok: false, error: e.message };
+    }
+});
+
 ipcMain.handle('device:katalog', () => ({
     katalog: perangkat.KATALOG,
     koneksi: perangkat.KONEKSI,
 }));
 ipcMain.handle('device:pindai', () => perangkat.pindai());
 ipcMain.handle('device:pin', (_, { jenis, papan }) => perangkat.pinPapan(jenis, papan));
+
+// Sketsa firmware. Saat terpasang berkasnya ada di resources, bukan di
+// samping main.js - app.asar tidak bisa dibuka aplikasi luar.
+ipcMain.handle('device:sketsa', () => {
+    const dir = app.isPackaged
+        ? path.join(process.resourcesPath, 'firmware')
+        : path.join(__dirname, 'firmware');
+    const berkas = path.join(dir, 'automaeyes_pinout.ino');
+    return { berkas, ada: fs.existsSync(berkas) };
+});
 ipcMain.handle('output:test', (_, { script, verdict }) =>
     customoutput.test(script, arduino, verdict));
 
