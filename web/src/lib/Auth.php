@@ -83,7 +83,18 @@ final class Auth
         if (empty($_SESSION['user_id'])) {
             return null;
         }
-        return self::findById((int) $_SESSION['user_id']);
+
+        $user = self::findById((int) $_SESSION['user_id']);
+
+        // A session pointing at a user that no longer exists would leave the
+        // page in two minds: check() says signed in, user() says nobody, and
+        // the header and the hero disagree on the same screen. Treat it as
+        // signed out, which is what it actually is.
+        if ($user === null) {
+            unset($_SESSION['user_id']);
+        }
+
+        return $user;
     }
 
     public static function check(): bool

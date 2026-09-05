@@ -25,8 +25,16 @@ require __DIR__ . '/../src/includes/header.php';
       <h1>See the edge.<br><span class="grad">Automate the eye.</span></h1>
       <p>AutomaEyes inspects your parts as they come off the line: it finds defects, measures dimensions, and sends the OK/NG result straight to your PLC. You train it on your own parts, and your data stays in your own hands.</p>
       <div class="hero-actions">
-        <a href="/signup.php" class="btn btn-primary btn-lg">Get started free</a>
-        <a href="/login.php" class="btn btn-ghost btn-lg">Log in</a>
+        <?php if ($user): ?>
+          <?php /* Already signed in: sending them to "create an account" is a
+                   dead end, and asking them to log in again reads as if the
+                   session had been lost. */ ?>
+          <a href="<?= e(DOWNLOAD_PAGE) ?>" class="btn btn-primary btn-lg">Download for Windows</a>
+          <a href="/welcome.php" class="btn btn-ghost btn-lg">Go to your account</a>
+        <?php else: ?>
+          <a href="/signup.php" class="btn btn-primary btn-lg">Get started free</a>
+          <a href="/login.php" class="btn btn-ghost btn-lg">Log in</a>
+        <?php endif; ?>
       </div>
     </div>
     <div class="scroll-cue"><span class="line"></span>[Scroll to continue]</div>
@@ -201,15 +209,15 @@ require __DIR__ . '/../src/includes/header.php';
 
   <section class="story-section story-outro" data-reveal>
     <h2>That's the whole pipeline.<br>Now run it on your machine.</h2>
-    <p>AutomaEye runs locally on Windows, right next to your cameras. Log in to link your account, then download the app.</p>
+    <p>AutomaEyes runs locally on Windows, right next to your cameras. Log in to link your account, then download the app.</p>
     <div class="download-panel">
       <a href="<?= e(DOWNLOAD_PAGE) ?>" class="btn btn-primary btn-lg">Download for Windows</a>
-      <?php if (!Auth::check()): ?>
+      <?php if (!$user): ?>
         <a href="/login.php" class="btn btn-ghost">Already installed? Log in to connect it</a>
       <?php else: ?>
         <a href="/welcome.php" class="btn btn-ghost">Go to your account</a>
       <?php endif; ?>
-      <span class="platform-note">WINDOWS · 64-BIT · v0.1</span>
+      <span class="platform-note">WINDOWS · 64-BIT<?php if ($v = Release::version()): ?> · v<?= e($v) ?><?php endif; ?></span>
     </div>
   </section>
 

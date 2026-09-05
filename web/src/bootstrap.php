@@ -19,6 +19,8 @@ defined('APP_SCHEME') || define('APP_SCHEME', 'automaeye'); // automaeye://auth?
 // directly - either a locally hosted file, or a redirect to the release
 // asset - so visitors never land on a GitHub page to pick a file.
 defined('DOWNLOAD_PAGE') || define('DOWNLOAD_PAGE', '/download.php');
+require_once __DIR__ . '/lib/Release.php';
+
 // Repository holding the releases, used by /download.php when no installer
 // is hosted on this server. The asset filename carries the version number,
 // so it is looked up rather than written here - otherwise every release

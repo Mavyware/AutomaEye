@@ -54,6 +54,15 @@ FILES=(
     "src/lib/OAuth.php|$REMOTE_SRC/lib"
     "src/lib/Auth.php|$REMOTE_SRC/lib"
     "src/lib/helpers.php|$REMOTE_SRC/lib"
+
+    # Halaman publik & unduhan
+    "public/index.php|$REMOTE_PUBLIC"
+    "public/welcome.php|$REMOTE_PUBLIC"
+    "public/download.php|$REMOTE_PUBLIC"
+    "public/api/version.php|$REMOTE_PUBLIC/api"
+    "src/bootstrap.php|$REMOTE_SRC"
+    "src/lib/Release.php|$REMOTE_SRC/lib"
+    "src/includes/header.php|$REMOTE_SRC/includes"
 )
 
 upload() {
