@@ -172,8 +172,9 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for how to set up, test, and submit one.
 
 Bug reports and suggestions are welcome through Issues.
 
-**Contributors:** [Code8Byte](https://github.com/Code8Byte) · the Mavyware
-development team.
+**Contributors:** [Code8Byte](https://github.com/Code8Byte) (CEO, Mavyware) ·
+[CodeVouz](https://github.com/CodeVouz) (Founder, AutomaEyes) · Claude (AI
+Development Team) · Dependabot (dependency updates).
 
 ---
 

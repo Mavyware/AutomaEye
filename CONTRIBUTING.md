@@ -56,4 +56,7 @@ storage, or the output/execution paths, since those are the parts covered by
 
 ## Contributors
 
-[Code8Byte](https://github.com/Code8Byte) · the Mavyware development team.
+- [Code8Byte](https://github.com/Code8Byte) — CEO, Mavyware
+- [CodeVouz](https://github.com/CodeVouz) — Founder, AutomaEyes
+- Claude — AI Development Team, code changes and PR fixes
+- Dependabot — automated dependency updates and PR review
