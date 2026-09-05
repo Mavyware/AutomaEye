@@ -63,6 +63,21 @@ FILES=(
     "src/bootstrap.php|$REMOTE_SRC"
     "src/lib/Release.php|$REMOTE_SRC/lib"
     "src/includes/header.php|$REMOTE_SRC/includes"
+    "src/includes/footer.php|$REMOTE_SRC/includes"
+
+    # Pemulihan kata sandi
+    "public/forgot-password.php|$REMOTE_PUBLIC"
+    "public/reset-password.php|$REMOTE_PUBLIC"
+    "src/lib/Mailer.php|$REMOTE_SRC/lib"
+
+    # Aset front-end.
+    # Wajib ikut: halaman dan asetnya saling bergantung. Menaikkan index.php
+    # tanpa story.js/style.css pernah menyisakan animasi pembuka lama yang
+    # mengunci scroll pada halaman yang sudah tidak punya overlay-nya.
+    "public/assets/css/style.css|$REMOTE_PUBLIC/assets/css"
+    "public/assets/js/story.js|$REMOTE_PUBLIC/assets/js"
+    "public/assets/js/scene.js|$REMOTE_PUBLIC/assets/js"
+    "public/assets/js/story3d.js|$REMOTE_PUBLIC/assets/js"
 )
 
 upload() {
