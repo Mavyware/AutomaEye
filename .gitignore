@@ -36,6 +36,9 @@ vendor/
 *.pyc
 dist/
 build/
+# Kecuali app/build/: itu SUMBER (skrip NSIS installer), bukan keluaran build.
+!app/build/
+!app/build/**
 
 # ---- Basis data lokal & log ----
 **/storage/*.sqlite
