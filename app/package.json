@@ -1,6 +1,6 @@
 {
   "name": "automaeyes",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "AutomaEyes — AI Quality Control",
   "main": "main.js",
   "author": "Reno Mardiputra",
@@ -12,17 +12,17 @@
     "pack": "electron-builder --win --dir"
   },
   "devDependencies": {
-    "electron": "^33.0.0",
-    "electron-builder": "^25.1.8"
+    "electron": "^44.2.0",
+    "electron-builder": "^26.15.3"
   },
   "dependencies": {
     "adm-zip": "^0.6.0",
     "js-yaml": "^4.1.0",
-    "serialport": "^12.0.0"
+    "serialport": "^13.0.0"
   },
   "allowScripts": {
-    "electron@33.4.11": true,
-    "@serialport/bindings-cpp@12.0.1": true
+    "electron@44.2.0": true,
+    "@serialport/bindings-cpp@13.0.0": true
   },
   "build": {
     "appId": "id.my.automaeyes.app",
@@ -76,6 +76,7 @@
       "createStartMenuShortcut": true,
       "shortcutName": "AutomaEyes",
       "include": "build/installer.nsh"
-    }
+    },
+    "npmRebuild": false
   }
 }
