@@ -42,6 +42,8 @@ build/
 
 # ---- Basis data lokal & log ----
 **/storage/*.sqlite
+# Cache runtime: hasil pencarian rilis terbaru, dibuat ulang sendiri.
+**/storage/*.json
 *.log
 
 # ---- Sampah OS ----
