@@ -1,6 +1,6 @@
 {
   "name": "automaeyes",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "description": "AutomaEyes — AI Quality Control",
   "main": "main.js",
   "author": "Reno Mardiputra",
@@ -77,6 +77,8 @@
       "shortcutName": "AutomaEyes",
       "include": "build/installer.nsh"
     },
-    "npmRebuild": false
+    "npmRebuild": false,
+    "afterPack": "build/afterPack.js",
+    "compression": "maximum"
   }
 }
