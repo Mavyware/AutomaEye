@@ -168,6 +168,7 @@ The repository holds the desktop application (`app/`) and the account website
 
 Pull requests are welcome, and are how changes to AutomaEyes are made. Bug
 fixes and well-made features are reviewed by the Mavyware development team.
+See [CONTRIBUTING.md](CONTRIBUTING.md) for how to set up, test, and submit one.
 
 Bug reports and suggestions are welcome through Issues.
 
