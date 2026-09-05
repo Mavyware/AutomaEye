@@ -134,7 +134,8 @@ Daily summaries and per-detection measurement data, exported to Excel.
 Only needed if you are working on AutomaEyes itself. To *use* the application,
 download the installer above — it needs none of this.
 
-Requires **Node.js LTS** and **Python 3.10+**.
+Requires **Node.js LTS** and **Python 3.12+** (numpy 2.5+ no longer supports
+older Python versions).
 
 ```bash
 cd app

@@ -16,8 +16,8 @@ ships.
 
 | Version | Supported |
 |---|---|
-| 0.2.x | Yes |
-| 0.1.x | No — please update |
+| 0.3.x | Yes |
+| 0.2.x and earlier | No — please update |
 
 Only the latest release receives security fixes. The application checks for
 updates on start and will tell you when a newer version is available.
