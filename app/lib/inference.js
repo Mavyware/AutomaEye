@@ -1,6 +1,6 @@
 // Inference & training orchestrator — spawn Python subprocess.
 // Communication:
-//   - Inference: 1-shot HTTP request ke Python sidecar (auto-started on demand)
+//   - Inference: 1-shot HTTP request to the Python sidecar (auto-started on demand)
 //   - Training: streaming stdout parse progress
 
 const { pythonScript, pythonDir } = require('./paths');
@@ -12,11 +12,12 @@ const http = require('http');
 let currentTraining = null;
 let inferServer = null; // { child, port }
 
-// Portabilitas antar-device: data.yaml sering menyimpan `path:` absolut dari
-// mesin tempat dataset dibuat (mis. C:/Users/LAB-AI-05/...). Kalau project di-pull
-// ke device lain, path itu tidak valid → training/evaluasi error & grafik tidak muncul.
-// Fungsi ini menulis ulang baris `path:` ke lokasi dataset di device SEKARANG,
-// tanpa mengubah baris lain (train/val/test/nc/names). Dipanggil sebelum training & eval.
+// Cross-device portability: data.yaml often stores an absolute `path:` from
+// the machine the dataset was created on (e.g. C:/Users/LAB-AI-05/...). If the
+// project is pulled to another device, that path is invalid → training/evaluation
+// errors out and the charts don't show up. This function rewrites the `path:`
+// line to the dataset location on the CURRENT device, without touching the
+// other lines (train/val/test/nc/names). Called before training & eval.
 function syncDataYamlPath(dataYaml, datasetDir) {
     try {
         if (!fs.existsSync(dataYaml)) return;
@@ -29,12 +30,12 @@ function syncDataYamlPath(dataYaml, datasetDir) {
         });
         if (!found) fixed.unshift(`path: ${local}`);
         fs.writeFileSync(dataYaml, fixed.join('\n'));
-    } catch (_) { /* non-fatal: biarkan Python yang lapor kalau memang rusak */ }
+    } catch (_) { /* non-fatal: let Python report it if it's actually broken */ }
 }
 
 // ---- Persistent YOLO inference SERVER ----
-// Model & torch di-load SEKALI dan tetap hidup → hilangkan lag ~6 dtk/frame
-// yang dulu terjadi karena reload torch+model tiap panggilan.
+// Model & torch are loaded ONCE and stay alive → eliminates the ~6s/frame lag
+// that used to happen from reloading torch+model on every call.
 // inferServer = { child, pending: Map<id,{resolve,reject}>, nextId, buffer, ready: Promise }
 
 function startInferServer(cfg) {
@@ -62,13 +63,13 @@ function startInferServer(cfg) {
                             srv.pending.delete(obj.id);
                             if (obj.error) p.reject(new Error(obj.error)); else p.resolve(obj);
                         } else if (obj.error && !readied) {
-                            reject(new Error(obj.error));   // gagal load deps saat start
+                            reject(new Error(obj.error));   // dependency load failed at startup
                         }
-                    } catch (_) { /* baris non-JSON diabaikan */ }
+                    } catch (_) { /* non-JSON lines are ignored */ }
                 }
             }
         });
-        child.stderr.on('data', () => { /* log ultralytics/torch — abaikan */ });
+        child.stderr.on('data', () => { /* ultralytics/torch logs — ignore */ });
         child.on('close', code => {
             inferServer = null;
             const err = new Error(`infer server berhenti (code ${code})`);
@@ -83,7 +84,7 @@ function startInferServer(cfg) {
     return srv.ready;
 }
 
-// image = base64 JPEG string, weightsPath = path ke best.pt
+// image = base64 JPEG string, weightsPath = path to best.pt
 // returns { detections: [...], verdict: 'OK'|'NG', inferenceMS }
 exports.inferOnce = async (cfg, weightsPath, imageBase64, classes, thresholds) => {
     await startInferServer(cfg);
@@ -98,8 +99,8 @@ exports.inferOnce = async (cfg, weightsPath, imageBase64, classes, thresholds) =
         imgsz: thresholds.imgsz || 640,
         classes: classes || [],
         image: imageBase64,
-        // Analisis CV tambahan (warna/goresan/kode/teks) hanya diminta bila
-        // add-on-nya dipakai - frame lain tidak ikut menanggung biayanya.
+        // Extra CV analysis (color/scratches/codes/text) is only requested when
+        // its add-on is actually used - other frames don't pay its cost.
         analyze: thresholds.analyze || [],
     };
     return new Promise((resolve, reject) => {
@@ -116,7 +117,7 @@ exports.inferOnce = async (cfg, weightsPath, imageBase64, classes, thresholds) =
     });
 };
 
-// Matikan server inferensi (dipanggil saat app quit).
+// Shut down the inference server (called when the app quits).
 exports.stopInferServer = () => {
     if (inferServer && inferServer.child) {
         try { inferServer.child.kill(); } catch (_) { }
@@ -130,7 +131,7 @@ exports.startTraining = (cfg, root, projectName, modelName, onProgress, opts = {
 
     const modelDir = path.join(root, projectName, 'models', modelName);
     const dataYaml = path.join(modelDir, 'dataset', 'data.yaml');
-    // Auto-perbaiki path dataset ke device ini (portabel antar-PC/laptop).
+    // Auto-fix the dataset path for this device (portable across PCs/laptops).
     syncDataYamlPath(dataYaml, path.join(modelDir, 'dataset'));
     const project = JSON.parse(fs.readFileSync(path.join(root, projectName, 'project.json'), 'utf8'));
     const m = project.models.find(x => x.name === modelName);
@@ -153,22 +154,22 @@ exports.startTraining = (cfg, root, projectName, modelName, onProgress, opts = {
     const py = spawn(cfg.python.exe || 'python', args, { cwd: pythonDir() });
     currentTraining = { model: modelName, py };
 
-    let logBuf = '';                       // simpan log untuk ditampilkan kalau error
+    let logBuf = '';                       // save the log to show if there's an error
     let curEpoch = 0, totEpoch = 0, curBatch = 0, totBatch = 0;
-    // Ultralytics update baris pakai carriage-return (\r), jadi split \r juga.
+    // Ultralytics updates lines using carriage-return (\r), so split on \r too.
     const handle = (text) => {
         onProgress({ log: text });
         logBuf = (logBuf + text).slice(-4000);
         text.split(/[\r\n]+/).forEach(line => {
-            // Metrik per-epoch (JSON) untuk dashboard: "EPOCH_METRICS {...}"
+            // Per-epoch metrics (JSON) for the dashboard: "EPOCH_METRICS {...}"
             const jm = line.match(/EPOCH_METRICS\s+(\{.*\})/);
             if (jm) { try { onProgress({ epochMetrics: JSON.parse(jm[1]) }); } catch (_) {} }
 
-            // Progress per-epoch dari train.py: "PROGRESS_EPOCH 5/100"
+            // Per-epoch progress from train.py: "PROGRESS_EPOCH 5/100"
             const pe = line.match(/PROGRESS_EPOCH\s+(\d+)\/(\d+)/i);
             if (pe) { curEpoch = +pe[1]; totEpoch = +pe[2]; onProgress({ epoch: curEpoch, total: totEpoch, batch: 0, nb: totBatch }); }
 
-            // Baris progress ultralytics: "  1/100   0G  1.58 ... 640:  58% ...  7/12  1.5s/it"
+            // Ultralytics progress line: "  1/100   0G  1.58 ... 640:  58% ...  7/12  1.5s/it"
             const em = line.match(/(\d+)\/(\d+)\s+[\d.]+G\b/);              // epoch/total + GPU_mem
             const bm = line.match(/(\d+)\/(\d+)\s+[\d.]+\s*(?:s\/it|it\/s)/); // batch/total + speed
             if (em) { curEpoch = +em[1]; totEpoch = +em[2]; }
@@ -178,10 +179,10 @@ exports.startTraining = (cfg, root, projectName, modelName, onProgress, opts = {
             const m2 = line.match(/results mAP50:\s*([\d.]+)\s+P:\s*([\d.]+)\s+R:\s*([\d.]+)/i);
             if (m2) onProgress({ finalMAP: +m2[1], finalP: +m2[2], finalR: +m2[3] });
 
-            // Klasifikasi tidak punya mAP/precision/recall. Ringkasannya
-            // dilaporkan sebagai akurasi top-1/top-5, dan sengaja dikirim
-            // dengan nama sendiri supaya tidak ada angka yang tersimpan di
-            // bawah label yang salah.
+            // Classification has no mAP/precision/recall. Its summary is
+            // reported as top-1/top-5 accuracy, and deliberately sent
+            // under its own name so no number ends up stored under the
+            // wrong label.
             const m3 = line.match(/results top1:\s*([\d.]+)\s+top5:\s*([\d.]+)/i);
             if (m3) onProgress({ finalTop1: +m3[1], finalTop5: +m3[2] });
         });
@@ -211,8 +212,8 @@ exports.cancelTraining = () => {
 exports.trainingStatus = () =>
     currentTraining ? { running: true, model: currentTraining.model } : { running: false };
 
-// Baca results.csv dari run terakhir → array metrik per-epoch untuk pre-fill grafik,
-// plus info apakah ada checkpoint (last.pt) yang bisa di-resume dan sampai epoch berapa.
+// Read results.csv from the last run → an array of per-epoch metrics to pre-fill the chart,
+// plus whether a checkpoint (last.pt) exists that can be resumed, and up to which epoch.
 exports.loadTrainHistory = (root, projectName, modelName) => {
     const modelDir = path.join(root, projectName, 'models', modelName);
     const csv = path.join(modelDir, 'runs', 'train', 'results.csv');
@@ -254,8 +255,8 @@ exports.loadTrainHistory = (root, projectName, modelName) => {
 };
 
 
-// ---- Evaluasi model pada sebuah split (Test tab) ----
-// Spawn python/evaluate.py, parse "EVAL_RESULT {json}" dari stdout.
+// ---- Evaluate a model on a split (Test tab) ----
+// Spawn python/evaluate.py, parse "EVAL_RESULT {json}" from stdout.
 exports.evaluate = (cfg, root, projectName, modelName, split, onProgress) => new Promise((resolve, reject) => {
     const modelDir = path.join(root, projectName, 'models', modelName);
     const weights = path.join(modelDir, 'weights', 'best.pt');
@@ -266,7 +267,7 @@ exports.evaluate = (cfg, root, projectName, modelName, split, onProgress) => new
     if (!fs.existsSync(dataYaml)) {
         return reject(new Error('data.yaml tidak ada. Buat/annotate dataset dulu.'));
     }
-    // Auto-perbaiki path dataset ke device ini (portabel antar-PC/laptop).
+    // Auto-fix the dataset path for this device (portable across PCs/laptops).
     syncDataYamlPath(dataYaml, path.join(modelDir, 'dataset'));
     const outDir = path.join(modelDir, 'eval');
     const args = [

@@ -1,12 +1,12 @@
 """
-Evaluasi model YOLO pada sebuah split (test/val/train).
+Evaluate a YOLO model on a split (test/val/train).
 
-Dipanggil oleh Electron (lib/inference.js). Menghasilkan:
-  - metrik keseluruhan (mAP50, mAP50-95, precision, recall, F1)
-  - metrik per-kelas
-  - confusion matrix + kurva PR/F1 (PNG dari ultralytics)
-  - prediksi visual per gambar (anotasi tergambar)
-Semua disimpan ke <model>/eval/<timestamp>/ dan hasilnya di-print sebagai:
+Invoked by Electron (lib/inference.js). Produces:
+  - overall metrics (mAP50, mAP50-95, precision, recall, F1)
+  - per-class metrics
+  - confusion matrix + PR/F1 curves (PNGs from ultralytics)
+  - visual predictions per image (drawn annotations)
+Everything is saved to <model>/eval/<timestamp>/ and the result is printed as:
   "EVAL_RESULT { ...json... }"
 """
 import argparse
@@ -19,7 +19,7 @@ from pathlib import Path
 
 
 def stat_block(vals):
-    """Ringkasan statistik satu daftar waktu (ms). Dipakai untuk laporan edge computing."""
+    """Statistical summary of a list of times (ms). Used for the edge computing report."""
     vals = [float(v) for v in vals if v is not None]
     if not vals:
         return {"n": 0, "mean": 0.0, "median": 0.0, "min": 0.0, "max": 0.0, "std": 0.0}
@@ -34,7 +34,7 @@ def stat_block(vals):
 
 
 def device_info():
-    """Spesifikasi perangkat yang menjalankan inferensi (untuk Tabel spesifikasi PC di laporan)."""
+    """Specs of the device running inference (for the PC specs table in the report)."""
     info = {"device": "cpu", "cpu": "", "gpu": "", "ram_gb": None, "torch": ""}
     try:
         import platform
@@ -73,21 +73,21 @@ def has_imgs(d):
 
 def eval_classify(a, model, names, kelas_app, ds_dir, split, run_dir, stamp):
     """
-    Evaluasi model klasifikasi.
+    Evaluate a classification model.
 
-    Dipisah dari jalur deteksi karena hampir tidak ada yang sama: metriknya
-    akurasi top-1/top-5 (bukan mAP), hasil prediksinya ada di r.probs (r.boxes
-    selalu None), dan datanya berupa folder per-kelas, bukan data.yaml.
+    Split off from the detection path because almost nothing is shared: its
+    metric is top-1/top-5 accuracy (not mAP), predictions live in r.probs
+    (r.boxes is always None), and the data is a folder per class, not data.yaml.
     """
     import clsdata
 
-    # DUA urutan kelas yang berbeda, dan menukarnya menghasilkan hasil yang
-    # salah tanpa satu pun galat:
-    #   kelas_app  - urutan di data.yaml. Angka di berkas label menunjuk ke sini,
-    #                jadi inilah yang dipakai untuk menamai folder.
-    #   urut_model - urutan milik model terlatih. check_cls_dataset mengurutkan
-    #                nama folder secara ABJAD, jadi indeks model belum tentu sama
-    #                dengan indeks aplikasi. Confusion matrix memakai urutan ini.
+    # TWO different class orderings, and swapping them produces wrong results
+    # with no error at all:
+    #   kelas_app  - the order in data.yaml. The numbers in label files point
+    #                here, so this is what's used to name folders.
+    #   urut_model - the trained model's own order. check_cls_dataset sorts
+    #                folder names ALPHABETICALLY, so the model's index isn't
+    #                necessarily the same as the app's index. The confusion matrix uses this order.
     if isinstance(kelas_app, dict):
         kelas_app = [kelas_app[k] for k in sorted(kelas_app, key=lambda x: int(x))]
     kelas_app = list(kelas_app)
@@ -99,7 +99,7 @@ def eval_classify(a, model, names, kelas_app, ds_dir, split, run_dir, stamp):
 
     akar, _ = clsdata.build(ds_dir, kelas_app, log=lambda m: print(m, flush=True))
 
-    # Split yang diminta mungkin kosong (belum di-split). Turun ke yang ada.
+    # The requested split might be empty (not split yet). Fall back to one that exists.
     if not (akar / split).exists():
         for alt in ("test", "val", "train"):
             if (akar / alt).exists():
@@ -112,13 +112,13 @@ def eval_classify(a, model, names, kelas_app, ds_dir, split, run_dir, stamp):
     top1 = float(getattr(val, "top1", 0) or 0)
     top5 = float(getattr(val, "top5", 0) or 0)
 
-    # Untuk klasifikasi, "precision/recall" yang bermakna adalah per-kelas dan
-    # harus dihitung dari confusion matrix - ultralytics tidak menyediakannya
-    # jadi. Kolom map50/map5095 sengaja dibiarkan kosong daripada diisi angka
-    # yang kelihatan seperti mAP padahal bukan.
+    # For classification, the meaningful "precision/recall" is per-class and
+    # must be computed from the confusion matrix - ultralytics doesn't provide
+    # it directly. The map50/map5095 columns are deliberately left empty
+    # rather than filled with numbers that look like mAP but aren't.
     per_class = []
     try:
-        cm = val.confusion_matrix.matrix  # baris = prediksi, kolom = kebenaran
+        cm = val.confusion_matrix.matrix  # rows = predicted, columns = ground truth
         for i, nama in enumerate(urut_model):
             tp = float(cm[i][i])
             pred = float(sum(cm[i][j] for j in range(len(urut_model))))
@@ -153,11 +153,11 @@ def eval_classify(a, model, names, kelas_app, ds_dir, split, run_dir, stamp):
     preds = []
     t_pre, t_inf, t_post, t_tot = [], [], [], []
     coldstart_ms = 0.0
-    # Sumbernya folder per-kelas, jadi daftar berkasnya dikumpulkan sendiri.
-    # predict(source=<folder>) TIDAK menelusuri sub-folder - kalau folder split
-    # diserahkan apa adanya, ultralytics melaporkan "no images found" dan
-    # galeri prediksi diam-diam kosong. Diserahkan sebagai daftar path, kelas
-    # sebenarnya tiap gambar tetap terbaca dari nama folder induknya.
+    # The source is a folder per class, so the file list is collected manually.
+    # predict(source=<folder>) does NOT walk sub-folders - if the split folder
+    # were handed over as-is, ultralytics would report "no images found" and
+    # the prediction gallery would silently end up empty. It's passed as a
+    # list of paths instead, and each image's true class still reads from its parent folder's name.
     src_dir = akar / split
     berkas = sorted(
         str(f) for f in src_dir.rglob("*")
@@ -168,12 +168,12 @@ def eval_classify(a, model, names, kelas_app, ds_dir, split, run_dir, stamp):
             raise RuntimeError(f"tidak ada gambar di {src_dir}")
         results = model.predict(source=berkas, save=False, imgsz=a.imgsz,
                                 verbose=False, stream=True)
-        # r.path TIDAK bisa dipakai di sini. Saat source berupa daftar,
-        # ultralytics menamai ulang hasilnya jadi "image0.jpg", "image1.jpg",
-        # ... - path aslinya hilang, sehingga kelas sebenarnya (dari nama folder
-        # induk) ikut hilang dan gambar di galeri menunjuk berkas yang tidak
-        # ada. Urutan hasil sama dengan urutan yang dikirim, jadi daftar
-        # berkasnya sendiri yang dipakai sebagai sumber kebenaran.
+        # r.path CANNOT be used here. When the source is a list, ultralytics
+        # renames its results to "image0.jpg", "image1.jpg", ... - the original
+        # path is lost, so the true class (from the parent folder's name) is
+        # lost too and the gallery would point at a file that doesn't exist.
+        # The result order matches the order sent in, so the file list itself
+        # is used as the source of truth.
         for idx, r in enumerate(results):
             src = Path(berkas[idx])
             dets = []
@@ -251,7 +251,7 @@ def main():
     run_dir = Path(a.out) / stamp
     run_dir.mkdir(parents=True, exist_ok=True)
 
-    # --- Self-heal path + pastikan key split ada di data.yaml ---
+    # --- Self-heal the path + ensure the split key exists in data.yaml ---
     import yaml
     data_file = Path(a.data)
     ds_dir = data_file.parent
@@ -347,7 +347,7 @@ def main():
                 for bx in r.boxes:
                     ci = int(bx.cls[0])
                     dets.append({"name": names.get(ci, str(ci)), "conf": float(bx.conf[0])})
-            # --- waktu proses per gambar (ms) dari ultralytics ---
+            # --- per-image processing time (ms) from ultralytics ---
             sp = getattr(r, "speed", None) or {}
             pre = float(sp.get("preprocess", 0) or 0)
             inf = float(sp.get("inference", 0) or 0)
@@ -369,7 +369,7 @@ def main():
     except Exception as e:
         print(f"[!] predict gagal: {e}", flush=True)
 
-    # Bila hanya ada 1 gambar, jangan sampai statistik kosong.
+    # If there's only 1 image, don't let the statistics end up empty.
     if not t_tot and preds:
         m = preds[0]["ms"]
         t_pre, t_inf, t_post, t_tot = [m["preprocess"]], [m["inference"]], [m["postprocess"]], [m["total"]]

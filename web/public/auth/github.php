@@ -2,9 +2,10 @@
 require __DIR__ . '/../../src/bootstrap.php';
 
 if (!GITHUB_CLIENT_ID) {
-    // Jangan dilempar ke /login.php: kalau sesi web masih hidup, user akan
-    // terus dilempar lagi ke /welcome.php dan mendarat di halaman Download —
-    // sama sekali tidak menjelaskan bahwa ini salah konfigurasi server.
+    // Don't redirect to /login.php: if the web session is still alive, the
+    // user would keep getting bounced to /welcome.php and land on the
+    // Download page — which wouldn't explain at all that this is a server
+    // misconfiguration.
     $pageTitle = 'GitHub belum dikonfigurasi — AutomaEyes';
     require __DIR__ . '/../../src/includes/header.php';
     ?>
@@ -32,9 +33,9 @@ if (!GITHUB_CLIENT_ID) {
 
 $redirect = sanitize_app_redirect($_GET['redirect'] ?? null);
 
-// purpose=repo: permintaan dari aplikasi desktop untuk menyimpan project ke
-// repo milik user, jadi butuh scope 'repo'. Login web biasa tetap minta izin
-// seminimal mungkin — jangan pernah minta akses repo hanya untuk login.
+// purpose=repo: a request from the desktop app to save projects to the
+// user's own repo, so it needs 'repo' scope. A normal web login still asks
+// for the smallest permission possible — never request repo access just for logging in.
 $purpose = (($_GET['purpose'] ?? '') === 'repo' && $redirect) ? 'repo' : 'login';
 $scope = $purpose === 'repo' ? 'repo read:user user:email' : 'read:user user:email';
 

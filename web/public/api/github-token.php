@@ -1,11 +1,11 @@
 <?php
 /**
- * Tukar kode serah-terima jadi access token GitHub.
+ * Exchange a handoff code for a GitHub access token.
  *
- * Aplikasi desktop menerima kode ini lewat deep link automaeye://github
- * setelah user menekan Authorize di GitHub. Token aslinya terenkripsi di
- * dalam kode tersebut dan hanya server yang bisa membukanya — server sendiri
- * tidak menyimpannya di mana pun.
+ * The desktop app receives this code via the automaeye://github deep link
+ * after the user presses Authorize on GitHub. The actual token is encrypted
+ * inside that code and only the server can decrypt it — the server itself
+ * never stores it anywhere.
  */
 require __DIR__ . '/../../src/bootstrap.php';
 

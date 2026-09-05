@@ -1,12 +1,12 @@
 <?php
 /**
- * Serah-terima ke aplikasi desktop.
+ * Handoff to the desktop app.
  *
- * Kenapa perlu halaman ini, bukan redirect 302 langsung ke automaeye://
- * Banyak browser memblokir (atau diam-diam mengabaikan) redirect dari server
- * menuju custom protocol scheme. Peluncuran yang andal butuh navigasi dari
- * dalam halaman — idealnya hasil klik user. Jadi halaman ini mencoba otomatis
- * sekali, lalu tetap menyediakan tombol manual kalau browser menahannya.
+ * Why this page is needed instead of a direct 302 redirect to automaeye://
+ * Many browsers block (or silently ignore) a server redirect to a custom
+ * protocol scheme. A reliable launch needs navigation from within the page
+ * — ideally the result of a user click. So this page tries automatically
+ * once, and still provides a manual button in case the browser blocks it.
  */
 require __DIR__ . '/../../src/bootstrap.php';
 
@@ -39,8 +39,8 @@ require __DIR__ . '/../../src/includes/header.php';
   </div>
 </main>
 <script>
-  // Percobaan otomatis sekali. Token hanya berlaku 5 menit, jadi tidak
-  // diulang terus-menerus — kalau gagal, user memakai tombol di atas.
+  // One automatic attempt. The token is only valid for 5 minutes, so this
+  // isn't retried repeatedly — if it fails, the user uses the button above.
   setTimeout(function () {
     window.location.href = document.getElementById('openApp').href;
   }, 400);

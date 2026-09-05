@@ -60,10 +60,10 @@ function clear_old(): void
 
 /** Safe redirect target for the desktop app deep link (?redirect=automaeye://...) */
 /**
- * URL halaman serah-terima ke aplikasi desktop.
+ * URL of the handoff page to the desktop app.
  *
- * Selalu lewat /auth/handoff.php, jangan langsung ke automaeye://, karena
- * redirect server ke custom scheme sering diblokir browser.
+ * Always goes through /auth/handoff.php, never directly to automaeye://,
+ * because a server redirect to a custom scheme is often blocked by browsers.
  */
 function app_handoff_url(string $redirect, string $token): string
 {

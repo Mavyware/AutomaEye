@@ -19,7 +19,7 @@ exports.record = (project, imageBase64, runResult, cfg) => {
     const dayDir = path.join(project.dir, 'outputs', dayKey);
     if (!fs.existsSync(dayDir)) fs.mkdirSync(dayDir, { recursive: true });
 
-    // Counter berdasarkan file yang sudah ada (resume-safe)
+    // Counter based on existing files (resume-safe)
     const key = `${project.name}|${dayKey}`;
     if (dailyCounts[key] === undefined) {
         dailyCounts[key] = fs.readdirSync(dayDir).filter(f => f.endsWith('.jpg')).length;
@@ -29,11 +29,11 @@ exports.record = (project, imageBase64, runResult, cfg) => {
     const seqStr = String(seq).padStart(3, '0');
 
     const stem = `${seqStr}-${timeStr}`;
-    // Flag dari step Options (kalau ada) menang atas setelan global.
+    // A flag from the Options step (if any) wins over the global setting.
     const isNG = runResult.finalVerdict === 'NG';
     const saveImg = isNG
-        ? (runResult.saveNG !== false)                                  // NG: simpan, kecuali Options mematikannya
-        : (runResult.saveOK === true || cfg.output.save_ok_images);     // OK: simpan hanya jika diminta
+        ? (runResult.saveNG !== false)                                  // NG: save, unless Options turns it off
+        : (runResult.saveOK === true || cfg.output.save_ok_images);     // OK: save only if requested
 
     let imgPath = null, metaPath = null;
     if (saveImg) {
@@ -51,7 +51,7 @@ exports.record = (project, imageBase64, runResult, cfg) => {
         }, null, 2));
     }
 
-    // Append ke daily_summary.csv
+    // Append to daily_summary.csv
     const csvPath = path.join(project.dir, 'outputs', 'daily_summary.csv');
     const isNew = !fs.existsSync(csvPath);
     const stepsStr = runResult.steps.map(s =>

@@ -38,9 +38,9 @@ const projectName = param('project');
 document.getElementById('backLink').onclick = () => window.api.goTo(`project.html?name=${encodeURIComponent(projectName)}`);
 
 const CATEGORIES = ['Capture', 'Positioning', 'Inspection', 'Communication', 'Options'];
-// Workflow dijalankan berurutan dari atas ke bawah. Tanpa keterangan ini
-// urutannya harus ditebak - dan menaruh Communication sebelum Inspection
-// berarti mengirim hasil sebelum ada yang dinilai.
+// The workflow runs in order from top to bottom. Without this note the
+// order has to be guessed - and putting Communication before Inspection
+// means sending a result before anything has been judged.
 const CAT_INFO = {
     Capture:       'Ambil gambarnya dulu',
     Positioning:   'Kunci posisi part (opsional)',
@@ -48,9 +48,9 @@ const CAT_INFO = {
     Communication: 'Kirim hasil ke Arduino / catat log',
     Options:       'Simpan gambar (opsional)',
 };
-// Kategori yang memakai MODEL AI (butuh model terlatih). Lainnya pakai "tool".
+// Categories that use an AI MODEL (need a trained model). The others use a "tool".
 const MODEL_CATS = ['Inspection', 'Positioning'];
-// Katalog tool non-AI per kategori (Capture/Communication/Options).
+// Catalog of non-AI tools per category (Capture/Communication/Options).
 const TOOLS = {
     Capture: [
         { tool: 'camera', label: 'Kamera / Webcam', config: { source: 'kamera', minKB: 0 } },
@@ -68,11 +68,11 @@ let steps = [];
 let availableModels = [];
 let selectedIdx = -1;
 
-// Disimpan di variabel, bukan dibaca dari DOM. Panel properti ditulis ulang
-// setiap render, jadi select-nya lahir baru dengan nilai bawaan: project yang
-// menyimpan "continue" tetap tampil "stop_and_report", dan menekan Simpan
-// menimpanya diam-diam. Ini pengaturan keselamatan - apakah inspeksi berhenti
-// saat menemukan NG - jadi tidak boleh berubah sendiri.
+// Stored in a variable, not read from the DOM. The properties panel is
+// rewritten on every render, so its select is born again with a default
+// value: a project that saved "continue" would still show "stop_and_report",
+// and pressing Save would silently overwrite it. This is a safety setting -
+// whether inspection stops on finding NG - so it must not change on its own.
 let onFirstNG = 'stop_and_report';
 let adaPerubahan = false;
 
@@ -124,9 +124,9 @@ function render() {
     renderPeriksa();
 }
 
-// Workflow yang tidak lengkap baru ketahuan saat dijalankan di lini produksi.
-// Lebih baik dikatakan di sini, sebagai catatan - bukan larangan, karena
-// workflow setengah jadi wajar disimpan dulu.
+// An incomplete workflow only gets noticed once it's run on the production
+// line. Better to say so here, as a note - not a block, because it's normal
+// to save a half-finished workflow first.
 function renderPeriksa() {
     const el = document.getElementById('periksa');
     if (!el) return;
@@ -176,7 +176,7 @@ function renderProps() {
         head = `<h3>Step [${selectedIdx + 1}] — ${esc(s.modelName)}</h3>
             <p class="muted">Jenis: <strong>${m ? esc(m.type) : '?'}</strong> · ${trained}<br>
             ${s.category === 'Positioning' ? 'Peran: mengunci lokasi part (bukan menilai).' : 'Peran: menilai OK/NG lewat add-on.'}</p>`;
-        // Pilih VERSI model (v1, v2, …) untuk step ini. Kosong = pakai versi aktif.
+        // Choose the model VERSION (v1, v2, …) for this step. Empty = use the active version.
         let verHtml = '';
         if (m && m.versions && m.versions.length) {
             verHtml = `<label style="display:block;margin-bottom:6px">Versi model
@@ -211,7 +211,7 @@ function renderProps() {
             ${aturanNG()}`;
 }
 
-// Editor konfigurasi untuk step non-model (Capture/Communication/Options).
+// Config editor for non-model steps (Capture/Communication/Options).
 function renderStepConfig(s) {
     const c = s.config || {};
     if (s.category === 'Capture') {
@@ -247,8 +247,8 @@ function updateStepConfig(key, value) {
     s.config[key] = value;
 }
 
-// Pemilih step berbasis modal (prompt() TIDAK didukung di Electron).
-// Inspection & Positioning → pilih MODEL AI. Capture/Communication/Options → pilih TOOL.
+// Modal-based step picker (prompt() is NOT supported in Electron).
+// Inspection & Positioning → pick an AI MODEL. Capture/Communication/Options → pick a TOOL.
 function addStep(cat) {
     closePicker();
     const isModelCat = MODEL_CATS.includes(cat);
@@ -352,16 +352,16 @@ function removeStep() {
     render();
 }
 
-// Susunan step hanya ada di memori sampai ditekan Simpan. Tanpa peringatan
-// ini, menutup jendela atau menekan "Project" membuang seluruh pekerjaan
-// tanpa sepatah kata pun.
+// The step layout only exists in memory until Save is pressed. Without this
+// warning, closing the window or pressing "Project" would discard all that
+// work without a single word.
 window.addEventListener('beforeunload', (e) => {
     if (adaPerubahan) { e.preventDefault(); e.returnValue = ''; }
 });
 
-// Penjaga perpindahan halaman. beforeunload di atas hanya menahan penutupan
-// jendela; perpindahan antar halaman ditanyakan di sini supaya dialognya
-// muncul di dalam halaman, bukan dialog sistem.
+// Page-navigation guard. The beforeunload above only holds up closing the
+// window; navigating between pages is confirmed here so the dialog appears
+// inside the page, not as a system dialog.
 window.bolehTinggalkanHalaman = async () => {
     if (!adaPerubahan) return true;
     const lanjut = await tanya('Susunan step yang baru diatur belum disimpan.',
@@ -370,9 +370,9 @@ window.bolehTinggalkanHalaman = async () => {
     return lanjut;
 };
 
-// Pesan disampaikan di halaman, bukan lewat alert. Selain menghentikan
-// seluruh jendela, alert menutupi susunan step yang baru saja diatur -
-// padahal justru itu yang ingin dilihat setelah menyimpan.
+// The message is shown in the page, not via alert. Besides halting the
+// whole window, alert would cover the step layout that was just arranged -
+// which is exactly what you want to see after saving.
 let simpanTimer = null;
 function pesanSimpan(teks, jenis) {
     const el = document.getElementById('simpanMsg');
@@ -380,7 +380,7 @@ function pesanSimpan(teks, jenis) {
     clearTimeout(simpanTimer);
     el.textContent = teks;
     el.className = 'save-msg ' + jenis + ' tampil';
-    // Kabar baik boleh menghilang sendiri; kabar buruk harus tetap terbaca.
+    // Good news can disappear on its own; bad news must stay readable.
     if (jenis === 'ok') simpanTimer = setTimeout(() => { el.classList.remove('tampil'); }, 3000);
 }
 

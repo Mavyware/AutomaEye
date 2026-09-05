@@ -1,6 +1,6 @@
 // Project + Model domain — CRUD, JSON persistence, dataset ops.
 //
-// Layout folder tiap project:
+// Folder layout for each project:
 //   projects/
 //     <name>/
 //       project.json
@@ -56,11 +56,11 @@ function modelDir(root, projectName, modelName) {
 }
 function ensureDir(p) { if (!fs.existsSync(p)) fs.mkdirSync(p, { recursive: true }); }
 
-// ---- Pembatas path ----
-// Nama project/model/berkas datang dari renderer. Tanpa penjagaan, nama
-// berisi "../" akan keluar dari folder aplikasi: annot:image bisa membaca
-// berkas mana pun di disk, dan projects:delete bisa menghapus folder lain.
-// Semua path hasil input luar WAJIB lewat sini.
+// ---- Path guard ----
+// Project/model/file names come from the renderer. Without a guard, a name
+// containing "../" would escape the app folder: annot:image could read
+// any file on disk, and projects:delete could delete some other folder.
+// Every path built from external input MUST go through here.
 function safeJoin(base, ...parts) {
     const root = path.resolve(base);
     const target = path.resolve(root, ...parts);
@@ -70,7 +70,7 @@ function safeJoin(base, ...parts) {
     return target;
 }
 
-/** Satu segmen nama (project/model): tanpa pemisah path, tanpa "..". */
+/** One name segment (project/model): no path separators, no "..". */
 function safeSegment(name, label) {
     const n = String(name == null ? '' : name).trim();
     if (!n || n === '.' || n === '..' || /[\\/]/.test(n) || /\0/.test(n)) {
@@ -79,7 +79,7 @@ function safeSegment(name, label) {
     return n;
 }
 
-/** Nama berkas: dipaksa jadi basename saja, jadi "../x" tidak bisa lolos. */
+/** File name: forced down to just the basename, so "../x" can't get through. */
 function safeFileName(name) {
     const b = path.basename(String(name == null ? '' : name));
     if (!b || b === '.' || b === '..') throw new Error('Nama berkas tidak valid');
@@ -91,7 +91,7 @@ function safeSplit(sp) {
     return SPLITS.includes(sp) ? sp : 'train';
 }
 
-exports._safeJoin = safeJoin;   // dipakai main.js untuk handler lain
+exports._safeJoin = safeJoin;   // used by main.js for other handlers
 
 // --- Project CRUD ---
 exports.list = (root) => {
@@ -129,8 +129,8 @@ function saveProject(root, p) {
 
 exports.load = loadProject;
 
-// --- Model versioning (ala Roboflow: tiap training menghasilkan versi baru) ---
-// Snapshot weights/best.pt saat ini → versions/v<N>/best.pt + catat di project.json.
+// --- Model versioning (Roboflow-style: every training run produces a new version) ---
+// Snapshot the current weights/best.pt → versions/v<N>/best.pt + record it in project.json.
 exports.snapshotVersion = (root, projectName, modelName, metrics) => {
     const p = loadProject(root, projectName);
     const m = (p.models || []).find(x => x.name === modelName);
@@ -149,13 +149,13 @@ exports.snapshotVersion = (root, projectName, modelName, metrics) => {
     return { id, versions: m.versions, activeVersion: id };
 };
 
-// Set versi aktif (default dipakai kalau workflow tak menentukan versi).
+// Set the active version (used as default when the workflow doesn't specify a version).
 exports.setActiveVersion = (root, projectName, modelName, versionId) => {
     const p = loadProject(root, projectName);
     const m = (p.models || []).find(x => x.name === modelName);
     if (!m) throw new Error('Model tidak ada');
     const vId = Number(versionId);
-    // Salin weights versi ini ke weights/best.pt supaya jadi default aktif.
+    // Copy this version's weights to weights/best.pt so it becomes the active default.
     const mDir = modelDir(root, projectName, modelName);
     const vw = path.join(mDir, 'versions', 'v' + vId, 'best.pt');
     if (fs.existsSync(vw)) fs.copyFileSync(vw, path.join(mDir, 'weights', 'best.pt'));
@@ -164,7 +164,7 @@ exports.setActiveVersion = (root, projectName, modelName, versionId) => {
     return { activeVersion: vId };
 };
 
-// Resolusi path weights: versi tertentu → aktif → weights/best.pt (legacy).
+// Resolve the weights path: a specific version → active → weights/best.pt (legacy).
 exports.resolveWeights = (root, projectName, modelName, versionId) => {
     const mDir = modelDir(root, projectName, modelName);
     const tryV = (id) => {
@@ -276,7 +276,7 @@ exports.deleteModel = (root, projectName, modelName) => {
     const mDir = modelDir(root, projectName, modelName);
     if (fs.existsSync(mDir)) fs.rmSync(mDir, { recursive: true, force: true });
     p.models.splice(idx, 1);
-    // Lepas step Workflow yang memakai model ini supaya tidak jadi referensi menggantung.
+    // Remove Workflow steps that use this model so they don't become dangling references.
     if (p.workflow && Array.isArray(p.workflow.steps)) {
         p.workflow.steps = p.workflow.steps.filter(s => s.modelName !== modelName);
         p.workflow.steps.forEach((s, i) => s.stepIndex = i + 1);
@@ -294,8 +294,8 @@ exports.listImages = (root, projectName, modelName, split) => {
         .map(f => ({ name: f, path: path.join(dir, f) }));
 };
 
-// List gambar sebuah split + parse bounding box dari label YOLO-nya.
-// Dipakai gallery preview untuk menggambar anotasi di atas thumbnail.
+// List a split's images + parse bounding boxes from their YOLO labels.
+// Used by the gallery preview to draw annotations on top of thumbnails.
 exports.listImagesWithLabels = (root, projectName, modelName, split) => {
     split = safeSplit(split);
     const dsDir = safeJoin(modelDir(root, projectName, modelName), DATASET_DIR);
@@ -315,11 +315,11 @@ exports.listImagesWithLabels = (root, projectName, modelName, split) => {
                     const cls = parseInt(p[0], 10);
                     const vals = p.slice(1).map(Number);
                     if (vals.some(v => Number.isNaN(v))) return null;
-                    if (vals.length === 4) {                       // bbox (deteksi)
+                    if (vals.length === 4) {                       // bbox (detection)
                         const [cx, cy, w, h] = vals;
                         return { cls, cx, cy, w, h };
                     }
-                    if (vals.length >= 6 && vals.length % 2 === 0) { // poligon (segmentasi)
+                    if (vals.length >= 6 && vals.length % 2 === 0) { // polygon (segmentation)
                         const xs = [], ys = [];
                         for (let i = 0; i < vals.length; i += 2) { xs.push(vals[i]); ys.push(vals[i + 1]); }
                         const minx = Math.min(...xs), maxx = Math.max(...xs);
@@ -347,13 +347,13 @@ exports.importImages = (root, projectName, modelName, filePaths) => {
     return { saved };
 };
 
-// Hapus gambar (beserta label YOLO-nya) dari SEMUA split. names = daftar basename.
+// Delete images (along with their YOLO labels) from ALL splits. names = list of basenames.
 exports.deleteDatasetImages = (root, projectName, modelName, names) => {
     const dsDir = path.join(modelDir(root, projectName, modelName), DATASET_DIR);
     const splits = ['train', 'val', 'test'];
     let deleted = 0;
     for (const name of (names || [])) {
-        const base = path.basename(String(name)); // cegah path traversal
+        const base = path.basename(String(name)); // prevent path traversal
         const stem = path.parse(base).name;
         for (const sp of splits) {
             const img = path.join(dsDir, 'images', sp, base);
@@ -380,11 +380,11 @@ exports.importPt = (root, projectName, modelName, srcPath) => {
     const dst = path.join(mDir, WEIGHTS_DIR, 'best.pt');
     fs.copyFileSync(srcPath, dst);
 
-    // Mark model as trained. mAP dsb kita nggak tahu, biarkan 0 (user bisa isi manual)
+    // Mark model as trained. We don't know the mAP etc, leave it at 0 (user can fill it in manually)
     m.trained = true;
     m.updatedAt = new Date().toISOString();
-    // Model impor belum pernah dievaluasi di sini. Biarkan null, JANGAN 0 —
-    // "mAP 0.00" terbaca sebagai model buruk, padahal artinya belum diukur.
+    // An imported model has never been evaluated here. Leave it null, NOT 0 —
+    // "mAP 0.00" reads as a bad model, when it actually just means it hasn't been measured.
     if (m.lastMAP == null) {
         m.lastMAP = null;
         m.lastPrecision = null;
@@ -412,7 +412,7 @@ exports.modelStats = (root, projectName, modelName) => {
 // ================= Dataset split & clean-rebuild =================
 const IMG_RE = /\.(jpg|jpeg|png)$/i;
 
-// List file gambar di sebuah folder. augOnly: true=hanya aug, false=hanya asli, null=semua.
+// List image files in a folder. augOnly: true=aug only, false=originals only, null=all.
 function listImages(dir, augOnly = null) {
     if (!fs.existsSync(dir)) return [];
     return fs.readdirSync(dir).filter(f => {
@@ -433,7 +433,7 @@ function moveAllFiles(srcDir, dstDir) {
     }
 }
 
-// PRNG seed tetap (mulberry32) → split reproducible tiap kali.
+// Fixed PRNG seed (mulberry32) → split is reproducible every time.
 function seededShuffle(arr, seed) {
     let t = seed >>> 0;
     const rnd = () => {
@@ -449,7 +449,7 @@ function seededShuffle(arr, seed) {
     return arr;
 }
 
-// Tulis ulang data.yaml. val jatuh ke images/train kalau val kosong (YOLO wajib val).
+// Rewrite data.yaml. val falls back to images/train if val is empty (YOLO requires val).
 function writeDataYaml(root, projectName, modelName) {
     const mDir = modelDir(root, projectName, modelName);
     const dsDir = path.join(mDir, DATASET_DIR);
@@ -471,7 +471,7 @@ function writeDataYaml(root, projectName, modelName) {
     return { hasVal, hasTest };
 }
 
-// Hapus semua file augmentasi (*.aug*) dari semua split. Return jumlah gambar dihapus.
+// Delete all augmented files (*.aug*) from every split. Returns the number of images deleted.
 function deleteAugmented(dsDir) {
     let removed = 0;
     for (const sub of ['train', 'val', 'test']) {
@@ -489,8 +489,8 @@ function deleteAugmented(dsDir) {
     return removed;
 }
 
-// Rename label yang namanya tidak match gambar (sisa dari alat anotasi luar)
-// jadi cocok dengan stem gambar. Return jumlah yang diperbaiki.
+// Rename labels whose names don't match an image (leftovers from an external
+// annotation tool) to match the image's stem. Returns the number fixed.
 function fixLabelNames(dsDir) {
     let fixed = 0;
     for (const sub of ['train', 'val', 'test']) {
@@ -517,8 +517,8 @@ function fixLabelNames(dsDir) {
     return fixed;
 }
 
-// Split gambar ASLI ber-label menjadi train/val/test. Augmented (*.aug*) selalu
-// tinggal di train. Idempotent: val/test dikonsolidasi ke train dulu tiap dipanggil.
+// Split ORIGINAL labeled images into train/val/test. Augmented (*.aug*) always
+// stays in train. Idempotent: val/test are consolidated back into train first, every call.
 exports.splitDataset = (root, projectName, modelName, ratios = {}) => {
     const mDir = modelDir(root, projectName, modelName);
     const dsDir = path.join(mDir, DATASET_DIR);
@@ -528,7 +528,7 @@ exports.splitDataset = (root, projectName, modelName, ratios = {}) => {
     for (const sub of ['train', 'val', 'test'])
         for (const kind of ['images', 'labels']) ensureDir(path.join(dsDir, kind, sub));
 
-    // 1. Konsolidasi val/test kembali ke train (biar re-split idempotent)
+    // 1. Consolidate val/test back into train (so re-splitting is idempotent)
     for (const sub of ['val', 'test']) {
         moveAllFiles(path.join(dsDir, 'images', sub), path.join(dsDir, 'images', 'train'));
         moveAllFiles(path.join(dsDir, 'labels', sub), path.join(dsDir, 'labels', 'train'));
@@ -537,7 +537,7 @@ exports.splitDataset = (root, projectName, modelName, ratios = {}) => {
     const imgTrain = path.join(dsDir, 'images', 'train');
     const lblTrain = path.join(dsDir, 'labels', 'train');
 
-    // 2. Pool = gambar asli (non-aug) yang punya label
+    // 2. Pool = original (non-aug) images that have a label
     const pool = listImages(imgTrain, false).filter(f =>
         fs.existsSync(path.join(lblTrain, path.parse(f).name + '.txt')));
     seededShuffle(pool, 1337);
@@ -545,8 +545,8 @@ exports.splitDataset = (root, projectName, modelName, ratios = {}) => {
     const n = pool.length;
     let nVal = Math.round(n * rVal);
     let nTest = Math.round(n * rTest);
-    if (n >= 3 && nVal === 0) nVal = 1;               // pastikan val >=1 kalau memungkinkan
-    if (nVal + nTest > n - 1) nTest = Math.max(0, n - nVal - 1); // sisakan >=1 utk train
+    if (n >= 3 && nVal === 0) nVal = 1;               // ensure val >=1 when possible
+    if (nVal + nTest > n - 1) nTest = Math.max(0, n - nVal - 1); // leave >=1 for train
 
     const valSet = pool.slice(0, nVal);
     const testSet = pool.slice(nVal, nVal + nTest);
@@ -561,13 +561,13 @@ exports.splitDataset = (root, projectName, modelName, ratios = {}) => {
     valSet.forEach(f => moveOne(f, 'val'));
     testSet.forEach(f => moveOne(f, 'test'));
 
-    // 3. Cegah data leakage: kalau user augmentasi DULU baru split, gambar augmentasi
-    // dari original yang masuk val/test masih nyangkut di train. Itu bikin model
-    // "mengintip" data evaluasi. Buang augmentasi yang sumbernya ada di val/test.
+    // 3. Prevent data leakage: if the user augments FIRST then splits, augmented
+    // images whose originals ended up in val/test are still sitting in train. That
+    // lets the model "peek" at the evaluation data. Remove augmentations whose source is in val/test.
     const heldOutStems = new Set([...valSet, ...testSet].map(f => path.parse(f).name));
     const AUG_SUFFIX = /\.(rotate|fliph|flipv|blur|exposure|noise)\.aug\d+$/i;
     let leakRemoved = 0;
-    for (const f of listImages(imgTrain, true)) {          // hanya file *.aug*
+    for (const f of listImages(imgTrain, true)) {          // *.aug* files only
         const src = path.parse(f).name.replace(AUG_SUFFIX, '');
         if (heldOutStems.has(src)) {
             fs.unlinkSync(path.join(imgTrain, f));
@@ -588,15 +588,15 @@ exports.splitDataset = (root, projectName, modelName, ratios = {}) => {
     };
 };
 
-// Buang gambar ASLI (non-aug) yang tidak punya label — mis. gambar yang di-skip
-// saat anotasi tapi filenya masih ada di dataset. Return jumlah yang dibuang.
+// Remove ORIGINAL (non-aug) images that have no label — e.g. images that were
+// skipped during annotation but whose file is still in the dataset. Returns the number removed.
 function deleteUnlabeledOriginals(dsDir) {
     let removed = 0;
     for (const sub of ['train', 'val', 'test']) {
         const imgD = path.join(dsDir, 'images', sub);
         const lblD = path.join(dsDir, 'labels', sub);
         if (!fs.existsSync(imgD)) continue;
-        for (const f of listImages(imgD, false)) {   // hanya gambar asli (non-aug)
+        for (const f of listImages(imgD, false)) {   // originals only (non-aug)
             const lbl = path.join(lblD, path.parse(f).name + '.txt');
             if (!fs.existsSync(lbl)) { fs.unlinkSync(path.join(imgD, f)); removed++; }
         }
@@ -604,9 +604,9 @@ function deleteUnlabeledOriginals(dsDir) {
     return removed;
 }
 
-// Bersihkan dataset lalu split ulang: buang augmented, betulkan nama label,
-// buang gambar asli tanpa label, baru split. Untuk dataset yang terlanjur rusak
-// atau berisi gambar kosong (di-skip saat anotasi).
+// Clean the dataset then re-split: remove augmented files, fix label names,
+// remove unlabeled originals, then split. For datasets that already got
+// messed up, or that contain empty images (skipped during annotation).
 exports.cleanRebuildDataset = (root, projectName, modelName, ratios) => {
     const mDir = modelDir(root, projectName, modelName);
     const dsDir = path.join(mDir, DATASET_DIR);
@@ -621,8 +621,8 @@ exports.cleanRebuildDataset = (root, projectName, modelName, ratios) => {
 exports.augmentDataset = (root, projectName, modelName, opts, pyCfg, onProgress) => {
     return new Promise((resolve, reject) => {
         const mDir = modelDir(root, projectName, modelName);
-        // splits: default hanya 'train'. Bisa ['train','val','test'] kalau diminta
-        // (mis. syarat pembimbing). Tiap split di-augment ke foldernya sendiri.
+        // splits: default is just 'train'. Can be ['train','val','test'] if requested
+        // (e.g. an advisor's requirement). Each split is augmented into its own folder.
         const splits = Array.isArray(opts.splits) && opts.splits.length
             ? opts.splits.filter(s => ['train', 'val', 'test'].includes(s))
             : ['train'];
@@ -631,7 +631,7 @@ exports.augmentDataset = (root, projectName, modelName, opts, pyCfg, onProgress)
             '--multiplier', String(opts.multiplier || 2),
             '--splits', splits.join(','),
         ];
-        // Default: regenerasi bersih (hapus aug lama dulu) kecuali diminta menumpuk.
+        // Default: clean regeneration (delete old aug files first) unless stacking is requested.
         if (opts.clean !== false) args.push('--clean');
         if (opts.rotate) {
             args.push('--rotate', '--rotate-max', String(opts.rotateMax || 15));
@@ -653,7 +653,7 @@ exports.augmentDataset = (root, projectName, modelName, opts, pyCfg, onProgress)
         py.stdout.on('data', d => {
             const s = d.toString();
             stdout += s;
-            // Stream progress "PROGRESS done/total" ke UI
+            // Stream progress "PROGRESS done/total" to the UI
             s.split(/\r?\n/).forEach(line => {
                 const pm = line.match(/PROGRESS (\d+)\/(\d+)/);
                 if (pm && onProgress) onProgress({ done: +pm[1], total: +pm[2] });
@@ -671,13 +671,13 @@ exports.augmentDataset = (root, projectName, modelName, opts, pyCfg, onProgress)
 exports.datasetPath = (root, projectName, modelName) =>
     path.join(modelDir(root, projectName, modelName), DATASET_DIR);
 
-// ---- Anotasi bawaan ----
+// ---- Built-in annotation ----
 //
-// Label disimpan langsung dalam format YOLO di dataset/labels/<split>/, sama
-// persis dengan yang dibaca train.py — jadi tidak perlu langkah "sync/export"
-// dari alat luar; begitu disimpan, dataset langsung siap dilatih.
+// Labels are saved directly in YOLO format in dataset/labels/<split>/, the
+// exact same format train.py reads — so no "sync/export" step from an
+// external tool is needed; as soon as it's saved, the dataset is ready to train.
 
-/** Gambar dikirim sebagai data URL karena renderer tidak punya akses fs (contextIsolation). */
+/** The image is sent as a data URL because the renderer has no fs access (contextIsolation). */
 exports.readImageDataUrl = (root, projectName, modelName, split, name) => {
     const imgPath = safeJoin(modelDir(root, projectName, modelName),
                              DATASET_DIR, 'images', safeSplit(split), safeFileName(name));
@@ -688,8 +688,8 @@ exports.readImageDataUrl = (root, projectName, modelName, split, name) => {
 };
 
 /**
- * Tulis label satu gambar.
- * @param {Array} shapes bbox {cls,cx,cy,w,h} atau poligon {cls,poly:[x1,y1,...]}
+ * Write the label for one image.
+ * @param {Array} shapes bbox {cls,cx,cy,w,h} or polygon {cls,poly:[x1,y1,...]}
  */
 exports.saveLabels = (root, projectName, modelName, split, name, shapes) => {
     const lblDir = safeJoin(modelDir(root, projectName, modelName), DATASET_DIR, 'labels', safeSplit(split));
@@ -705,16 +705,16 @@ exports.saveLabels = (root, projectName, modelName, split, name, shapes) => {
             .map((v, i) => (i === 0 ? v : Number(v).toFixed(6))).join(' ');
     });
 
-    // Tanpa bentuk apa pun = gambar sengaja ditandai "tidak ada objek".
-    // File tetap ditulis (kosong) supaya terhitung sudah dianotasi, bukan terlewat.
+    // No shapes at all = the image is deliberately marked "no object".
+    // The file is still written (empty) so it counts as annotated, not skipped.
     fs.writeFileSync(lblPath, lines.join('\n') + (lines.length ? '\n' : ''), 'utf8');
     return { ok: true, path: lblPath, count: lines.length };
 };
 
-// Konfigurasi output. Selain kode kustom, kini menyimpan perangkat yang
-// dipakai (Arduino/ESP32) dan pemetaan tiap kelas model ke satu pin.
-// Bentuk lama { mode:'signal', script } tetap terbaca: mode 'signal' berarti
-// sinyal OK/NG bawaan, tanpa pemetaan pin.
+// Output configuration. Besides custom code, it now also stores the device
+// in use (Arduino/ESP32) and the mapping of each model class to one pin.
+// The old shape { mode:'signal', script } still loads fine: mode 'signal'
+// means the default OK/NG signal, with no pin mapping.
 exports.saveOutputConfig = (root, projectName, cfg) => {
     const p = loadProject(root, projectName);
     const mode = ['signal', 'device', 'script'].includes(cfg && cfg.mode) ? cfg.mode : 'signal';
@@ -724,8 +724,8 @@ exports.saveOutputConfig = (root, projectName, cfg) => {
 
     p.output = {
         mode,
-        // Dua skrip disimpan terpisah supaya berganti bahasa tidak
-        // menghapus kode yang sudah ditulis di bahasa satunya.
+        // The two scripts are stored separately so switching language doesn't
+        // erase the code already written in the other one.
         bahasa: (cfg && cfg.bahasa) === 'py' ? 'py' : 'js',
         script: String((cfg && cfg.script) || ''),
         scriptPy: String((cfg && cfg.scriptPy) || ''),
@@ -735,15 +735,15 @@ exports.saveOutputConfig = (root, projectName, cfg) => {
             koneksi: String(dev.koneksi || 'usb'),
             port: String(dev.port || ''),
             baud: parseInt(dev.baud, 10) || 9600,
-            // Khusus PLC (Modbus). Diabaikan untuk Arduino/ESP32.
+            // PLC-only (Modbus). Ignored for Arduino/ESP32.
             host: String(dev.host || ''),
             porta: parseInt(dev.porta, 10) || 502,
             unit: parseInt(dev.unit, 10) || 1,
             paritas: ['none', 'even', 'odd'].includes(dev.paritas) ? dev.paritas : 'none',
             stopBits: parseInt(dev.stopBits, 10) === 2 ? 2 : 1,
         },
-        // Hanya bentuknya yang dijaga di sini; keabsahan pin diperiksa
-        // lib/perangkat.js sebelum sampai ke sini.
+        // Only the shape is enforced here; pin validity is checked by
+        // lib/perangkat.js before it gets here.
         pinKelas: pinKelas.map((m) => ({
             model: String(m.model || ''),
             kelas: String(m.kelas || ''),

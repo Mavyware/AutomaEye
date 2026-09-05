@@ -1,17 +1,17 @@
 // Auto-calibration (self-parametrization) engine.
 //
-// Konsep (lihat TA36 §2.2.6): daripada operator menebak-nebak nilai confidence
-// threshold secara manual, aplikasi mengkalibrasi parameter deteksi sendiri
-// dengan menyapu (sweep) beberapa kandidat confidence threshold pada split
-// validasi berlabel, mengukur F1-Score deteksi cacat pada tiap threshold, lalu
-// memilih threshold dengan F1 terbaik dan menuliskannya ke config. Ini
-// mengadopsi konsep sistem vision yang mampu self-parametrize terhadap
-// algoritma & data.
+// Concept (see TA36 §2.2.6): instead of the operator guessing at a confidence
+// threshold value manually, the app calibrates its own detection parameter by
+// sweeping several candidate confidence thresholds on a labeled validation
+// split, measuring the defect-detection F1-Score at each threshold, then
+// picking the threshold with the best F1 and writing it to the config. This
+// adopts the concept of a vision system that can self-parametrize against
+// its algorithm & data.
 //
-// Ground-truth level-gambar: sebuah gambar dianggap "NG/defective" bila file
-// label YOLO-nya memuat minimal satu kelas selain "OK". Prediksi NG bila ada
-// deteksi kelas selain "OK" dengan confidence >= threshold. Dari sini dihitung
-// TP/FP/FN → Precision, Recall, F1 per threshold.
+// Image-level ground truth: an image is considered "NG/defective" if its
+// YOLO label file contains at least one class other than "OK". It's predicted
+// NG if there's a detection of a class other than "OK" with confidence >=
+// threshold. From this, TP/FP/FN → Precision, Recall, F1 are computed per threshold.
 
 const fs = require('fs');
 const path = require('path');
@@ -31,7 +31,7 @@ function listValImages(modelDir) {
         }));
 }
 
-// Ground truth: gambar defective bila ada baris label dgn class_id yang BUKAN OK.
+// Ground truth: an image is defective if any label line has a class_id that is NOT OK.
 function isDefectiveGT(lblPath, classes) {
     if (!fs.existsSync(lblPath)) return false;
     const okIdx = classes.indexOf('OK');
@@ -39,12 +39,12 @@ function isDefectiveGT(lblPath, classes) {
     for (const line of lines) {
         const clsId = parseInt(line.split(/\s+/)[0], 10);
         if (Number.isNaN(clsId)) continue;
-        if (clsId !== okIdx) return true; // ada kelas cacat
+        if (clsId !== okIdx) return true; // there's a defect class
     }
     return false;
 }
 
-// Confidence prediksi cacat tertinggi pada sebuah gambar (0 kalau tak ada deteksi cacat).
+// Highest predicted defect confidence for an image (0 if there's no defect detection).
 function topDefectConfidence(detections) {
     let top = 0;
     for (const d of detections || []) {
@@ -60,8 +60,8 @@ function f1(tp, fp, fn) {
     return { precision: p, recall: r, f1: f };
 }
 
-// Kalibrasi. onProgress({done, total, image}) opsional untuk update UI.
-// Return { bestConf, table:[{conf,precision,recall,f1}], evaluated, weightsPath }.
+// Calibration. onProgress({done, total, image}) is optional, for UI updates.
+// Returns { bestConf, table:[{conf,precision,recall,f1}], evaluated, weightsPath }.
 exports.calibrate = async (cfg, modelDir, classes, onProgress) => {
     const weightsPath = path.join(modelDir, 'weights', 'best.pt');
     if (!fs.existsSync(weightsPath)) {
@@ -72,8 +72,8 @@ exports.calibrate = async (cfg, modelDir, classes, onProgress) => {
         throw new Error('Tidak ada gambar di split val. Lakukan split dataset dulu.');
     }
 
-    // Untuk tiap gambar: jalankan inferensi SEKALI pada conf rendah (0.05) agar
-    // semua kandidat deteksi ikut terkumpul; thresholding dilakukan di JS.
+    // For each image: run inference ONCE at a low conf (0.05) so that
+    // all candidate detections get collected; thresholding is done in JS.
     const perImage = [];
     for (let i = 0; i < items.length; i++) {
         const it = items[i];
@@ -85,7 +85,7 @@ exports.calibrate = async (cfg, modelDir, classes, onProgress) => {
             });
             detections = r.detections || [];
         } catch (e) {
-            // gambar gagal diinferensi — lewati, jangan gagalkan seluruh kalibrasi
+            // image failed to run inference — skip it, don't fail the whole calibration
             if (onProgress) onProgress({ done: i + 1, total: items.length, image: path.basename(it.img), error: e.message });
             continue;
         }
@@ -111,7 +111,7 @@ exports.calibrate = async (cfg, modelDir, classes, onProgress) => {
         return { conf, tp, fp, fn, tn, ...m };
     });
 
-    // Pilih F1 terbaik; kalau seri, pilih threshold lebih tinggi (lebih sedikit false alarm).
+    // Pick the best F1; on a tie, pick the higher threshold (fewer false alarms).
     let best = table[0];
     for (const row of table) {
         if (row.f1 > best.f1 + 1e-9 || (Math.abs(row.f1 - best.f1) < 1e-9 && row.conf > best.conf)) best = row;

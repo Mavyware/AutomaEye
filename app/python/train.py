@@ -1,11 +1,11 @@
 """
-Training script per-model, dipanggil oleh Electron.
-Streaming stdout → Node parse progress via regex.
+Per-model training script, invoked by Electron.
+Streams stdout → Node parses progress via regex.
 
-Progress format yang di-parse Node:
-  "PROGRESS_EPOCH <e>/<total>"        → update bar per epoch
-  "results mAP50: .. P: .. R: .."     → metrik final
-Semua error di-print jelas lalu exit 1 supaya UI bisa menampilkannya.
+Progress format parsed by Node:
+  "PROGRESS_EPOCH <e>/<total>"        → updates the per-epoch bar
+  "results mAP50: .. P: .. R: .."     → final metrics
+Every error is printed clearly then exits 1 so the UI can display it.
 """
 import argparse
 import shutil
@@ -43,21 +43,22 @@ def main():
     ap.add_argument("--lr", type=float, default=0.01)
     ap.add_argument("--type", required=True)
     ap.add_argument("--resume", action="store_true",
-                    help="Lanjutkan training dari runs/train/weights/last.pt")
+                    help="Resume training from runs/train/weights/last.pt")
     args = ap.parse_args()
 
-    # Klasifikasi memakai jalur dataset yang sama sekali berbeda di ultralytics
-    # (folder per-kelas, bukan data.yaml). Ditentukan sekali di sini supaya
-    # cabangnya jelas, bukan tersebar sebagai perbandingan string.
+    # Classification uses a completely different dataset path in ultralytics
+    # (a folder per class, not data.yaml). Determined once here so the
+    # branching is explicit, rather than scattered as string comparisons.
     is_cls = args.type == "AI Classification"
 
-    # ---- Validasi dataset SEBELUM training (biar error jelas, bukan exit 1 misterius) ----
+    # ---- Validate the dataset BEFORE training (so the error is clear, not a mysterious exit 1) ----
     ds = Path(args.data).parent
 
-    # ---- Self-heal path portabel ----
-    # data.yaml menyimpan baris "path:" absolut. Kalau project dipindah ke PC/folder
-    # lain, baris itu jadi salah (mis. masih menunjuk ke laptop lama) dan training
-    # gagal. Tulis ulang "path:" ke lokasi dataset yang sebenarnya saat ini.
+    # ---- Self-heal the portable path ----
+    # data.yaml stores an absolute "path:" line. If the project is moved to
+    # another PC/folder, that line becomes wrong (e.g. still pointing to the
+    # old laptop) and training fails. Rewrite "path:" to the dataset's actual
+    # current location.
     try:
         data_file = Path(args.data)
         if data_file.exists():
@@ -95,12 +96,12 @@ def main():
                   "Beri label lewat tab Anotasi, lalu 'Clean & Rebuild + Split'.", flush=True)
         sys.exit(1)
 
-    # ---- Bentuk dataset yang diminta ultralytics ----
-    # Deteksi/segmentasi/OCR: data.yaml.
-    # Klasifikasi: sebuah FOLDER train/<kelas>/*.jpg - check_cls_dataset menolak
-    # data.yaml dan menyimpulkan kelas dari nama folder. Folder itu dibangun
-    # ulang dari label yang sama, jadi tidak ada salinan dataset kedua yang
-    # harus dijaga tetap sinkron.
+    # ---- Dataset shape required by ultralytics ----
+    # Detection/segmentation/OCR: data.yaml.
+    # Classification: a train/<class>/*.jpg FOLDER - check_cls_dataset rejects
+    # data.yaml and infers classes from folder names. That folder is rebuilt
+    # from the same labels, so there's no second dataset copy that needs to
+    # be kept in sync.
     data_arg = args.data
     if is_cls:
         try:
@@ -131,9 +132,9 @@ def main():
               flush=True)
         sys.exit(1)
 
-    # ---- Cegah PC nge-freeze saat training (terutama kalau di CPU) ----
-    # 1) Turunkan prioritas proses (Windows) supaya UI/mouse tetap dapat jatah CPU.
-    # 2) Batasi jumlah thread PyTorch → sisakan 1-2 core untuk sistem.
+    # ---- Prevent the PC from freezing during training (especially on CPU) ----
+    # 1) Lower the process priority (Windows) so the UI/mouse still get a CPU share.
+    # 2) Limit the number of PyTorch threads → leave 1-2 cores for the system.
     try:
         import ctypes
         # BELOW_NORMAL_PRIORITY_CLASS = 0x00004000
@@ -176,7 +177,7 @@ def main():
     try:
         model = YOLO(base)
 
-        # Callback: print progress tiap epoch selesai
+        # Callback: print progress every time an epoch finishes
         def on_epoch_end(trainer):
             try:
                 e = int(getattr(trainer, "epoch", 0)) + 1
@@ -185,8 +186,8 @@ def main():
                 pass
         model.add_callback("on_train_epoch_end", on_epoch_end)
 
-        # Callback: kirim metrik per-epoch (setelah validasi) untuk dashboard UI.
-        # Formatnya satu baris JSON: "EPOCH_METRICS {...}" — di-parse oleh Node.
+        # Callback: send per-epoch metrics (after validation) for the UI dashboard.
+        # The format is a single JSON line: "EPOCH_METRICS {...}" — parsed by Node.
         def on_fit_epoch_end(trainer):
             try:
                 import json as _json
@@ -203,10 +204,10 @@ def main():
                     return 0.0
 
                 if is_cls:
-                    # Klasifikasi tidak punya mAP/precision/recall - yang ada
-                    # akurasi top-1 dan top-5, dan satu angka loss (bukan tiga).
-                    # Dikirim di slot mAP50/mAP50-95 supaya grafik yang sudah
-                    # ada tetap terpakai; UI menamainya ulang lewat "task".
+                    # Classification has no mAP/precision/recall - what it has
+                    # is top-1 and top-5 accuracy, and a single loss number (not three).
+                    # Sent in the mAP50/mAP50-95 slots so the existing chart
+                    # still works; the UI renames them via "task".
                     top1 = _g("metrics/accuracy_top1")
                     top5 = _g("metrics/accuracy_top5")
                     loss = 0.0
@@ -231,7 +232,7 @@ def main():
                 map50 = _g("metrics/mAP50(B)")
                 map5095 = _g("metrics/mAP50-95(B)")
 
-                # Loss training per-epoch
+                # Per-epoch training loss
                 box = cls = dfl = 0.0
                 try:
                     li = trainer.label_loss_items(trainer.tloss, prefix="train")
@@ -243,7 +244,7 @@ def main():
                     cls = _g("val/cls_loss")
                     dfl = _g("val/dfl_loss")
 
-                # Validation loss per-epoch (untuk deteksi overfitting/underfitting)
+                # Per-epoch validation loss (for detecting overfitting/underfitting)
                 valBox = _g("val/box_loss")
                 valCls = _g("val/cls_loss")
                 valDfl = _g("val/dfl_loss")
@@ -261,8 +262,8 @@ def main():
         model.add_callback("on_fit_epoch_end", on_fit_epoch_end)
 
         if do_resume:
-            # resume=True: ultralytics memakai argumen & jumlah epoch yang
-            # tersimpan di checkpoint, lalu menyambung dari epoch terakhir.
+            # resume=True: ultralytics uses the arguments & epoch count
+            # stored in the checkpoint, then continues from the last epoch.
             results = model.train(resume=True)
         else:
             results = model.train(
@@ -281,7 +282,7 @@ def main():
         traceback.print_exc()
         sys.exit(1)
 
-    # Copy best.pt hasil training ke weights folder
+    # Copy the training's resulting best.pt to the weights folder
     best = Path(results.save_dir) / "weights" / "best.pt"
     if best.exists():
         target = weights_dir / "best.pt"

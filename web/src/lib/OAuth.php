@@ -15,9 +15,9 @@ final class OAuth
     }
 
     /**
-     * Seperti consumeState(), tapi mengembalikan seluruh state (termasuk
-     * 'purpose') — dipakai callback untuk membedakan login biasa dari
-     * permintaan akses repo dari aplikasi desktop.
+     * Like consumeState(), but returns the whole state (including
+     * 'purpose') — used by the callback to tell a normal login apart from
+     * a repo access request from the desktop app.
      *
      * @return array{redirect:?string,purpose:string}|null
      */

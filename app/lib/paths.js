@@ -1,18 +1,18 @@
-// lib/paths.js — lokasi skrip Python, baik saat dev maupun setelah dipaketkan.
+// lib/paths.js — location of the Python scripts, both in dev and once packaged.
 //
-// Kenapa perlu:
-//   1. Skrip dipanggil lewat path relatif ("python/train.py") dan di-spawn
-//      tanpa cwd. Saat dev kebetulan benar karena cwd = folder app, tapi
-//      aplikasi terpasang bisa dijalankan dari folder mana saja.
-//   2. Setelah dipaketkan, kode aplikasi berada di dalam app.asar. Python
-//      TIDAK bisa menjalankan berkas di dalam arsip itu, jadi folder python/
-//      sengaja ditaruh di luar asar (extraResources) dan di-resolve ke
+// Why this is needed:
+//   1. Scripts are invoked via a relative path ("python/train.py") and spawned
+//      with no cwd. In dev this happens to work because cwd = the app folder,
+//      but an installed app can be run from any folder.
+//   2. Once packaged, the app's code lives inside app.asar. Python CANNOT
+//      run a file that's inside that archive, so the python/ folder is
+//      deliberately kept outside asar (extraResources) and resolved to
 //      process.resourcesPath.
 
 const path = require('path');
 const { app } = require('electron');
 
-/** Folder berisi skrip Python (train.py, infer_server.py, evaluate.py, ...). */
+/** Folder containing the Python scripts (train.py, infer_server.py, evaluate.py, ...). */
 function pythonDir() {
     return app.isPackaged
         ? path.join(process.resourcesPath, 'python')
@@ -20,9 +20,9 @@ function pythonDir() {
 }
 
 /**
- * Path absolut sebuah skrip Python.
- * Menerima "train.py" maupun "python/train.py" (bentuk lama di config.yaml),
- * keduanya diselesaikan ke folder python yang benar.
+ * Absolute path of a Python script.
+ * Accepts both "train.py" and "python/train.py" (the old form in config.yaml),
+ * both are resolved to the correct python folder.
  */
 function pythonScript(nameOrRelPath, fallback) {
     const raw = String(nameOrRelPath || fallback || '');

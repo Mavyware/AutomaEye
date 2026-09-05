@@ -1,7 +1,7 @@
-// Harness Electron minimal: memuat annotator.js yang asli di dalam Chromium
-// sungguhan, memasangnya dalam mode klasifikasi, lalu memeriksa hasilnya.
-// Memakai Electron yang memang sudah jadi dependensi aplikasi - tidak ada
-// paket uji baru yang ditambahkan ke repo publik.
+// Minimal Electron harness: loads the real annotator.js inside actual
+// Chromium, mounts it in classification mode, then checks the result.
+// Uses Electron, which is already an app dependency - no new test package
+// added to the public repo.
 const { app, BrowserWindow } = require('electron');
 const path = require('path');
 
@@ -15,14 +15,14 @@ app.whenReady().then(async () => {
         const teks = typeof e === 'string' ? e : (e && e.message) || '';
         if (teks) console.log(teks);
     });
-    // Hasil ditulis ke berkas, bukan hanya stdout: stdout Electron di Windows
-    // tidak selalu ikut ter-flush sebelum proses keluar.
+    // The result is written to a file, not just stdout: Electron's stdout on
+    // Windows doesn't always get flushed before the process exits.
     const fs = require('fs');
     const tujuan = path.join(__dirname, 'hasil.json');
     const tulis = (o) => { try { fs.writeFileSync(tujuan, JSON.stringify(o, null, 2)); } catch (_) {} };
 
-    // Jangan pernah menggantung: kalau halaman tidak selesai, laporkan itu.
-    const batas = setTimeout(() => { tulis({ lulus: false, gagal: ['waktu habis'] }); app.exit(1); }, 30000);
+    // Never hang: if the page doesn't finish, report that.
+    const batas = setTimeout(() => { tulis({ lulus: false, gagal: ['timed out'] }); app.exit(1); }, 30000);
 
     try {
         await win.loadFile(path.join(__dirname, 'uji.html'));
@@ -31,10 +31,10 @@ app.whenReady().then(async () => {
             hasil = await win.webContents.executeJavaScript('window.__hasilUji || null');
             if (!hasil) await new Promise(r => setTimeout(r, 250));
         }
-        tulis(hasil || { lulus: false, gagal: ['uji tidak menghasilkan apa pun'] });
+        tulis(hasil || { lulus: false, gagal: ['test produced nothing'] });
         keluar = hasil && hasil.lulus ? 0 : 1;
     } catch (err) {
-        tulis({ lulus: false, gagal: ['galat harness: ' + err.message] });
+        tulis({ lulus: false, gagal: ['harness error: ' + err.message] });
     }
     clearTimeout(batas);
     app.exit(keluar);

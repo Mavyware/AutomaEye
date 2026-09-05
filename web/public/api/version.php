@@ -1,19 +1,19 @@
 <?php
 /**
- * Versi aplikasi desktop terbaru.
+ * Latest desktop app version.
  *
- * Dibaca aplikasi saat start untuk menentukan apakah user perlu memperbarui.
- * Sumbernya satu berkas JSON di server, supaya rilis baru cukup mengganti
- * berkas itu tanpa menyentuh kode.
+ * Read by the app at startup to determine whether the user needs to update.
+ * The source is a single JSON file on the server, so a new release only
+ * needs to replace that file without touching any code.
  *
- * Bentuk balasan:
+ * Response shape:
  *   { ok, version, minVersion, url, notes }
  *
- * version    : versi terbaru yang tersedia
- * minVersion : versi paling lama yang MASIH boleh dipakai. Aplikasi di bawah
- *              ini wajib memperbarui sebelum bisa dipakai - dipakai kalau ada
- *              perubahan yang membuat versi lama tidak lagi kompatibel
- *              (mis. format label atau alur login berubah).
+ * version    : the latest version available
+ * minVersion : the oldest version that is STILL allowed to be used. An app
+ *              below this must update before it can be used - used when
+ *              there's a change that makes the old version no longer
+ *              compatible (e.g. the label format or login flow changed).
  */
 require __DIR__ . '/../../src/bootstrap.php';
 
@@ -28,8 +28,8 @@ if (is_readable($file)) {
 }
 
 if (!is_array($data) || empty($data['version'])) {
-    // Belum ada rilis yang diumumkan. Jangan menebak-nebak: balas apa adanya
-    // supaya aplikasi tahu ini bukan "versi Anda kedaluwarsa".
+    // No release has been announced yet. Don't guess: reply as-is so the
+    // app knows this isn't "your version is out of date".
     echo json_encode([
         'ok' => false,
         'error' => 'Belum ada informasi rilis.',

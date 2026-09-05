@@ -1,10 +1,10 @@
 # -*- coding: utf-8 -*-
 """
-Uji jalur klasifikasi ujung-ke-ujung dengan dataset sintetis.
+End-to-end test of the classification pipeline with a synthetic dataset.
 
-Membuat dataset kecil berbentuk PERSIS seperti yang dihasilkan aplikasi
-(images/<split>/ + labels/<split>/*.txt + data.yaml), lalu menjalankan
-train.py dan evaluate.py yang sebenarnya - bukan tiruannya.
+Builds a small dataset shaped EXACTLY like what the app produces
+(images/<split>/ + labels/<split>/*.txt + data.yaml), then runs the real
+train.py and evaluate.py - not mocks of them.
 """
 import io
 import json
@@ -15,18 +15,18 @@ import sys
 import tempfile
 from pathlib import Path
 
-# Keluaran ultralytics penuh karakter non-ASCII. Konsol Windows memakai cp1252
-# secara bawaan dan melempar UnicodeEncodeError di tengah uji - kegagalan yang
-# sama sekali tidak berhubungan dengan yang sedang diuji.
+# ultralytics output is full of non-ASCII characters. The Windows console
+# defaults to cp1252 and throws UnicodeEncodeError mid-test - a failure that
+# has nothing at all to do with what's actually being tested.
 sys.stdout.reconfigure(encoding='utf-8', errors='replace')
 
 APP = Path(__file__).resolve().parent.parent
 TMP = Path(tempfile.gettempdir()) / 'automaeyes-uji-cls'
 
-# Nama kelas sengaja dipilih supaya urutan ABJAD berbeda dari urutan aplikasi:
-#   aplikasi : 0=zebra, 1=apel   (urutan di data.yaml)
-#   abjad    : 0=apel,  1=zebra  (urutan yang dipakai ultralytics)
-# Kalau pemetaan indeksnya salah, hasil ujinya akan tertukar dan ketahuan.
+# Class names are deliberately chosen so the ALPHABETICAL order differs from the app's order:
+#   app       : 0=zebra, 1=apel   (order in data.yaml)
+#   alphabetical : 0=apel,  1=zebra  (order used by ultralytics)
+# If the index mapping is wrong, the test results will be swapped and it'll show.
 KELAS = ['zebra', 'apel']
 
 PROJ = TMP / 'ProyekUji'
@@ -46,14 +46,14 @@ def siapkan():
         (DS / 'images' / split).mkdir(parents=True, exist_ok=True)
         (DS / 'labels' / split).mkdir(parents=True, exist_ok=True)
 
-    # zebra = merah (indeks aplikasi 0), apel = biru (indeks aplikasi 1)
+    # zebra = red (app index 0), apel = blue (app index 1)
     warna = {0: (200, 30, 30), 1: (30, 30, 200)}
     for split, n in (('train', 6), ('val', 2)):
         for ci in (0, 1):
             for k in range(n):
                 nm = f'{KELAS[ci]}_{split}_{k}'
                 bikin_gambar(DS / 'images' / split / f'{nm}.jpg', warna[ci])
-                # Persis yang ditulis anotator di mode kelas.
+                # Exactly what the annotator writes in class mode.
                 (DS / 'labels' / split / f'{nm}.txt').write_text(
                     f'{ci} 0.5 0.5 1 1\n', encoding='utf-8')
 
@@ -77,7 +77,7 @@ def jalankan(nama, args):
 
 
 siapkan()
-print('dataset sintetis siap di', DS)
+print('synthetic dataset ready at', DS)
 
 kode, out = jalankan('train.py', [
     'train.py',
@@ -87,44 +87,44 @@ kode, out = jalankan('train.py', [
     '--epochs', '2', '--batch', '4', '--imgsz', '64', '--lr', '0.01',
     '--type', 'AI Classification',
 ])
-assert kode == 0, 'training gagal'
-assert 'results top1:' in out, 'baris ringkasan klasifikasi tidak muncul'
+assert kode == 0, 'training failed'
+assert 'results top1:' in out, 'classification summary line did not appear'
 
-# Susunan folder yang dibangun
-print('\n=== susunan folder cls ===')
+# The folder structure that got built
+print('\n=== cls folder structure ===')
 for p in sorted((DS / 'cls').rglob('*')):
     if p.is_dir():
-        print(' ', p.relative_to(DS / 'cls'), '->', len(list(p.glob('*.jpg'))), 'gambar')
+        print(' ', p.relative_to(DS / 'cls'), '->', len(list(p.glob('*.jpg'))), 'images')
 
 best = MODEL_DIR / 'weights' / 'best.pt'
-assert best.exists(), 'best.pt tidak tersalin'
+assert best.exists(), 'best.pt was not copied'
 
 kode, out = jalankan('evaluate.py', [
     'evaluate.py',
     '--weights', str(best), '--data', str(DS / 'data.yaml'),
     '--split', 'val', '--out', str(MODEL_DIR / 'eval'), '--imgsz', '64',
 ])
-assert kode == 0, 'evaluasi gagal'
+assert kode == 0, 'evaluation failed'
 baris = [l for l in out.splitlines() if l.startswith('EVAL_RESULT ')]
-assert baris, 'EVAL_RESULT tidak muncul'
+assert baris, 'EVAL_RESULT did not appear'
 hasil = json.loads(baris[-1][len('EVAL_RESULT '):])
-print('\n=== hasil evaluasi ===')
+print('\n=== evaluation result ===')
 print('task     :', hasil['task'])
 print('top1     :', hasil['overall']['top1'])
 print('perClass :', [(c['name'], round(c['precision'], 3), round(c['recall'], 3))
                      for c in hasil['perClass']])
-print('contoh   :', [(p['name'], p['truth'],
+print('sample   :', [(p['name'], p['truth'],
                       p['detections'][0]['name'] if p['detections'] else None)
                      for p in hasil['predictions'][:4]])
-# Galeri prediksi tab Test harus benar-benar terisi - versi pertama lolos
-# dengan daftar kosong karena predict() tidak menelusuri sub-folder.
-assert hasil['predictions'], 'daftar prediksi kosong'
-assert hasil['timing']['nImages'] == 4, 'jumlah gambar terprediksi salah: %r' % hasil['timing']['nImages']
+# The Test tab's prediction gallery must actually be populated - the first
+# version passed with an empty list because predict() doesn't walk sub-folders.
+assert hasil['predictions'], 'prediction list is empty'
+assert hasil['timing']['nImages'] == 4, 'wrong number of predicted images: %r' % hasil['timing']['nImages']
 for pr in hasil['predictions']:
-    assert pr['truth'] in KELAS, 'kelas sebenarnya tidak terbaca: %r' % pr['truth']
-    assert pr['detections'], 'gambar tanpa prediksi: %r' % pr['name']
-    assert pr['detections'][0]['name'] in KELAS, 'nama kelas prediksi asing'
-# Nama kelas yang dilaporkan harus dari urutan MODEL (abjad), dan tiap kelas
-# aplikasi harus muncul - kalau pemetaan indeksnya tertukar, ini yang gagal.
-assert {c['name'] for c in hasil['perClass']} == set(KELAS), 'daftar kelas tidak cocok'
-print('\nSEMUA UJI LULUS')
+    assert pr['truth'] in KELAS, 'true class not read correctly: %r' % pr['truth']
+    assert pr['detections'], 'image with no prediction: %r' % pr['name']
+    assert pr['detections'][0]['name'] in KELAS, 'unknown predicted class name'
+# The reported class names must come from the MODEL's (alphabetical) order,
+# and every app class must appear - if the index mapping is swapped, this is what fails.
+assert {c['name'] for c in hasil['perClass']} == set(KELAS), 'class list does not match'
+print('\nALL TESTS PASSED')

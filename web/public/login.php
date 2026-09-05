@@ -8,8 +8,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (!verify_csrf()) {
         $error = 'Your session expired. Please try again.';
     } elseif (!empty($_POST['continue_as'])) {
-        // Konfirmasi "lanjutkan sebagai ..." dari alur aplikasi desktop:
-        // sesi sudah ada, tinggal terbitkan token sekali pakai.
+        // "Continue as ..." confirmation from the desktop app flow: the
+        // session already exists, just issue a one-time token.
         $current = Auth::user();
         if ($current && $redirect) {
             redirect(app_handoff_url($redirect, Auth::issueAppToken($current)));
@@ -37,9 +37,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     set_old(['email' => $_POST['email'] ?? '']);
 }
 
-// Sudah login di browser. Untuk login web biasa langsung ke welcome.php;
-// untuk alur aplikasi desktop, tampilkan konfirmasi "lanjutkan sebagai ..."
-// supaya jelas akun mana yang dipakai dan bisa ganti akun.
+// Already logged in on the browser. For a normal web login go straight to
+// welcome.php; for the desktop app flow, show a "continue as ..."
+// confirmation so it's clear which account is being used and it can be switched.
 $appUser = null;
 if (Auth::check() && $_SERVER['REQUEST_METHOD'] !== 'POST') {
     if (!$redirect) {
@@ -59,7 +59,7 @@ require __DIR__ . '/../src/includes/header.php';
 <main class="auth-shell">
   <div class="auth-card">
 
-<?php if ($appUser): /* Sudah login + datang dari aplikasi desktop */ ?>
+<?php if ($appUser): /* Already logged in + came from the desktop app */ ?>
     <h1>Buka AutomaEyes Desktop</h1>
     <p class="sub">Aplikasi desktop meminta akses ke akun Anda.</p>
 

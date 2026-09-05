@@ -1,22 +1,23 @@
-// lib/customoutput.js — output buatan user sendiri.
+// lib/customoutput.js — user-authored custom output.
 //
-// Kekuatan app ini ada di sini: kalau sinyal Arduino 0/1 bawaan tidak cukup,
-// user bisa menulis sendiri apa yang terjadi setiap kali ada hasil inspeksi —
-// kirim byte lain ke PLC, tembak HTTP ke MES/dashboard, tulis log, dsb.
-// (Setara fitur "Custom code" di versi C# yang memakai Jint.)
+// This is where this app's real power lies: if the default Arduino 0/1
+// signal isn't enough, the user can write exactly what happens on every
+// inspection result — send a different byte to the PLC, fire an HTTP
+// request to an MES/dashboard, write a log, etc.
+// (Equivalent to the "Custom code" feature in the C# version, which used Jint.)
 //
-// Kontrak: script WAJIB mendefinisikan fungsi onResult(result).
+// Contract: the script MUST define a function onResult(result).
 //   result = { verdict:'OK'|'NG', confidence, totalMS,
 //               steps:[{ modelName, verdict, confidence, classes:[...] }] }
 //
-// Helper yang tersedia di dalam script:
-//   serial_write(str)        — kirim string mentah ke Arduino/PLC
-//   http_post(url, bodyObj)  — POST JSON (fire-and-forget, timeout 5 detik)
-//   log(msg)                 — muncul di log aplikasi
-//   sleep_ms(n)              — jeda (maks 5 detik, supaya siklus tak menggantung)
+// Helpers available inside the script:
+//   serial_write(str)        — send a raw string to the Arduino/PLC
+//   http_post(url, bodyObj)  — POST JSON (fire-and-forget, 5 second timeout)
+//   log(msg)                 — shows up in the app's log
+//   sleep_ms(n)              — pause (max 5 seconds, so the cycle doesn't hang)
 //
-// Catatan: vm bukan sandbox keamanan penuh — ini menjalankan kode milik user
-// sendiri di mesinnya sendiri, model kepercayaan yang sama seperti makro Excel.
+// Note: vm is not a full security sandbox — this runs the user's own code on
+// their own machine, the same trust model as an Excel macro.
 
 const vm = require('node:vm');
 
@@ -26,7 +27,7 @@ function buildSandbox(arduino, logs) {
     return {
         serial_write: (str) => {
             logs.push(`serial_write(${JSON.stringify(String(str))})`);
-            // Sengaja tidak di-await: output tidak boleh menahan siklus inspeksi.
+            // Deliberately not awaited: output must not hold up the inspection cycle.
             try { arduino.send(String(str)); } catch (e) { logs.push(`serial_write gagal: ${e.message}`); }
         },
         http_post: (url, body) => {
@@ -46,21 +47,21 @@ function buildSandbox(arduino, logs) {
         sleep_ms: (n) => {
             const ms = Math.min(Math.max(Number(n) || 0, 0), 5000);
             const end = Date.now() + ms;
-            while (Date.now() < end) { /* blocking sengaja: script user bersifat sinkron */ }
+            while (Date.now() < end) { /* deliberately blocking: the user script is synchronous */ }
         },
         console: { log: (...a) => logs.push(a.join(' ')) },
     };
 }
 
-/** Bentuk hasil yang dilihat script — sengaja diratakan supaya mudah dipakai. */
+/** The result shape seen by the script — deliberately flattened for ease of use. */
 function toScriptResult(result) {
     const steps = (result.steps || []).map((s) => ({
         modelName: s.modelName || s.label || s.category || '',
         verdict: s.verdict,
         confidence: s.confidence || 0,
-        // Nama kelas yang terdeteksi pada langkah ini. Tanpa ini skrip tidak
-        // bisa membedakan "cacat scratch" dari "cacat warna" - padahal itu
-        // justru alasan orang menulis outputnya sendiri.
+        // The names of classes detected in this step. Without this the script
+        // couldn't tell "cacat scratch" apart from "cacat warna" - and that's
+        // exactly why people write their own output in the first place.
         classes: (s.detections || [])
             .map((d) => d.class_name || d.className || d.name)
             .filter(Boolean),
@@ -74,7 +75,7 @@ function toScriptResult(result) {
 }
 
 /**
- * Jalankan script user untuk satu hasil inspeksi.
+ * Run the user's script for one inspection result.
  * @returns {{ok:boolean, logs:string[], error?:string}}
  */
 exports.run = (script, result, arduino) => {
@@ -95,7 +96,7 @@ exports.run = (script, result, arduino) => {
     }
 };
 
-/** Uji script dengan hasil contoh, tanpa perlu menjalankan inspeksi sungguhan. */
+/** Test the script with a sample result, without needing to run a real inspection. */
 exports.test = (script, arduino, verdict = 'OK') => exports.run(script, {
     finalVerdict: verdict,
     totalMS: 123.4,
@@ -103,16 +104,16 @@ exports.test = (script, arduino, verdict = 'OK') => exports.run(script, {
         modelName: 'ContohModel',
         verdict,
         confidence: 0.93,
-        // Contoh ikut membawa kelas, supaya skrip yang memakai
-        // result.steps[].classes bisa diuji tanpa inspeksi sungguhan.
+        // The sample also carries a class, so a script that uses
+        // result.steps[].classes can be tested without a real inspection.
         detections: verdict === 'NG'
             ? [{ class_name: 'cacat scratch', confidence: 0.93 }]
             : [{ class_name: 'ok', confidence: 0.93 }],
     }],
 }, arduino);
 
-exports.DEFAULT_SCRIPT = `// Bahasanya JavaScript, dijalankan di dalam aplikasi
-// (bukan di papan). Dipanggil sekali setiap ada hasil inspeksi.
+exports.DEFAULT_SCRIPT = `// Written in JavaScript, run inside the app
+// (not on the board). Called once for every inspection result.
 //
 // result = {
 //   verdict: "OK" | "NG",
@@ -123,7 +124,7 @@ exports.DEFAULT_SCRIPT = `// Bahasanya JavaScript, dijalankan di dalam aplikasi
 // Helper: serial_write(str), http_post(url, body), log(str), sleep_ms(n)
 
 function onResult(result) {
-  // Contoh: kirim sinyal berbeda tergantung kelas yang terdeteksi.
+  // Example: send a different signal depending on the detected class.
   const kelas = result.steps.flatMap(s => s.classes);
 
   if (kelas.includes("cacat scratch")) {

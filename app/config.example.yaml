@@ -1,41 +1,41 @@
-# ===== AutomaEyes — TEMPLATE konfigurasi =====
+# ===== AutomaEyes — configuration TEMPLATE =====
 #
-# Disalin otomatis jadi config.yaml saat aplikasi pertama kali dijalankan.
-# Saat terpasang, salinannya ada di folder data pengguna (userData), bukan di
-# folder pemasangan — folder itu read-only.
+# Automatically copied to config.yaml the first time the app runs.
+# Once installed, the copy lives in the user data folder (userData), not in
+# the install folder — that folder is read-only.
 #
-# Pengaturan di sini bisa diubah lewat menu Settings di aplikasi.
-# Sesi login dan token GitHub TIDAK disimpan di sini, melainkan terenkripsi
-# oleh sistem operasi.
+# Settings here can be changed via the Settings menu in the app.
+# The login session and GitHub token are NOT stored here, but encrypted
+# by the operating system.
 
 app:
   name: AutomaEyes
   version: 0.2.3
 
-# Situs untuk login akun dan pemeriksaan versi.
+# Site used for account login and version checks.
 website:
   url: https://automaeyes.my.id
 
 python:
-  exe: python                       # atau python3 / path lengkap ke python.exe
+  exe: python                       # or python3 / full path to python.exe
   infer_script: infer.py
   train_script: train.py
   eval_script: evaluate.py
   infer_server_script: infer_server.py
 
-# Sinyal ke Arduino/PLC. Kalau tidak ada perangkat terpasang, bagian ini
-# diabaikan dan aplikasi tetap berjalan normal.
+# Signal to Arduino/PLC. If no device is connected, this section
+# is ignored and the app keeps running normally.
 arduino:
   port: COM3
   baud: 9600
   ok_signal: '0'
   ng_signal: '1'
   signal_on_ok: false
-  # Handshake opsional: tunggu balasan token ini sebagai tanda gerbang sudah
-  # menutup lagi sebelum deteksi berikutnya. Kosongkan untuk langsung lanjut.
+  # Optional handshake: wait for this token in reply as a sign the gate has
+  # closed again before the next detection. Leave empty to proceed immediately.
   handshake_token: ''
   handshake_timeout_ms: 5000
-  # Mode tracking: sinyal saat part masuk dan keluar frame.
+  # Tracking mode: signal when a part enters and leaves the frame.
   open_signal: 'O'
   close_signal: 'C'
 
@@ -44,15 +44,15 @@ model:
   iou: 0.45
   imgsz: 640
 
-# Sweep confidence threshold via F1 pada val set. Murni statistik, tanpa
-# layanan luar.
+# Sweep confidence threshold via F1 on the val set. Purely statistical, no
+# external service involved.
 auto_calibration:
   enabled: false
 
 paths:
-  # Tidak dipakai lagi: folder projects mengikuti akun GitHub yang tersambung
-  # (Documents/AutomaEyes/<akun-github>). Dibiarkan agar config lama tetap
-  # terbaca tanpa error.
+  # No longer used: the projects folder now follows the connected GitHub
+  # account (Documents/AutomaEyes/<github-account>). Left in place so old
+  # configs still load without errors.
   projects_root: projects
 
 output:

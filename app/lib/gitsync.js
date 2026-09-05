@@ -1,15 +1,16 @@
-// lib/gitsync.js — sinkronisasi folder PROJECTS milik user ke repo GitHub-nya sendiri.
+// lib/gitsync.js — syncs the user's PROJECTS folder to their own GitHub repo.
 //
-// Save  = git add -A + commit + push  (unggah dataset, anotasi, model, project)
-// Load  = git pull --ff-only          (ambil versi terbaru dari device lain)
+// Save  = git add -A + commit + push  (upload dataset, annotations, model, project)
+// Load  = git pull --ff-only          (fetch the latest version from another device)
 //
-// PENTING (perubahan dari versi lama): operasi jalan di folder projects milik
-// user (di luar folder app), BUKAN di folder app. Versi lama memakai folder app
-// sebagai repo, jadi semua dataset user ikut ter-commit ke repo pengembang.
+// IMPORTANT (change from the old version): operations run in the user's
+// projects folder (outside the app folder), NOT in the app folder. The old
+// version used the app folder as the repo, so all of the user's datasets
+// ended up committed to the developer's repo.
 //
-// Autentikasi memakai token OAuth user (device flow, scope repo) yang dikirim
-// per-perintah lewat http.extraHeader — token TIDAK ditulis ke .git/config
-// supaya tidak tertinggal sebagai teks polos di disk.
+// Authentication uses the user's OAuth token (device flow, repo scope), sent
+// per-command via http.extraHeader — the token is NOT written to .git/config
+// so it isn't left behind as plain text on disk.
 
 const { execFile } = require('child_process');
 
@@ -22,15 +23,15 @@ const LFS_PATTERNS = [
 ];
 
 function git(cwd, args, token = null, timeout = 600000) {
-    // Kredensial dikirim sebagai header per-invocation, bukan ditanam di URL
-    // remote, supaya token tidak tersimpan di .git/config.
+    // Credentials are sent as a per-invocation header, not embedded in the
+    // remote URL, so the token isn't stored in .git/config.
     //
-    // PENTING: git-over-HTTPS ke GitHub butuh HTTP Basic Auth (username:token),
-    // BUKAN header "Authorization: Bearer" — itu cuma berlaku untuk REST API
-    // (dipakai lib/github.js). Memakai Bearer di sini bikin git menolaknya
-    // dengan "invalid credentials" walau tokennya sendiri valid.
-    // Username boleh apa saja yang non-kosong; GitHub memvalidasi dari
-    // tokennya, bukan usernamenya.
+    // IMPORTANT: git-over-HTTPS to GitHub needs HTTP Basic Auth (username:token),
+    // NOT an "Authorization: Bearer" header — that only applies to the REST API
+    // (used by lib/github.js). Using Bearer here makes git reject it with
+    // "invalid credentials" even though the token itself is valid.
+    // The username can be anything non-empty; GitHub validates based on
+    // the token, not the username.
     const full = token
         ? ['-c', `http.extraHeader=Authorization: Basic ${Buffer.from(`x-access-token:${token}`).toString('base64')}`, ...args]
         : args;
@@ -43,7 +44,7 @@ function git(cwd, args, token = null, timeout = 600000) {
             maxBuffer: 1024 * 1024 * 32,
         }, (err, stdout, stderr) => {
             let out = ((stdout || '') + (stderr || '')).trim();
-            if (token) out = out.split(token).join('***'); // jangan bocorkan token ke log/UI
+            if (token) out = out.split(token).join('***'); // don't leak the token into the log/UI
             resolve({
                 code: err ? (typeof err.code === 'number' ? err.code : 1) : 0,
                 out,
@@ -52,7 +53,7 @@ function git(cwd, args, token = null, timeout = 600000) {
     });
 }
 
-// Info dasar repo: apakah git, ada remote, branch, dan jumlah perubahan lokal.
+// Basic repo info: whether it's git, has a remote, its branch, and the number of local changes.
 exports.status = async (cwd) => {
     const inside = await git(cwd, ['rev-parse', '--is-inside-work-tree']);
     if (inside.code !== 0) return { repo: false };
@@ -74,7 +75,7 @@ async function ensureLfs(cwd, fs, path) {
     await git(cwd, ['lfs', 'install', '--local']);
     const file = path.join(cwd, '.gitattributes');
     let existing = '';
-    try { existing = fs.readFileSync(file, 'utf8'); } catch { /* belum ada */ }
+    try { existing = fs.readFileSync(file, 'utf8'); } catch { /* doesn't exist yet */ }
     const missing = LFS_PATTERNS.filter((p) => !existing.includes(p.split(' ')[0]));
     if (missing.length) {
         const body = (existing ? existing.replace(/\s*$/, '\n') : '') + missing.join('\n') + '\n';
@@ -83,10 +84,10 @@ async function ensureLfs(cwd, fs, path) {
 }
 
 /**
- * Sambungkan folder projects ke repo GitHub milik user.
- * Kalau repo remote sudah berisi project (mis. dari PC lain), isinya langsung
- * di-checkout supaya app menampilkan apa yang ada di repo — sesuai desain
- * "app hanya menampilkan isi repo".
+ * Connect the projects folder to the user's GitHub repo.
+ * If the remote repo already has a project in it (e.g. from another PC), its
+ * contents are checked out immediately so the app shows what's in the repo —
+ * consistent with the "app only displays repo contents" design.
  */
 exports.connect = async (cwd, repoUrl, token) => {
     const fs = require('fs');
@@ -100,7 +101,7 @@ exports.connect = async (cwd, repoUrl, token) => {
         log += init.out + '\n';
     }
 
-    // Remote disimpan bersih tanpa token.
+    // The remote is kept clean, with no token in it.
     const hasRemote = (await git(cwd, ['remote', 'get-url', 'origin'])).code === 0;
     const setRemote = hasRemote
         ? await git(cwd, ['remote', 'set-url', 'origin', repoUrl])
@@ -115,7 +116,7 @@ exports.connect = async (cwd, repoUrl, token) => {
         return { ok: false, log: (log + '\nGagal fetch. Cek koneksi internet dan akses ke repo.').trim() };
     }
 
-    // Tentukan branch default remote (main/master), lalu ikuti.
+    // Determine the remote's default branch (main/master), then follow it.
     const remoteHead = await git(cwd, ['rev-parse', '--verify', '--quiet', 'origin/main'], token);
     const branch = remoteHead.code === 0 ? 'main' : 'master';
     const remoteBranchExists = remoteHead.code === 0
@@ -124,11 +125,11 @@ exports.connect = async (cwd, repoUrl, token) => {
     const hasCommits = (await git(cwd, ['rev-parse', '--verify', '--quiet', 'HEAD'])).code === 0;
 
     if (remoteBranchExists && !hasCommits) {
-        // Repo lokal masih kosong: ikut branch remote, isi repo langsung muncul.
+        // The local repo is still empty: follow the remote branch, repo contents appear immediately.
         const co = await git(cwd, ['checkout', '-B', branch, '--track', `origin/${branch}`], token);
         log += co.out + '\n';
     } else if (!remoteBranchExists && !hasCommits) {
-        // Repo GitHub benar-benar kosong (tanpa auto-init): mulai branch main lokal.
+        // The GitHub repo is completely empty (no auto-init): start a local main branch.
         const co = await git(cwd, ['checkout', '-b', 'main']);
         log += co.out + '\n';
     }
@@ -136,7 +137,7 @@ exports.connect = async (cwd, repoUrl, token) => {
     return { ok: true, branch, log: log.trim() };
 };
 
-// Simpan & unggah semua perubahan ke GitHub.
+// Save & upload all changes to GitHub.
 exports.push = async (cwd, message, token) => {
     const st = await exports.status(cwd);
     if (!st.repo) return { ok: false, log: 'Folder projects belum tersambung ke GitHub.' };
@@ -155,9 +156,9 @@ exports.push = async (cwd, message, token) => {
     log += '\n' + commit.out;
     const nothing = /nothing to commit|nothing added to commit/i.test(commit.out);
 
-    // Branch di-resolve ULANG setelah commit: di repo yang baru dibuat, HEAD
-    // masih "unborn" sebelum commit pertama, jadi nama branch sebelum ini bisa
-    // salah.
+    // The branch is resolved AGAIN after the commit: in a newly created repo,
+    // HEAD is still "unborn" before the first commit, so the branch name
+    // before this point could be wrong.
     const branch = (await git(cwd, ['rev-parse', '--abbrev-ref', 'HEAD'])).out || 'main';
     const push = await git(cwd, ['push', '-u', 'origin', `HEAD:${branch}`], token);
     log += '\n' + push.out;
@@ -171,7 +172,7 @@ exports.push = async (cwd, message, token) => {
     return { ok: push.code === 0, nothing, log: log.trim() };
 };
 
-// Ambil versi terbaru dari GitHub (hanya fast-forward supaya aman).
+// Fetch the latest version from GitHub (fast-forward only, to be safe).
 exports.pull = async (cwd, token) => {
     const st = await exports.status(cwd);
     if (!st.repo) return { ok: false, log: 'Folder projects belum tersambung ke GitHub.' };
@@ -194,18 +195,17 @@ exports.pull = async (cwd, token) => {
     return { ok: pull.code === 0, upToDate, log: pull.out };
 };
 
-// ---- Penyelesaian konflik ----
+// ---- Conflict resolution ----
 //
-// Konflik terjadi kalau riwayat lokal dan GitHub sudah bercabang: dua device
-// sama-sama menyimpan sejak titik yang sama. Untuk data seperti gambar dan
-// bobot model, "menggabungkan" isi berkas tidak masuk akal - yang masuk akal
-// adalah memilih sisi mana yang dipakai.
+// A conflict happens when local and GitHub history have diverged: two devices
+// both saved from the same starting point. For data like images and model
+// weights, "merging" file contents makes no sense - what makes sense is
+// choosing which side to keep.
 //
-// Prinsipnya: user boleh memilih, tapi sisi yang dibuang SELALU dicadangkan
-// lebih dulu ke branch tersendiri. Salah pilih jadi bisa dibatalkan, bukan
-// kehilangan permanen.
+// The principle: the user gets to choose, but the discarded side is ALWAYS
+// backed up first to its own branch. A wrong choice can be undone, not lost forever.
 
-/** Rangkum perbedaan antara lokal dan GitHub, untuk ditampilkan sebelum memilih. */
+/** Summarize the difference between local and GitHub, to show before choosing. */
 exports.conflictInfo = async (cwd, token) => {
     const st = await exports.status(cwd);
     if (!st.repo || !st.hasRemote) return { ok: false, log: 'Belum tersambung ke GitHub.' };
@@ -216,13 +216,13 @@ exports.conflictInfo = async (cwd, token) => {
     const branch = st.branch || 'main';
     const remoteRef = `origin/${branch}`;
 
-    // Berapa commit yang hanya ada di masing-masing sisi.
+    // How many commits exist only on each side.
     const counts = await git(cwd, ['rev-list', '--left-right', '--count', `${remoteRef}...HEAD`]);
     let behind = 0, ahead = 0;
     if (counts.code === 0) {
         const m = counts.out.trim().split(/\s+/);
-        behind = parseInt(m[0], 10) || 0;   // hanya ada di GitHub
-        ahead = parseInt(m[1], 10) || 0;    // hanya ada di lokal
+        behind = parseInt(m[0], 10) || 0;   // only exists on GitHub
+        ahead = parseInt(m[1], 10) || 0;    // only exists locally
     }
 
     const fileList = async (range) => {
@@ -232,7 +232,7 @@ exports.conflictInfo = async (cwd, token) => {
     const localFiles = await fileList(`${remoteRef}...HEAD`);
     const remoteFiles = await fileList(`HEAD...${remoteRef}`);
 
-    // Perubahan yang belum di-commit sama sekali juga penting diketahui user.
+    // Changes that haven't been committed at all are also important for the user to know about.
     const uncommitted = st.changes;
 
     return {
@@ -249,11 +249,11 @@ exports.conflictInfo = async (cwd, token) => {
 };
 
 /**
- * Selesaikan konflik dengan memilih satu sisi.
+ * Resolve a conflict by choosing one side.
  * @param {'local'|'remote'|'branch'} pilihan
- *   'local'  : isi komputer ini dipakai, GitHub ditimpa
- *   'remote' : isi GitHub dipakai, perubahan lokal dibuang
- *   'branch' : keduanya disimpan - punya sendiri didorong ke cabang baru
+ *   'local'  : this computer's content is used, GitHub is overwritten
+ *   'remote' : GitHub's content is used, local changes are discarded
+ *   'branch' : both are kept - this side's own copy is pushed to a new branch
  */
 exports.resolveConflict = async (cwd, token, pilihan, namaCabang) => {
     const st = await exports.status(cwd);
@@ -264,15 +264,15 @@ exports.resolveConflict = async (cwd, token, pilihan, namaCabang) => {
     let log = '';
 
     if (pilihan === 'local') {
-        // Simpan dulu perubahan lokal yang belum di-commit, supaya ikut terbawa.
+        // Commit any local changes first, so they get carried along.
         if (st.dirty) {
             await git(cwd, ['add', '-A']);
             const c = await git(cwd, ['commit', '-m', `AutomaEyes: simpan sebelum selesaikan konflik ${stamp}`]);
             log += c.out + '\n';
         }
 
-        // Cadangkan versi GitHub ke branch lain SEBELUM ditimpa, supaya
-        // pilihan ini masih bisa dibatalkan.
+        // Back up the GitHub version to another branch BEFORE overwriting it,
+        // so this choice can still be undone.
         const backup = `cadangan-github-${stamp}`;
         const bk = await git(cwd, ['push', 'origin', `origin/${branch}:refs/heads/${backup}`], token);
         log += bk.out + '\n';
@@ -292,10 +292,10 @@ exports.resolveConflict = async (cwd, token, pilihan, namaCabang) => {
     }
 
     if (pilihan === 'branch') {
-        // Pilihan paling aman: tidak ada yang ditimpa maupun dibuang.
-        // Pekerjaan lokal didorong ke cabang baru di GitHub, lalu komputer
-        // ini mengikuti versi bersama. Keduanya tetap ada, dan penggabungan
-        // bisa dilakukan belakangan lewat Pull Request.
+        // The safest choice: nothing gets overwritten or discarded.
+        // Local work is pushed to a new branch on GitHub, then this
+        // computer follows the shared version. Both remain, and merging
+        // can be done later via a Pull Request.
         if (st.dirty) {
             await git(cwd, ['add', '-A']);
             const c = await git(cwd, ['commit', '-m', `AutomaEyes: simpan sebelum pisah cabang ${stamp}`]);
@@ -326,7 +326,7 @@ exports.resolveConflict = async (cwd, token, pilihan, namaCabang) => {
     }
 
     if (pilihan === 'remote') {
-        // Cadangkan keadaan lokal (termasuk yang belum di-commit) ke branch lokal.
+        // Back up the local state (including uncommitted changes) to a local branch.
         const backup = `cadangan-lokal-${stamp}`;
         if (st.dirty) {
             await git(cwd, ['add', '-A']);

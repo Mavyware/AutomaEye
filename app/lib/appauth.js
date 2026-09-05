@@ -1,12 +1,12 @@
-// lib/appauth.js — login lewat website AutomaEyes.
+// lib/appauth.js — login via the AutomaEyes website.
 //
-// Alur (sisi website sudah ada, tidak perlu diubah):
-//   1. App buka browser ke  <site>/login.php?redirect=automaeye://auth
-//   2. User login (email/password, Google, atau GitHub) di website
-//   3. Website terbitkan token HMAC berumur 5 menit lalu redirect balik ke
+// Flow (the website side already exists, no need to change it):
+//   1. The app opens a browser to  <site>/login.php?redirect=automaeye://auth
+//   2. The user logs in (email/password, Google, or GitHub) on the website
+//   3. The website issues a 5-minute HMAC token then redirects back to
 //      automaeye://auth?token=...
-//   4. Electron menangkap deep link itu, lalu POST token ke <site>/api/verify.php
-//      untuk ditukar jadi identitas user (hanya server yang bisa cek HMAC-nya).
+//   4. Electron catches that deep link, then POSTs the token to <site>/api/verify.php
+//      to exchange it for the user's identity (only the server can verify the HMAC).
 
 const { shell } = require('electron');
 const userstore = require('./userstore');
@@ -15,17 +15,17 @@ function siteUrl(cfg) {
     return (cfg?.website?.url || 'https://automaeyes.my.id').replace(/\/+$/, '');
 }
 
-/** Buka halaman login website di browser default. */
+/** Open the website's login page in the default browser. */
 exports.startLogin = async (cfg, nonce) => {
-    // Nonce ikut di dalam redirect; website menambahkan &token=... di
-    // belakangnya, jadi aplikasi bisa mencocokkan saat kembali.
+    // The nonce rides along in the redirect; the website appends &token=...
+    // after it, so the app can match it up when it comes back.
     const target = `automaeye://auth?n=${encodeURIComponent(nonce || '')}`;
     const url = `${siteUrl(cfg)}/login.php?redirect=${encodeURIComponent(target)}`;
     await shell.openExternal(url);
     return { ok: true, url };
 };
 
-/** Tukar token deep-link jadi sesi lokal. */
+/** Exchange the deep-link token for a local session. */
 exports.completeLogin = async (cfg, token) => {
     if (!token) return { ok: false, error: 'Token kosong.' };
 
@@ -56,11 +56,11 @@ exports.completeLogin = async (cfg, token) => {
 };
 
 /**
- * Buka izin akses repo GitHub lewat website (OAuth), bukan device flow.
+ * Open GitHub repo access authorization via the website (OAuth), not the device flow.
  *
- * Keuntungannya: aplikasi tidak perlu menyimpan Client ID sama sekali, client
- * secret tetap aman di server, dan user tidak perlu mengetik kode apa pun —
- * cukup menekan Authorize di browser.
+ * The benefit: the app doesn't need to store a Client ID at all, the client
+ * secret stays safe on the server, and the user doesn't need to type any
+ * code — just press Authorize in the browser.
  */
 exports.startGithubAuthorize = async (cfg, nonce) => {
     const target = `automaeye://github?n=${encodeURIComponent(nonce || '')}`;
@@ -69,7 +69,7 @@ exports.startGithubAuthorize = async (cfg, nonce) => {
     return { ok: true, url };
 };
 
-/** Tukar kode serah-terima jadi access token GitHub. */
+/** Exchange the handoff code for a GitHub access token. */
 exports.exchangeGithubHandoff = async (cfg, handoff) => {
     if (!handoff) return { ok: false, error: 'Kode kosong.' };
 

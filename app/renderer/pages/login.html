@@ -55,8 +55,8 @@ async function login() {
     if (!res.ok) setStatus('Gagal membuka browser.', 'err');
 }
 
-// Fallback kalau deep link automaeye:// tidak sampai (mis. skema belum
-// terdaftar di OS saat mode dev): user bisa cek manual setelah login.
+// Fallback for when the automaeye:// deep link doesn't arrive (e.g. the
+// scheme isn't registered with the OS yet in dev mode): the user can check manually after logging in.
 async function recheck() {
     const st = await window.api.authStatus();
     if (st.session) {

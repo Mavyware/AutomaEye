@@ -1,11 +1,11 @@
-// Workflow executor — chain semua model, aggregate verdict, save output.
+// Workflow executor — chains all models, aggregates verdict, saves output.
 
 const path = require('path');
 const fs = require('fs');
 const inference = require('./inference');
 
-// Path weights untuk model: pakai VERSI yang dipilih di step workflow bila ada,
-// lalu versi aktif model, terakhir weights/best.pt (legacy).
+// Weights path for the model: use the VERSION selected in the workflow step
+// if there is one, then the model's active version, finally weights/best.pt (legacy).
 function weightsFor(m, step) {
     const ver = step && (step.version || (step.config && step.config.version));
     if (ver) {
@@ -19,12 +19,12 @@ function weightsFor(m, step) {
     return path.join(m.dir, 'weights', 'best.pt');
 }
 
-// ---- Evaluasi Add-ons (Rule-based Tools) ----
-// Menentukan OK/NG dari hasil deteksi YOLO berdasarkan add-on yang diaktifkan
-// per-model. Semua add-on harus lulus → OK; satu saja gagal → NG.
+// ---- Add-on Evaluation (Rule-based Tools) ----
+// Determines OK/NG from YOLO detection results based on the add-ons enabled
+// per model. All add-ons must pass → OK; even one failing → NG.
 /**
- * Analisis piksel yang perlu diminta ke Python untuk add-on model ini.
- * Dikirim lewat inferOnce -> infer_server.py.
+ * Pixel analysis that needs to be requested from Python for this model's add-ons.
+ * Sent via inferOnce -> infer_server.py.
  */
 function analysisFor(m) {
     const a = (m && m.addons) || [];
@@ -46,16 +46,16 @@ function evaluateAddons(m, detections, measureFromBox, extra = {}) {
     const has = (name) => addons.includes(name);
     const minConf = dets.length ? Math.min(...dets.map(d => d.confidence || 0)) : 0;
     let verdict = 'OK';
-    let incomplete = false;   // true = jumlah fitur (n) belum terpenuhi → inspeksi menunggu
+    let incomplete = false;   // true = feature count (n) not yet met → inspection is waiting
 
-    // Presence Check — part harus ADA (minimal 1 objek terdeteksi).
+    // Presence Check — the part must be PRESENT (at least 1 object detected).
     if (has('Presence Check')) {
         const pass = dets.length >= 1;
         checks.push({ addon: 'Presence Check', pass, detail: pass ? `${dets.length} objek terdeteksi` : 'Tidak ada objek — part hilang' });
         if (!pass) verdict = 'NG';
     }
 
-    // Count — jumlah objek harus PAS sama dengan target (aturan =N).
+    // Count — the number of objects must match the target EXACTLY (rule =N).
     if (has('Count')) {
         const expected = Number.isFinite(acfg.countExpected) ? acfg.countExpected : null;
         if (expected == null) {
@@ -67,8 +67,8 @@ function evaluateAddons(m, detections, measureFromBox, extra = {}) {
         }
     }
 
-    // Scratches - goresan dideteksi dari tepi tipis-memanjang di dalam ROI
-    // (CV klasik di infer_server.py, tanpa model AI tambahan).
+    // Scratches - scratches are detected from thin, elongated edges within the
+    // ROI (classic CV in infer_server.py, no extra AI model).
     if (has('Scratches')) {
         const maxAllowed = Number.isFinite(acfg.scratchMax) ? acfg.scratchMax : 0;
         const found = dets.reduce((n, d) => n + ((d.scratch && d.scratch.count) || 0), 0);
@@ -77,7 +77,7 @@ function evaluateAddons(m, detections, measureFromBox, extra = {}) {
         if (!pass) verdict = 'NG';
     }
 
-    // Color Inspection - warna rata-rata tiap objek harus dekat warna acuan.
+    // Color Inspection - the average color of each object must be close to the reference color.
     if (has('Color Inspection')) {
         const cc = acfg.color || {};
         const per = cc.perClass || {};
@@ -87,7 +87,7 @@ function evaluateAddons(m, detections, measureFromBox, extra = {}) {
             const ref = per[d.class_name];
             if (!ref || !d.color || !Number.isFinite(ref.h)) continue;
             checked++;
-            // Hue melingkar 0-180 di OpenCV: ambil selisih lewat jalur terpendek.
+            // Hue wraps 0-180 in OpenCV: take the difference via the shortest path.
             let dh = Math.abs(d.color.h - ref.h);
             if (dh > 90) dh = 180 - dh;
             const ds = Math.abs(d.color.s - (Number.isFinite(ref.s) ? ref.s : d.color.s));
@@ -101,7 +101,7 @@ function evaluateAddons(m, detections, measureFromBox, extra = {}) {
         if (!pass) verdict = 'NG';
     }
 
-    // 1D / 2D Code - kode harus terbaca, dan bila diisi harus cocok teks harapan.
+    // 1D / 2D Code - the code must be readable, and if set, must match the expected text.
     for (const pair of [['2D Code', 'qr'], ['1D Code', 'barcode']]) {
         const addon = pair[0], key = pair[1];
         if (!has(addon)) continue;
@@ -117,8 +117,8 @@ function evaluateAddons(m, detections, measureFromBox, extra = {}) {
         if (!pass) verdict = 'NG';
     }
 
-    // Character Recognition - teks dirangkai dari deteksi karakter (kiri->kanan)
-    // oleh model AI OCR, lalu dicocokkan dengan teks/pola harapan.
+    // Character Recognition - text is assembled from character detections (left->right)
+    // by the OCR AI model, then matched against the expected text/pattern.
     if (has('Character Recognition')) {
         const text = extra.text || '';
         const oc = acfg.ocr || {};
@@ -137,7 +137,7 @@ function evaluateAddons(m, detections, measureFromBox, extra = {}) {
         if (!pass) verdict = 'NG';
     }
 
-    // Positioning - part harus dekat posisi acuan (mendeteksi part geser/miring).
+    // Positioning - the part must be near the reference position (detects a shifted/tilted part).
     if (has('Positioning')) {
         const pc = acfg.position || {};
         if (!dets.length) {
@@ -157,8 +157,8 @@ function evaluateAddons(m, detections, measureFromBox, extra = {}) {
         }
     }
 
-    // Calibration - jaga mm/piksel tidak melenceng: ukur objek acuan berukuran
-    // diketahui lalu bandingkan dengan nilai kalibrasi yang sedang dipakai.
+    // Calibration - keeps mm/pixel from drifting: measure a reference object of
+    // known size, then compare against the calibration value currently in use.
     if (has('Calibration')) {
         const cal = acfg.calibration || {};
         const gg = acfg.gdt || {};
@@ -185,38 +185,38 @@ function evaluateAddons(m, detections, measureFromBox, extra = {}) {
         }
     }
 
-    // GD&T Measurement — ukur dimensi PER KELAS: tiap kelas punya jenis ukur,
-    // nominal, dan toleransi sendiri (mirip tool terpisah di Keyence).
-    // Ukuran diambil dari kontur mask (segmentation, presisi) kalau ada, else kotak.
-    // mm = piksel × mmPerPixel (kalibrasi global, satu untuk semua kelas).
+    // GD&T Measurement — measures dimensions PER CLASS: each class has its own
+    // measurement type, nominal, and tolerance (similar to separate tools in Keyence).
+    // The size is taken from the mask contour (segmentation, precise) if available, else the box.
+    // mm = pixels × mmPerPixel (global calibration, one for all classes).
     if (has('GD&T Measurement')) {
         const g = acfg.gdt || {};
         const mmpp = Number(g.mmPerPixel) || 0;
         const perClass = g.perClass || null;
-        // Spesifikasi per kelas → normalisasi ke { dia, long, short } (tiap opsional).
-        // Dukung format lama single-config { measure, nominalMM, toleranceMM }.
+        // Per-class spec → normalized to { dia, long, short } (each optional).
+        // Supports the old single-config format { measure, nominalMM, toleranceMM }.
         const specFor = (cls) => {
             let s = perClass && perClass[cls];
             if (!s && !perClass && Number.isFinite(Number(g.nominalMM))) s = { measure: g.measure, nominalMM: g.nominalMM, toleranceMM: g.toleranceMM };
             if (!s) return null;
-            if (s.dia || s.long || s.short) return s;         // format baru
-            // konversi format lama
+            if (s.dia || s.long || s.short) return s;         // new format
+            // convert the old format
             const spec = Number.isFinite(Number(s.nominalMM)) ? { nominalMM: s.nominalMM, toleranceMM: s.toleranceMM } : null;
             if (!spec) return null;
             return s.measure === 'width' ? { short: spec } : s.measure === 'height' ? { long: spec } : { dia: spec };
         };
-        // Ukuran piksel per jenis: diameter / sisi panjang (max) / sisi pendek (min).
+        // Pixel size per type: diameter / long side (max) / short side (min).
         const pxOf = (d, key) => {
-            const w = Math.abs(d.x2 - d.x1), h = Math.abs(d.y2 - d.y1);   // kotak (axis-aligned)
+            const w = Math.abs(d.x2 - d.x1), h = Math.abs(d.y2 - d.y1);   // box (axis-aligned)
             const boxVal = key === 'widthPx' ? Math.min(w, h) : key === 'heightPx' ? Math.max(w, h) : (w + h) / 2;
-            if (measureFromBox) return boxVal;                // mode "ukur dari kotak" → lebih stabil
-            if (d.measure) return d.measure[key] || boxVal;   // dari kontur mask (segmentasi, presisi)
+            if (measureFromBox) return boxVal;                // "measure from box" mode → more stable
+            if (d.measure) return d.measure[key] || boxVal;   // from mask contour (segmentation, precise)
             return boxVal;
         };
         const TYPES = [
             { field: 'dia', px: 'diameterPx', sym: 'Ø' },
-            { field: 'long', px: 'heightPx', sym: 'L' },   // L = sisi panjang
-            { field: 'short', px: 'widthPx', sym: 'P' },   // P = sisi pendek
+            { field: 'long', px: 'heightPx', sym: 'L' },   // L = long side
+            { field: 'short', px: 'widthPx', sym: 'P' },   // P = short side
         ];
 
         if (!mmpp) {
@@ -230,7 +230,7 @@ function evaluateAddons(m, detections, measureFromBox, extra = {}) {
             dets.forEach(d => {
                 const cls = d.class_name;
                 const pcRaw = perClass && perClass[cls];
-                const shape = (pcRaw && pcRaw.shape) || 'rect';   // 'circle' = lingkaran (Ø saja)
+                const shape = (pcRaw && pcRaw.shape) || 'rect';   // 'circle' = circle (Ø only)
                 const spec = specFor(cls);
                 const labels = [];
                 if (spec) {
@@ -246,20 +246,20 @@ function evaluateAddons(m, detections, measureFromBox, extra = {}) {
                         parts.push(`${cls} ${t.field}=${val.toFixed(2)}mm${ok ? '' : ` ✗(${nominal}±${tol})`}`);
                     });
                 }
-                // Tanpa nominal → tampilkan UKURAN MENTAH (netral) sesuai bentuk:
-                // lingkaran = Ø diameter saja; persegi = panjang & lebar.
+                // Without a nominal → show the RAW SIZE (neutral) based on shape:
+                // circle = Ø diameter only; rectangle = length & width.
                 if (!labels.length) {
                     if (shape === 'circle') {
                         const dia = pxOf(d, 'diameterPx') * mmpp;
                         if (dia) { labels.push({ text: 'Ø' + dia.toFixed(2), ok: null, kind: 'dia' }); rawMeasured = true; }
                     } else {
-                        const Lmm = pxOf(d, 'heightPx') * mmpp;   // sisi panjang (vertikal)
-                        const Pmm = pxOf(d, 'widthPx') * mmpp;    // sisi pendek (horizontal)
+                        const Lmm = pxOf(d, 'heightPx') * mmpp;   // long side (vertical)
+                        const Pmm = pxOf(d, 'widthPx') * mmpp;    // short side (horizontal)
                         if (Lmm) { labels.push({ text: Lmm.toFixed(2), ok: null, kind: 'long' }); rawMeasured = true; }
                         if (Pmm) { labels.push({ text: Pmm.toFixed(2), ok: null, kind: 'short' }); rawMeasured = true; }
                     }
                 }
-                if (labels.length) d.gdt = labels;   // array → UI gambar semua di fitur
+                if (labels.length) d.gdt = labels;   // array → UI draws all of them on the feature
             });
             checks.push(anyMeasured
                 ? { addon: 'GD&T', pass: allPass, detail: parts.join(' · ') }
@@ -267,8 +267,8 @@ function evaluateAddons(m, detections, measureFromBox, extra = {}) {
                     ? { addon: 'GD&T', pass: true, detail: 'Ukuran mentah (L×P mm) ditampilkan — isi nominal per kelas untuk pass/fail' }
                     : { addon: 'GD&T', pass: true, detail: 'Tidak ada ukuran (kontur kosong)' });
 
-            // Jumlah (n) per kelas: HANYA informatif — tidak lagi menggagalkan/menahan inspeksi.
-            // (Persyaratan n=8 kotak / n=6 lingkaran dihapus agar verdict & sinyal Arduino tidak tertahan.)
+            // Count (n) per class: informational ONLY — no longer fails/holds up the inspection.
+            // (The n=8 boxes / n=6 circles requirement was removed so the verdict & Arduino signal aren't held back.)
             const countMsgs = [];
             Object.keys(perClass || {}).forEach(cls => {
                 const need = Number(perClass[cls] && perClass[cls].count);
@@ -282,7 +282,7 @@ function evaluateAddons(m, detections, measureFromBox, extra = {}) {
         }
     }
 
-    // Tidak ada add-on aktif → default: objek terdeteksi berarti OK.
+    // No add-on active → default: a detected object means OK.
     if (checks.length === 0) {
         const pass = dets.length >= 1;
         checks.push({ addon: 'Deteksi', pass, detail: pass ? `${dets.length} objek` : 'Tidak ada objek' });
@@ -293,7 +293,7 @@ function evaluateAddons(m, detections, measureFromBox, extra = {}) {
 }
 exports.evaluateAddons = evaluateAddons;
 
-// Jalankan satu step sesuai KATEGORINYA. Mengisi sr (verdict, reason, dll).
+// Run one step according to its CATEGORY. Fills in sr (verdict, reason, etc).
 // ctx = { cfg, project, base64, arduino, result }.
 async function runStep(step, sr, ctx) {
     const { cfg, project, base64, arduino, result } = ctx;
@@ -302,7 +302,7 @@ async function runStep(step, sr, ctx) {
     const cat = step.category;
     const config = step.config || {};
 
-    // Model dipakai oleh Inspection & Positioning.
+    // Model is used by Inspection & Positioning.
     const needModel = (cat === 'Inspection' || cat === 'Positioning');
     let m = null;
     if (needModel) {
@@ -314,11 +314,11 @@ async function runStep(step, sr, ctx) {
         }
     }
 
-    // ---- CAPTURE — sumber & mutu gambar (bukan analisis) ----
+    // ---- CAPTURE — image source & quality (not analysis) ----
     if (cat === 'Capture') {
         const bytes = Math.floor((base64 || '').length * 3 / 4);
         const kb = Math.round(bytes / 1024);
-        const minKB = Number(config.minKB) || 0;   // gate opsional: tolak gambar kosong/terlalu kecil
+        const minKB = Number(config.minKB) || 0;   // optional gate: reject an empty/too-small image
         if (!base64) {
             sr.verdict = 'NG'; sr.reason = 'Tidak ada gambar dari sumber';
         } else if (minKB && kb < minKB) {
@@ -329,11 +329,11 @@ async function runStep(step, sr, ctx) {
         return;
     }
 
-    // ---- POSITIONING — kunci lokasi part pakai deteksi ----
+    // ---- POSITIONING — locks the part's location using detection ----
     if (cat === 'Positioning') {
         const weightsPath = weightsFor(m, step);
-        // Positioning (deteksi kehadiran part) pakai confidence PRESENCE yang lebih rendah,
-        // supaya konsisten baik di Live maupun Capture manual.
+        // Positioning (part-presence detection) uses the lower PRESENCE confidence,
+        // to stay consistent in both Live and manual Capture.
         const pconf = Number.isFinite(ctx.presenceConf) ? ctx.presenceConf : conf;
         const r = await inference.inferOnce(cfg, weightsPath, base64, m.classes, {
             confidence: pconf, iou: cfg.model.iou, imgsz: imgsz,
@@ -344,7 +344,7 @@ async function runStep(step, sr, ctx) {
             if (config.passOnNoDetect) { sr.verdict = 'OK'; sr.reason = 'Tidak terdeteksi — dianggap OK (lanjut)'; return; }
             sr.verdict = 'NG'; sr.reason = 'Part tidak ditemukan — posisi tidak terkunci';
         } else {
-            // Presence = SATU part. Ambil kotak TERBESAR saja (cegah 2 kotak untuk 1 benda).
+            // Presence = ONE part. Take only the LARGEST box (prevents 2 boxes for 1 object).
             const main = dets.reduce((a, d) =>
                 ((d.x2 - d.x1) * (d.y2 - d.y1)) > ((a.x2 - a.x1) * (a.y2 - a.y1)) ? d : a, dets[0]);
             sr.detections = [main];
@@ -356,7 +356,7 @@ async function runStep(step, sr, ctx) {
         return;
     }
 
-    // ---- INSPECTION — deteksi + add-ons (Presence/Count/GD&T) ----
+    // ---- INSPECTION — detection + add-ons (Presence/Count/GD&T) ----
     if (cat === 'Inspection') {
         const weightsPath = weightsFor(m, step);
         const r = await inference.inferOnce(cfg, weightsPath, base64, m.classes, {
@@ -368,25 +368,25 @@ async function runStep(step, sr, ctx) {
             sr.verdict = 'OK'; sr.reason = 'Tidak ada objek terdeteksi — dianggap OK (lanjut)';
             return;
         }
-        // codes/text bersifat per-frame (bukan per-deteksi), diteruskan terpisah.
+        // codes/text are per-frame (not per-detection), passed through separately.
         const ev = evaluateAddons(m, sr.detections, ctx.measureFromBox, { codes: r.codes, text: r.text });
         sr.verdict = ev.verdict;
         sr.checks = ev.checks;
         sr.confidence = ev.minConf;
-        sr.incomplete = ev.incomplete;   // jumlah fitur (n) belum lengkap → inspeksi menunggu
+        sr.incomplete = ev.incomplete;   // feature count (n) not yet complete → inspection is waiting
         sr.reason = ev.checks.filter(c => !c.pass).map(c => `${c.addon}: ${c.detail}`).join('; ')
             || ev.checks.map(c => `${c.addon}: ${c.detail}`).join('; ');
         return;
     }
 
-    // ---- COMMUNICATION — kirim hasil ke luar (Arduino/PLC) ----
+    // ---- COMMUNICATION — sends the result out (Arduino/PLC) ----
     if (cat === 'Communication') {
-        if (ctx.noSignal) {   // mode tracking: sinyal dikirim sekali per part oleh renderer
+        if (ctx.noSignal) {   // tracking mode: signal is sent once per part by the renderer
             sr.verdict = 'OK'; sr.reason = 'Sinyal ditangani mode tracking (per part)';
             return;
         }
         const ng = result.finalVerdict === 'NG';
-        const onlyOnNG = config.onlyOnNG !== false;   // default: kirim hanya saat NG
+        const onlyOnNG = config.onlyOnNG !== false;   // default: send only when NG
         const sig = ng ? (config.signalNG != null ? config.signalNG : cfg.arduino.ng_signal)
                        : (config.signalOK != null ? config.signalOK : cfg.arduino.ok_signal);
         if (ng || !onlyOnNG) {
@@ -395,11 +395,11 @@ async function runStep(step, sr, ctx) {
         } else {
             sr.reason = 'Hasil OK — tidak ada sinyal (onlyOnNG)';
         }
-        sr.verdict = 'OK';   // komunikasi tidak menilai part
+        sr.verdict = 'OK';   // communication doesn't judge the part
         return;
     }
 
-    // ---- OPTIONS — flag tambahan (simpan gambar, dll) ----
+    // ---- OPTIONS — extra flags (save image, etc.) ----
     if (cat === 'Options') {
         if (config.saveOK != null) result.saveOK = !!config.saveOK;
         if (config.saveNG != null) result.saveNG = !!config.saveNG;
@@ -408,7 +408,7 @@ async function runStep(step, sr, ctx) {
         return;
     }
 
-    // Kategori tak dikenal → lewati tanpa memengaruhi verdict.
+    // Unknown category → skip without affecting the verdict.
     sr.verdict = 'OK';
     sr.reason = '(kategori belum didukung)';
 }
@@ -416,7 +416,7 @@ async function runStep(step, sr, ctx) {
 exports.execute = async (cfg, project, imageDataUrl, arduino, output, opts = {}) => {
     // Strip data URL prefix
     const base64 = imageDataUrl.replace(/^data:image\/[^;]+;base64,/, '');
-    // Confidence bisa di-override dari halaman Run (Live Settings).
+    // Confidence can be overridden from the Run page (Live Settings).
     const conf = (opts && Number.isFinite(Number(opts.confidence))) ? Number(opts.confidence) : cfg.model.confidence;
     const imgsz = (opts && Number.isFinite(Number(opts.imgsz))) ? Number(opts.imgsz) : cfg.model.imgsz;
     const presenceConf = (opts && Number.isFinite(Number(opts.presenceConf))) ? Number(opts.presenceConf) : conf;
@@ -432,20 +432,20 @@ exports.execute = async (cfg, project, imageDataUrl, arduino, output, opts = {})
         steps: [],
     };
 
-    // Bersihkan buffer serial supaya balasan handshake yang ditunggu adalah milik siklus ini.
+    // Clear the serial buffer so the handshake reply being waited on belongs to this cycle.
     try { if (arduino.flushRx) arduino.flushRx(); } catch (_) { }
 
     const stopOnFirstNG = project.workflow.onFirstNG === 'stop_and_report';
     const steps = project.workflow.steps;
     const hasCommStep = steps.some(s => s.category === 'Communication');
 
-    // Presence gating: Presence Check jalan dulu. Kalau part TIDAK ada,
-    // model deteksi cacat/pengukuran (Inspection) berikutnya DILEWATI (tak buang waktu inferensi).
+    // Presence gating: Presence Check runs first. If the part is NOT there,
+    // the next defect-detection/measurement model (Inspection) is SKIPPED (no wasted inference time).
     const isPresenceModel = (name) => {
         const m = project.models.find(x => x.name === name);
         return !!(m && (m.addons || []).includes('Presence Check'));
     };
-    let gateEmpty = false;   // true = presence check terakhir tidak menemukan part
+    let gateEmpty = false;   // true = the last presence check found no part
 
     for (const step of steps) {
         const label = step.modelName || step.label || step.tool || step.category;
@@ -459,8 +459,8 @@ exports.execute = async (cfg, project, imageDataUrl, arduino, output, opts = {})
         };
         const stepStart = Date.now();
 
-        // Inspection berat (non-presence) dilewati bila: (a) Live ringan, atau
-        // (b) presence sebelumnya kosong. Keduanya → anggap OK, hemat inferensi.
+        // Heavy Inspection (non-presence) is skipped when: (a) Live is lightweight, or
+        // (b) the previous presence check was empty. Either way → treat as OK, save inference time.
         const heavyInspection = step.category === 'Inspection' && !isPresenceModel(step.modelName);
         if (heavyInspection && (opts.light || gateEmpty)) {
             sr.verdict = 'OK';
@@ -481,7 +481,7 @@ exports.execute = async (cfg, project, imageDataUrl, arduino, output, opts = {})
         }
         sr.stepMS = Date.now() - stepStart;
 
-        // Update gate: model presence yang tidak menemukan objek → lewati inspeksi berikutnya.
+        // Update the gate: a presence model that found no object → skip the next inspection.
         if (step.category === 'Inspection' && isPresenceModel(step.modelName)) {
             gateEmpty = !sr.detections || !sr.detections.length;
         }
@@ -498,7 +498,7 @@ exports.execute = async (cfg, project, imageDataUrl, arduino, output, opts = {})
     result.totalMS = Date.now() - start;
 
     // Save output (honor Options step flags saveOK/saveNG).
-    // Mode tracking (noSave): renderer yang menyimpan foto BER-OVERLAY setelah verdict.
+    // Tracking mode (noSave): the renderer saves the OVERLAID photo after the verdict.
     try {
         if (!opts.noSave) {
             const saved = output.record(project, base64, result, cfg);
@@ -508,22 +508,22 @@ exports.execute = async (cfg, project, imageDataUrl, arduino, output, opts = {})
         console.warn('save output failed:', e.message);
     }
 
-    // Output: kalau project memilih mode "script", kode milik user yang
-    // menentukan apa yang dikirim — bukan sinyal 0/1 bawaan. Kalau tidak,
-    // pakai sinyal Arduino default, dan hanya bila TIDAK ada step
-    // Communication eksplisit (kalau ada, step itu yang mengatur sinyal —
-    // hindari kirim dobel).
+    // Output: if the project selects "script" mode, the user's own code
+    // decides what gets sent — not the default 0/1 signal. Otherwise,
+    // use the default Arduino signal, and only when there is NO explicit
+    // Communication step (if there is one, that step controls the signal —
+    // avoids sending it twice).
     try {
         const outCfg = project.output || {};
         if (outCfg.mode === 'device' && !opts.noSignal) {
-            // Pemetaan kelas -> pin. Dikirim untuk SEMUA pin yang terpetakan,
-            // termasuk yang padam: tanpa itu keadaan siklus sebelumnya
-            // menempel dan mesin membaca kelas yang sudah tidak ada.
+            // Class -> pin mapping. Sent for ALL mapped pins, including
+            // ones that are off: without that, the previous cycle's state
+            // would stick and the machine would read a class that no longer exists.
             const pinout = require('./pinout');
             result.pinout = await pinout.kirim(arduino, outCfg, result);
         } else if (outCfg.mode === 'script' && !opts.noSignal) {
-            // Python dijalankan sebagai proses terpisah, jadi hasilnya
-            // ditunggu; versi JavaScript berjalan langsung di dalam aplikasi.
+            // Python runs as a separate process, so its result is awaited;
+            // the JavaScript version runs directly inside the app.
             const r = outCfg.bahasa === 'py'
                 ? await require('./pyoutput').run(outCfg.scriptPy, result, arduino, cfg.python)
                 : require('./customoutput').run(outCfg.script, result, arduino);
@@ -537,9 +537,9 @@ exports.execute = async (cfg, project, imageDataUrl, arduino, output, opts = {})
         }
     } catch (e) { /* non-fatal */ }
 
-    // Handshake opsional: tunggu Arduino/PLC memberi tahu output/gerbang sudah MENUTUP
-    // lagi sebelum siklus deteksi berikutnya. Diatur di config: arduino.handshake_token
-    // (mis. "C"/"READY"/"DONE") + arduino.handshake_timeout_ms. Kalau token kosong → langsung lanjut.
+    // Optional handshake: wait for the Arduino/PLC to signal the output/gate has CLOSED
+    // again before the next detection cycle. Configured via: arduino.handshake_token
+    // (e.g. "C"/"READY"/"DONE") + arduino.handshake_timeout_ms. If the token is empty → proceed immediately.
     try {
         const token = cfg.arduino && cfg.arduino.handshake_token;
         if (token && !opts.noSignal) {

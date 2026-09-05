@@ -1,10 +1,10 @@
 // AutomaEyes Electron main process.
 //
-// Peran:
-//   - Buat BrowserWindow + load HTML pages
-//   - Handler IPC untuk semua backend calls (project, model, workflow, dll)
-//   - Spawn Python sidecar untuk YOLO inference/training
-//   - Serial ke Arduino
+// Role:
+//   - Create the BrowserWindow + load HTML pages
+//   - IPC handlers for all backend calls (project, model, workflow, etc.)
+//   - Spawn the Python sidecar for YOLO inference/training
+//   - Serial connection to the Arduino
 
 const { app, BrowserWindow, ipcMain, dialog, shell, session } = require('electron');
 const path = require('path');
@@ -28,32 +28,31 @@ const prereq = require('./lib/prereq');
 const keamanan = require('./lib/keamanan');
 
 let _autoPullDone = false, _autoPullResult = null;
-let _updateInfo = null;   // hasil cek versi terakhir
-let _prereqOk = null;    // null = belum diperiksa
+let _updateInfo = null;   // result of the last version check
+let _prereqOk = null;    // null = not checked yet
 let _prereqSkipped = false;
 
 let mainWindow;
-// true hanya selama perpindahan halaman yang sudah disetujui penjaga,
-// supaya beforeunload tidak membatalkannya lagi.
+// true only during a page transition already approved by the guard,
+// so beforeunload doesn't cancel it again.
 let pindahDisetujui = false;
 let cfg;
-let projectsRoot; // absolute path hasil resolve saat runtime (JANGAN disimpan ke config.yaml)
+let projectsRoot; // absolute path resolved at runtime (do NOT save it to config.yaml)
 
 // ---- Config ----
-// Saat TERPASANG, kode aplikasi berada di dalam app.asar yang bersifat
-// read-only - menulis config.yaml ke sana gagal dengan ENOENT dan membuat
-// aplikasi tidak bisa start sama sekali. Maka konfigurasi per-device
-// disimpan di folder data pengguna. Saat dev tetap di sebelah kode supaya
-// mudah dilihat dan diedit.
+// Once INSTALLED, the app's code lives inside app.asar, which is read-only -
+// writing config.yaml there fails with ENOENT and makes the app unable to
+// start at all. So per-device configuration is stored in the user data
+// folder. In dev it stays next to the code so it's easy to view and edit.
 const CONFIG_PATH = app.isPackaged
     ? path.join(app.getPath('userData'), 'config.yaml')
     : path.join(__dirname, 'config.yaml');
 
 function loadConfig() {
     if (!fs.existsSync(CONFIG_PATH)) {
-        // Template ikut dipaketkan di dalam asar. Membacanya boleh; yang tidak
-        // boleh hanya menulis ke sana. Dibaca lalu ditulis ke tujuan yang bisa
-        // ditulisi - copyFileSync lintas-asar tidak selalu didukung.
+        // The template is bundled inside the asar. Reading it is fine; what's
+        // not allowed is writing to it. It's read then written to a writable
+        // destination - copyFileSync across asar isn't always supported.
         const example = path.join(__dirname, 'config.example.yaml');
         if (fs.existsSync(example)) {
             fs.mkdirSync(path.dirname(CONFIG_PATH), { recursive: true });
@@ -65,9 +64,9 @@ function loadConfig() {
     }
     cfg = yaml.load(fs.readFileSync(CONFIG_PATH, 'utf8')) || {};
 
-    // Config milik user bisa tertinggal versi lama atau kehilangan bagian.
-    // Tanpa penambal ini, satu bagian yang hilang (mis. arduino) membuat
-    // aplikasi gagal start - kegagalan yang sangat membingungkan user.
+    // The user's config might be an old version or missing a section.
+    // Without this patch, one missing section (e.g. arduino) would make the
+    // app fail to start - a failure that would be very confusing to the user.
     const DEFAULTS = {
         app: { name: 'AutomaEyes', version: app.getVersion() },
         website: { url: 'https://automaeyes.my.id' },
@@ -89,30 +88,30 @@ function loadConfig() {
         cfg[bagian] = { ...isi, ...(cfg[bagian] || {}) };
     }
     console.log(`[config] Loaded from ${CONFIG_PATH}`);
-    // Resolve projects_root ke path absolut UNTUK RUNTIME saja.
-    // PENTING: jangan mutasi cfg.paths.projects_root, karena saveConfig() menulis
-    // cfg kembali ke config.yaml. Kalau dimutasi jadi absolut, path mesin ini akan
-    // ter-hardcode lagi ke config.yaml dan app tidak portabel saat pindah PC.
+    // Resolve projects_root to an absolute path FOR RUNTIME ONLY.
+    // IMPORTANT: don't mutate cfg.paths.projects_root, because saveConfig() writes
+    // cfg back to config.yaml. If it were mutated to an absolute path, this machine's
+    // path would get hardcoded into config.yaml and the app wouldn't be portable across PCs.
     if (!cfg.paths) cfg.paths = {};
     refreshProjectsRoot();
     return cfg;
 }
 
 /**
- * Folder projects = repo GitHub milik user yang sedang connect.
+ * Projects folder = the GitHub repo the currently-connected user owns.
  *
- * Dulu ini menunjuk ke <folder app>/projects, yang berarti dataset & model
- * semua user ikut masuk ke repo pengembang. Sekarang tiap akun GitHub punya
- * foldernya sendiri di Documents, dan folder itulah yang jadi git repo dengan
- * remote ke repo milik user.
+ * This used to point to <app folder>/projects, which meant every user's
+ * dataset & model ended up in the developer's repo. Now each GitHub account
+ * has its own folder under Documents, and that folder is the git repo with
+ * a remote pointing to the user's own repo.
  */
 function resolveProjectsRoot() {
     const gh = userstore.getGithub();
     if (gh) {
         return path.join(app.getPath('documents'), 'AutomaEyes', gh.login);
     }
-    // Belum connect GitHub — dipakai hanya sebagai placeholder; gate di
-    // createWindow() mencegah halaman project dibuka sebelum connect.
+    // GitHub isn't connected yet — used only as a placeholder; the gate in
+    // createWindow() prevents the project page from opening before it's connected.
     return path.join(app.getPath('userData'), 'projects-unconnected');
 }
 
@@ -148,22 +147,22 @@ function createWindow() {
             preload: path.join(__dirname, 'preload.js'),
             contextIsolation: true,
             nodeIntegration: false,
-            webviewTag: false, // tidak dipakai; mematikannya mengurangi permukaan serangan
-            backgroundThrottling: false, // JANGAN throttle loop/kamera saat window tak fokus
+            webviewTag: false, // not used; disabling it reduces the attack surface
+            backgroundThrottling: false, // do NOT throttle the loop/camera when the window is unfocused
         },
     });
 
-    // Halaman yang punya perubahan belum tersimpan memasang beforeunload
-    // pembatal. Di Electron, pembatalan itu menghentikan loadFile dan penutupan
-    // jendela TANPA menampilkan apa pun: aplikasi tampak macet di halaman yang
-    // sama. (Chromium baru menghormatinya setelah ada interaksi pengguna, jadi
-    // gejalanya baru muncul setelah pengguna menyentuh halaman - yang membuatnya
-    // terlihat acak.)
+    // A page with unsaved changes installs a canceling beforeunload. In
+    // Electron, that cancellation stops loadFile and the window closing WITH
+    // NO indication at all: the app appears to freeze on the same page.
+    // (Chromium only honors it after there's been a user interaction, so the
+    // symptom only shows up after the user touches the page - which makes it
+    // look random.)
     //
-    // Perpindahan antar halaman sudah ditanyakan lebih dulu oleh nav:go dengan
-    // dialog dalam-halaman, jadi di sini cukup diizinkan. Yang tersisa adalah
-    // penutupan jendela, dan itu harus memakai dialog sistem - tidak ada
-    // halaman yang tersisa untuk menampung dialog sendiri.
+    // Transitions between pages are already confirmed beforehand by nav:go
+    // with an in-page dialog, so it's fine to just allow it here. What
+    // remains is closing the window, and that has to use the system dialog -
+    // there's no page left to host its own dialog.
     mainWindow.webContents.on('will-prevent-unload', (event) => {
         if (pindahDisetujui) {
             event.preventDefault();   // abaikan beforeunload, lanjutkan
@@ -180,13 +179,13 @@ function createWindow() {
         });
         if (pilih === 0) event.preventDefault();
     });
-    // Log dari halaman diteruskan ke terminal; tanpa ini, kesalahan di
-    // renderer tidak terlihat sama sekali saat menjalankan lewat npm start.
+    // Logs from the page are forwarded to the terminal; without this,
+    // renderer errors are completely invisible when running via npm start.
     mainWindow.webContents.on('console-message', (_e, level, message) => {
         if (level >= 1) console.log('[renderer]', message);
     });
     mainWindow.setMenuBarVisibility(false);
-    mainWindow.maximize();   // buka dalam keadaan maximized (memenuhi layar, title bar & taskbar tetap ada)
+    mainWindow.maximize();   // open maximized (fills the screen, title bar & taskbar remain)
     mainWindow.loadFile(startPage());
     if (process.argv.includes('--dev')) {
         mainWindow.webContents.openDevTools();
@@ -194,18 +193,18 @@ function createWindow() {
 }
 
 /**
- * Gate: harus login dulu, lalu connect GitHub, baru boleh masuk ke project.
- * Project disimpan di repo GitHub milik user, jadi tanpa koneksi itu belum
- * ada tempat penyimpanan yang sah untuk dataset/model-nya.
+ * Gate: must log in first, then connect GitHub, before entering the project.
+ * Projects are stored in the user's own GitHub repo, so without that
+ * connection there's no valid place to store their dataset/model yet.
  */
 function startPage() {
-    // Pembaruan wajib diperiksa paling awal: kalau versi ini sudah tidak
-    // didukung, melanjutkan ke login hanya akan menimbulkan kegagalan aneh
-    // yang sulit ditelusuri user.
+    // The mandatory update is checked first: if this version is no longer
+    // supported, proceeding to login would only produce strange failures
+    // that are hard for the user to trace.
     if (_updateInfo && _updateInfo.mustUpdate) return 'renderer/pages/update.html';
-    // Prasyarat Python: ditawarkan lebih dulu, tapi BOLEH dilewati - user
-    // masih bisa membuka project dan pengaturan tanpa Python; yang tidak bisa
-    // hanya melatih model dan menjalankan inspeksi.
+    // Python prerequisites: offered first, but CAN be skipped - the user can
+    // still open projects and settings without Python; what they can't do is
+    // train a model or run inspections.
     if (_prereqOk === false && !_prereqSkipped) return 'renderer/pages/setup.html';
     if (!userstore.getSession()) return 'renderer/pages/login.html';
     if (!userstore.getGithub()) return 'renderer/pages/connect-github.html';
@@ -213,9 +212,9 @@ function startPage() {
 }
 
 /**
- * Cek versi lalu arahkan ulang bila perlu.
- * Gagal menghubungi situs TIDAK memblokir aplikasi - lini produksi tidak
- * boleh berhenti hanya karena internet mati.
+ * Check the version then redirect if needed.
+ * Failing to reach the site does NOT block the app - a production line
+ * shouldn't stop just because the internet is down.
  */
 async function checkUpdate(redirect = true) {
     try {
@@ -234,11 +233,11 @@ async function checkUpdate(redirect = true) {
     return _updateInfo;
 }
 
-// Nonce sekali pakai untuk tiap alur login/otorisasi yang DIMULAI aplikasi.
-// Tanpa ini, siapa pun (halaman web mana pun) bisa memanggil
-// automaeye://auth?token=<token-milik-penyerang> dan membuat aplikasi korban
-// masuk ke akun penyerang. Nonce dibuat sebelum browser dibuka dan wajib
-// cocok saat kembali.
+// A one-time nonce for every login/authorization flow STARTED by the app.
+// Without this, anyone (any web page) could call
+// automaeye://auth?token=<attacker-owned-token> and make the victim's app
+// log into the attacker's account. The nonce is generated before the browser
+// opens and must match when it comes back.
 const _pendingNonce = { auth: null, github: null };
 
 /** Tangani deep link automaeye://auth?token=... dari browser setelah login. */
@@ -251,7 +250,7 @@ async function handleDeepLink(url) {
         parsed = new URL(url);
         token = parsed.searchParams.get('token');
         nonce = parsed.searchParams.get('n');
-    } catch { return; /* URL tidak valid */ }
+    } catch { return; /* invalid URL */ }
     if (!token) return;
 
     const kind = (parsed.host === 'github' || parsed.pathname.startsWith('//github')) ? 'github' : 'auth';
@@ -265,10 +264,10 @@ async function handleDeepLink(url) {
         }
         return;
     }
-    _pendingNonce[kind] = null; // sekali pakai
+    _pendingNonce[kind] = null; // one-time use
 
-    // automaeye://github = hasil "Authorize" di GitHub lewat website.
-    // Host bisa terbaca sebagai 'github' atau 'auth' tergantung normalisasi URL.
+    // automaeye://github = the result of "Authorize" on GitHub via the website.
+    // The host may read as 'github' or 'auth' depending on URL normalization.
     if (parsed.host === 'github' || parsed.pathname.startsWith('//github')) {
         const gh = await appauth.exchangeGithubHandoff(cfg, token);
         console.log('[github] tukar kode:', gh.ok ? `OK (@${gh.login})` : `GAGAL — ${gh.error}`);
@@ -306,9 +305,9 @@ async function handleDeepLink(url) {
 
 // ---- App lifecycle ----
 
-// Deep link automaeye:// hanya bisa ditangani kalau app-nya single instance:
-// klik link di browser akan memanggil instance kedua, yang meneruskan URL-nya
-// ke instance yang sudah jalan lewat event 'second-instance'.
+// The automaeye:// deep link can only be handled if the app is single-instance:
+// clicking a link in the browser launches a second instance, which forwards
+// its URL to the already-running instance via the 'second-instance' event.
 const gotLock = app.requestSingleInstanceLock();
 if (!gotLock) {
     app.quit();
@@ -324,15 +323,15 @@ if (!gotLock) {
     app.on('open-url', (e, url) => { e.preventDefault(); handleDeepLink(url); }); // macOS
 }
 
-// Content-Security-Policy untuk halaman aplikasi.
+// Content-Security-Policy for the app's pages.
 //
-// Semua aset halaman bersifat lokal - tidak ada satu pun yang diambil dari
-// internet - jadi 'self' sudah cukup. Ini menutup jalur paling berbahaya
-// kalau suatu saat ada celah XSS: memuat skrip dari luar atau mengirim data
-// keluar diam-diam. 'unsafe-inline' terpaksa diizinkan karena halaman
-// memakai <script> dan style inline; menghapusnya perlu menulis ulang
-// seluruh halaman, sementara pembatasan sumber sudah memberi manfaat besar.
-// img-src data: dibutuhkan halaman Anotasi, yang memuat gambar sebagai data URL.
+// All page assets are local - not one of them is fetched from the internet -
+// so 'self' is enough. This closes off the most dangerous path if there's
+// ever an XSS hole: loading a script from outside or silently exfiltrating
+// data. 'unsafe-inline' has to be allowed because the pages use inline
+// <script> and style; removing it would require rewriting every page, while
+// the source restriction already provides most of the benefit.
+// img-src data: is needed by the Annotation page, which loads images as data URLs.
 const CSP = [
     "default-src 'self'",
     "script-src 'self' 'unsafe-inline'",
@@ -366,8 +365,8 @@ app.whenReady().then(() => {
 
     applyCsp();
 
-    // Daftarkan skema automaeye:// ke OS. Saat dev (dijalankan via electron.exe)
-    // perlu argv eksplisit supaya Windows tahu cara memanggil balik app-nya.
+    // Register the automaeye:// scheme with the OS. In dev (run via electron.exe)
+    // an explicit argv is needed so Windows knows how to call the app back.
     if (process.defaultApp && process.argv.length >= 2) {
         app.setAsDefaultProtocolClient('automaeye', process.execPath, [path.resolve(process.argv[1])]);
     } else {
@@ -378,10 +377,10 @@ app.whenReady().then(() => {
 
     createWindow();
 
-    // Cek versi di latar; halaman diarahkan ulang begitu hasilnya tiba.
+    // Check the version in the background; the page redirects as soon as the result arrives.
     checkUpdate();
 
-    // Prasyarat Python diperiksa sekali saat start.
+    // Python prerequisites are checked once at startup.
     prereq.check(cfg).then((r) => {
         _prereqOk = r.ok;
         console.log('[prereq] python:', r.python.found ? r.python.version : 'tidak ada',
@@ -389,7 +388,7 @@ app.whenReady().then(() => {
         if (!r.ok && mainWindow && !_prereqSkipped) mainWindow.loadFile(startPage());
     }).catch((e) => console.warn('[prereq]', e.message));
 
-    // Cold start lewat deep link: Windows menaruh URL-nya di argv proses ini.
+    // Cold start via deep link: Windows puts its URL in this process's argv.
     const coldUrl = process.argv.find((a) => a.startsWith('automaeye://'));
     if (coldUrl) handleDeepLink(coldUrl);
 
@@ -405,22 +404,21 @@ app.on('window-all-closed', () => {
 });
 
 // ================================================================
-// IPC handlers — dipanggil dari renderer via preload.js
+// IPC handlers — called from the renderer via preload.js
 // ================================================================
 
 // ---- Config ----
 ipcMain.handle('config:get', () => ({
     ...cfg,
-    // Versi selalu diambil dari aplikasi yang benar-benar berjalan, bukan dari
-    // config.yaml. Config milik pengguna tersimpan di folder data dan TIDAK
-    // ikut diperbarui saat aplikasi di-update, jadi angkanya akan terus
-    // tertinggal - "Tentang aplikasi" sempat menampilkan 0.1.1 padahal yang
-    // berjalan 0.1.2.
+    // The version is always read from the app that's actually running, not
+    // from config.yaml. The user's config is stored in the data folder and is
+    // NOT updated when the app itself is updated, so its number would keep
+    // falling behind - "About" once showed 0.1.1 while 0.1.2 was actually running.
     app: { ...(cfg.app || {}), version: app.getVersion() },
 }));
 ipcMain.handle('config:set', (_, patch) => {
-    // Deep merge: kalau patch berisi nested object (arduino, model, dll),
-    // merge per-field bukan replace whole object
+    // Deep merge: if the patch contains a nested object (arduino, model, etc.),
+    // merge it per-field instead of replacing the whole object
     for (const k of Object.keys(patch)) {
         if (patch[k] && typeof patch[k] === 'object' && !Array.isArray(patch[k]) && cfg[k]) {
             cfg[k] = { ...cfg[k], ...patch[k] };
@@ -428,7 +426,7 @@ ipcMain.handle('config:set', (_, patch) => {
             cfg[k] = patch[k];
         }
     }
-    // Persist ke config.yaml supaya tetap ada di session berikutnya
+    // Persist to config.yaml so it survives into the next session
     const saveResult = saveConfig();
     return { ...cfg, __save: saveResult };
 });
@@ -488,11 +486,11 @@ ipcMain.handle('dataset:split', (_, { project, model, ratios }) =>
 ipcMain.handle('dataset:cleanRebuild', (_, { project, model, ratios }) =>
     projects.cleanRebuildDataset(projectsRoot, project, model, ratios));
 
-// ---- Anotasi bawaan ----
+// ---- Built-in annotation ----
 //
-// Anotasi dikerjakan sendiri di renderer/js/annotator.js: tidak ada
-// server, tidak ada token, tidak ada langkah export/sync — label langsung
-// ditulis ke dataset/labels/ dalam format YOLO yang dibaca train.py.
+// Annotation is done entirely in renderer/js/annotator.js: no server, no
+// token, no export/sync step — labels are written directly to
+// dataset/labels/ in the YOLO format that train.py reads.
 
 ipcMain.handle('annot:list', (_, { project, model, split }) =>
     projects.listImagesWithLabels(projectsRoot, project, model, split || 'train'));
@@ -522,7 +520,7 @@ ipcMain.handle('training:start', async (event, { project, model, resume }) => {
     return inference.startTraining(cfg, projectsRoot, project, model, (progress) => {
         if (progress.finalMAP != null) lastMetrics = { mAP: progress.finalMAP, P: progress.finalP, R: progress.finalR };
         if (progress.finalTop1 != null) lastMetrics = { top1: progress.finalTop1, top5: progress.finalTop5 };
-        // Training sukses → snapshot jadi VERSI baru (v1, v2, ...).
+        // Training succeeded → snapshot becomes a new VERSION (v1, v2, ...).
         if (progress.done && progress.exitCode === 0) {
             try { progress.version = projects.snapshotVersion(projectsRoot, project, model, lastMetrics); }
             catch (e) { console.warn('[version] snapshot gagal:', e.message); }
@@ -530,15 +528,15 @@ ipcMain.handle('training:start', async (event, { project, model, resume }) => {
         event.sender.send('training:progress', { project, model, progress });
     }, { resume: !!resume });
 });
-// Set versi aktif model (default kalau workflow tak pilih versi).
+// Set the model's active version (used as default when the workflow doesn't pick one).
 ipcMain.handle('models:setActiveVersion', (_e, { project, model, versionId }) =>
     projects.setActiveVersion(projectsRoot, project, model, versionId));
 ipcMain.handle('training:cancel', () => inference.cancelTraining());
 ipcMain.handle('training:loadHistory', (_e, { project, model }) =>
     inference.loadTrainHistory(projectsRoot, project, model));
 
-// ---- Sinkronisasi GitHub (Save/Load) ----
-// Sinkronisasi jalan di folder projects milik user + token GitHub-nya sendiri.
+// ---- GitHub sync (Save/Load) ----
+// Sync operates on the user's own projects folder + their own GitHub token.
 const ghToken = () => (userstore.getGithub() || {}).token || null;
 
 ipcMain.handle('git:status', () => gitsync.status(projectsRoot));
@@ -548,7 +546,7 @@ ipcMain.handle('git:conflictInfo', () => gitsync.conflictInfo(projectsRoot, ghTo
 ipcMain.handle('git:resolveConflict', (_e, { choice, branchName }) =>
     gitsync.resolveConflict(projectsRoot, ghToken(), choice, branchName));
 ipcMain.handle('app:quit', () => { app.quit(); });
-// Auto-load versi terbaru sekali saja saat app pertama dibuka.
+// Auto-load the latest version once only, the first time the app is opened.
 ipcMain.handle('git:autoPullOnce', async () => {
     if (_autoPullDone) return { skipped: true, result: _autoPullResult };
     if (!userstore.getGithub()) return { skipped: true, result: null };
@@ -561,16 +559,16 @@ ipcMain.handle('git:autoPullOnce', async () => {
     return { skipped: false, result: _autoPullResult };
 });
 
-// ---- Prasyarat Python ----
+// ---- Python prerequisites ----
 ipcMain.handle('prereq:check', async () => {
     const r = await prereq.check(cfg);
     _prereqOk = r.ok;
     return { ...r, pythonUrl: prereq.pythonDownloadUrl() };
 });
-// Satu tombol mengurus semuanya: Python dulu kalau belum ada, baru paketnya.
-// Dipisah jadi dua langkah karena keduanya sangat berbeda ukurannya - Python
-// ~25 MB dan cepat, paketnya lebih dari 1 GB - jadi pengguna perlu tahu
-// sedang menunggu yang mana.
+// One button handles everything: Python first if missing, then the packages.
+// Split into two steps because their sizes are so different - Python is
+// ~25 MB and fast, the packages are over 1 GB - so the user needs to know
+// which one they're waiting on.
 ipcMain.handle('prereq:install', async (event) => {
     const kirim = (line) => { if (!event.sender.isDestroyed()) event.sender.send('prereq:log', line); };
 
@@ -580,10 +578,10 @@ ipcMain.handle('prereq:install', async (event) => {
         const rp = await prereq.installPython(kirim);
         if (!rp.ok) return { ok: false, error: `Gagal memasang Python: ${rp.error}` };
 
-        // PATH proses ini sudah terbentuk sebelum Python dipasang, jadi
-        // "python" belum tentu langsung dikenali. Lokasi bawaan pemasangan
-        // per-pengguna ditambahkan sendiri supaya langkah berikutnya jalan
-        // tanpa menunggu aplikasi ditutup dan dibuka lagi.
+        // This process's PATH was already formed before Python was installed,
+        // so "python" isn't necessarily recognized right away. The default
+        // per-user install location is added manually so the next step works
+        // without waiting for the app to be closed and reopened.
         const tambahan = prereq.pythonUserPaths();
         process.env.PATH = tambahan.join(path.delimiter) + path.delimiter + process.env.PATH;
 
@@ -605,18 +603,18 @@ ipcMain.handle('prereq:done', () => {
     return { ok: true };
 });
 ipcMain.handle('prereq:skip', () => {
-    // Hanya untuk sesi ini: kalau aplikasi dibuka lagi dan prasyarat masih
-    // kurang, tawarannya muncul lagi - bukan didiamkan selamanya.
+    // For this session only: if the app is reopened and prerequisites are
+    // still missing, the prompt appears again - it's not silenced forever.
     _prereqSkipped = true;
     if (mainWindow) mainWindow.loadFile(startPage());
     return { ok: true };
 });
 
-// ---- Pembaruan aplikasi ----
+// ---- App updates ----
 ipcMain.handle('update:info', () => _updateInfo || { ok: false, current: app.getVersion() });
 ipcMain.handle('update:recheck', () => checkUpdate(true));
 
-// ---- Login website ----
+// ---- Website login ----
 ipcMain.handle('auth:status', () => ({
     session: userstore.getSession(),
     github: (() => {
@@ -637,16 +635,16 @@ ipcMain.handle('auth:logout', () => {
     return { ok: true };
 });
 
-// ---- Koneksi GitHub (OAuth lewat website) ----
-let _pendingToken = null; // token GitHub hasil Authorize, sebelum user memilih repo
+// ---- GitHub connection (OAuth via the website) ----
+let _pendingToken = null; // GitHub token from Authorize, before the user picks a repo
 
-// Otorisasi GitHub lewat website (OAuth). Tidak butuh Client ID di aplikasi.
+// GitHub authorization via the website (OAuth). No Client ID needed in the app.
 ipcMain.handle('github:authorize', () => {
     _pendingNonce.github = require('crypto').randomBytes(16).toString('hex');
     return appauth.startGithubAuthorize(cfg, _pendingNonce.github);
 });
 
-/** Simpan koneksi + siapkan folder projects sebagai git repo ke repo pilihan user. */
+/** Save the connection + set up the projects folder as a git repo pointing to the user's chosen repo. */
 ipcMain.handle('github:connect', async (_e, { repoName, createNew, isPrivate }) => {
     const token = _pendingToken || ghToken();
     console.log('[github:connect] _pendingToken:', _pendingToken ? `ada (${_pendingToken.length} char)` : 'null',
@@ -684,8 +682,8 @@ ipcMain.handle('github:connect', async (_e, { repoName, createNew, isPrivate }) 
     return { ok: true, login: user.login, repo: finalName, projectsRoot, log: conn.log };
 });
 
-// Daftar repo memakai token yang SUDAH tersimpan - dipakai fitur "Ganti repo"
-// supaya user tidak perlu Authorize ulang hanya untuk pindah tempat simpan.
+// List repos using the ALREADY-stored token - used by the "Change repo"
+// feature so the user doesn't need to re-Authorize just to change where things are saved.
 ipcMain.handle('github:repos', async () => {
     const t = ghToken();
     if (!t) return { ok: false, error: 'Belum tersambung ke GitHub.' };
@@ -699,12 +697,12 @@ ipcMain.handle('github:disconnect', () => {
     return { ok: true };
 });
 
-// ---- Evaluasi / Test model ----
+// ---- Model Evaluation / Test ----
 ipcMain.handle('eval:run', async (event, { project, model, split }) =>
     inference.evaluate(cfg, projectsRoot, project, model, split, (p) =>
         event.sender.send('eval:progress', { project, model, ...p })));
 ipcMain.handle('eval:openDir', (_, { dir }) => {
-    // Path-nya datang dari renderer, sama seperti file:open - lihat catatan di sana.
+    // The path comes from the renderer, same as file:open - see the note there.
     if (!bolehDibuka(dir)) return { ok: false, error: 'Folder ini tidak boleh dibuka dari aplikasi.' };
     shell.openPath(dir);
     return { ok: true };
@@ -721,8 +719,8 @@ ipcMain.handle('run:inspect', async (_, { project, imageDataUrl, opts }) => {
     return workflow.execute(cfg, proj, imageDataUrl, arduino, output, opts || {});
 });
 
-// Kirim satu sinyal Arduino/PLC untuk SATU part (dipakai mode tracking:
-// verdict dikirim sekali per part, bukan tiap frame).
+// Send a single Arduino/PLC signal for ONE part (used by tracking mode:
+// the verdict is sent once per part, not per frame).
 ipcMain.handle('arduino:signal', async (_, { verdict }) => {
     try {
         const ng = verdict === 'NG';
@@ -734,7 +732,7 @@ ipcMain.handle('arduino:signal', async (_, { verdict }) => {
     }
 });
 
-// Simpan foto BER-OVERLAY (measurement + verdict) dari renderer, mode tracking.
+// Save an OVERLAID photo (measurement + verdict) from the renderer, tracking mode.
 ipcMain.handle('run:saveAnnotated', (_, { project, imageDataUrl, result }) => {
     try {
         const proj = projects.load(projectsRoot, project);
@@ -746,7 +744,7 @@ ipcMain.handle('run:saveAnnotated', (_, { project, imageDataUrl, result }) => {
     }
 });
 
-// Gate open/close (mode tracking): 'O' saat part terdeteksi+diukur, 'C' saat part keluar frame.
+// Gate open/close (tracking mode): 'O' when a part is detected+measured, 'C' when it leaves the frame.
 ipcMain.handle('arduino:gate', async (_, { kind }) => {
     try {
         let sig = kind === 'open' ? (cfg.arduino.open_signal || 'O') : (cfg.arduino.close_signal || 'C');
@@ -759,7 +757,7 @@ ipcMain.handle('arduino:gate', async (_, { kind }) => {
     }
 });
 
-// Status koneksi Arduino/Wemos (untuk indikator di halaman Run).
+// Arduino/Wemos connection status (for the indicator on the Run page).
 ipcMain.handle('arduino:status', () => {
     try {
         const conn = arduino.connectedPort ? arduino.connectedPort() : null;
@@ -767,12 +765,12 @@ ipcMain.handle('arduino:status', () => {
     } catch (e) { return { connected: false, error: e.message }; }
 });
 
-// Daftar COM port yang tersedia (untuk dropdown pemilihan).
+// List of available COM ports (for the selection dropdown).
 ipcMain.handle('arduino:listPorts', async () => {
     try { return await arduino.listPorts(); } catch (e) { return []; }
 });
 
-// Set COM port (mis. dari dropdown) → simpan ke config & reconnect.
+// Set the COM port (e.g. from a dropdown) → save to config & reconnect.
 ipcMain.handle('arduino:setPort', async (_, { port }) => {
     try {
         cfg.arduino.port = port || 'auto';
@@ -786,7 +784,7 @@ ipcMain.handle('arduino:setPort', async (_, { port }) => {
     }
 });
 
-// Buka ulang port serial (auto-deteksi COM). Dipakai setelah Serial Monitor ditutup / ganti kabel.
+// Reopen the serial port (auto-detect COM). Used after closing Serial Monitor / swapping the cable.
 ipcMain.handle('arduino:reconnect', async () => {
     try {
         arduino.close();
@@ -809,13 +807,13 @@ ipcMain.handle('calibration:run', async (event, { project, model }) => {
     const res = await calibration.calibrate(cfg, m.dir, m.classes, (p) => {
         event.sender.send('calibration:progress', { project, model, ...p });
     });
-    // Terapkan hasil kalibrasi ke config & simpan.
+    // Apply the calibration result to the config & save.
     cfg.model = { ...cfg.model, confidence: res.bestConf };
     saveConfig();
     return res;
 });
 
-// Laporan harian (statistik murni, tanpa LLM) — dipakai tombol di halaman project.
+// Daily report (pure statistics, no LLM) — used by a button on the project page.
 const tanggalSah = keamanan.tanggalSah;
 
 ipcMain.handle('report:dailyXlsx', (_, { project, date }) => {
@@ -847,17 +845,17 @@ ipcMain.handle('report:dailyXlsx', (_, { project, date }) => {
         return { ok: false, error: e.message };
     }
 });
-// Folder yang boleh dibuka lewat shell.openPath.
+// Folders that are allowed to be opened via shell.openPath.
 //
-// openPath MENJALANKAN berkas dengan aplikasi bawaannya - untuk .exe, .bat,
-// atau .lnk artinya menjalankan program. Handler ini menerima path dari
-// renderer, jadi tanpa batasan, satu celah XSS di halaman mana pun cukup untuk
-// menjalankan program apa pun di komputer pengguna. Itu ancaman yang sama
-// persis dengan yang sudah dijaga di shell:openExternal tepat di bawah ini.
+// openPath RUNS the file with its default app - for .exe, .bat, or .lnk that
+// means running a program. This handler receives a path from the renderer,
+// so without a restriction, one XSS hole on any page would be enough to run
+// any program on the user's computer. That's the exact same threat already
+// guarded at shell:openExternal right below.
 //
-// Yang benar-benar dibuka aplikasi hanyalah laporan .xlsx, folder hasil
-// evaluasi, folder dataset, dan berkas panduan/sketsa - semuanya di dalam
-// folder project atau folder firmware bawaan.
+// What the app actually opens is only .xlsx reports, evaluation result
+// folders, dataset folders, and guide/sketch files - all inside the project
+// folder or the bundled firmware folder.
 function akarBolehDibuka() {
     const akar = [projectsRoot, app.getPath('userData')];
     akar.push(app.isPackaged
@@ -866,8 +864,8 @@ function akarBolehDibuka() {
     return akar.filter(Boolean).map((a) => path.resolve(a));
 }
 
-// Aturannya sendiri ada di lib/keamanan.js supaya bisa diuji tanpa
-// menjalankan seluruh aplikasi - lihat tests/keamanan.js.
+// The actual rules live in lib/keamanan.js so they can be tested without
+// running the whole app - see tests/keamanan.js.
 const bolehDibuka = (target) =>
     keamanan.bolehDibuka(target, akarBolehDibuka(),
         (m) => console.warn('[security] openPath ' + m));
@@ -877,9 +875,9 @@ ipcMain.handle('file:open', (_, p) => {
     shell.openPath(p);
     return { ok: true };
 });
-// openPath() hanya untuk file lokal; URL harus lewat openExternal().
-// Dibatasi http/https: tanpa ini, renderer yang disusupi bisa meminta OS
-// membuka skema lain (file:, ms-msdt:, dsb) — jalur eksekusi kode klasik.
+// openPath() is for local files only; URLs must go through openExternal().
+// Restricted to http/https: without this, a compromised renderer could ask
+// the OS to open another scheme (file:, ms-msdt:, etc.) — a classic code execution path.
 ipcMain.handle('shell:openExternal', (_, url) => {
     let u;
     try { u = new URL(String(url)); } catch { return { ok: false, error: 'URL tidak valid' }; }
@@ -891,7 +889,7 @@ ipcMain.handle('shell:openExternal', (_, url) => {
     return { ok: true };
 });
 
-// Excel data deteksi: 1 baris/part (ID, link gambar, Kotak 1-8 P×L, Lubang 1-6 Ø, waktu deteksi).
+// Detection data Excel: 1 row/part (ID, image link, Box 1-8 L×W, Hole 1-6 Ø, detection time).
 ipcMain.handle('report:detectionXlsx', (_, { project, date }) => {
     if (!tanggalSah(date)) return { ok: false, error: 'Tanggal tidak valid.' };
     try {
@@ -908,7 +906,7 @@ ipcMain.handle('report:detectionXlsx', (_, { project, date }) => {
         return { ok: false, error: e.message };
     }
 });
-// ---- Output kustom (kode buatan user) ----
+// ---- Custom output (user-authored code) ----
 const customoutput = require('./lib/customoutput');
 ipcMain.handle('output:get', (_, { project }) => {
     const p = projects.load(projectsRoot, project);
@@ -932,8 +930,8 @@ ipcMain.handle('output:get', (_, { project }) => {
             stopBits: dev.stopBits || 1,
         },
         pinKelas: out.pinKelas || [],
-        // Kelas diambil dari model project, bukan disimpan ulang: kalau
-        // modelnya berubah kelasnya, halaman Output ikut berubah sendiri.
+        // Classes are pulled from the project's model, not stored redundantly:
+        // if the model's classes change, the Output page updates on its own.
         model: (p.models || []).map((m) => ({ nama: m.name, jenis: m.type, kelas: m.classes || [] })),
     };
 });
@@ -945,15 +943,15 @@ ipcMain.handle('output:save', (_, { project, config }) => {
     return { ok: true, output: projects.saveOutputConfig(projectsRoot, project, config) };
 });
 
-// ---- Perangkat keluaran ----
-// Sambungkan memakai port & baud yang dipilih di halaman Output project ini,
-// bukan setelan global di Settings: satu komputer bisa melayani beberapa
-// project dengan papan berbeda.
+// ---- Output device ----
+// Connects using the port & baud rate selected on this project's Output
+// page, not the global setting in Settings: one computer can serve several
+// projects with different boards.
 ipcMain.handle('device:sambung', async (_, { project }) => {
     try {
         const p = projects.load(projectsRoot, project);
         const dev = (p.output || {}).device || {};
-        // PLC memakai Modbus, bukan sketsa di papan - jalur sambungnya lain.
+        // A PLC uses Modbus, not a board sketch - its connection path is different.
         if (dev.jenis === 'plc') {
             const modbus = require('./lib/modbus');
             const r = await modbus.sambung(dev);
@@ -970,8 +968,8 @@ ipcMain.handle('device:sambung', async (_, { project }) => {
     }
 });
 
-// Uji satu pin: nyalakan sebentar lalu padamkan lagi. Dipakai untuk
-// memastikan kabelnya benar sebelum lini dijalankan.
+// Test a single pin: turn it on briefly then off again. Used to
+// verify the wiring is correct before the line is run.
 ipcMain.handle('device:ujiPin', async (_, { pin, aktif, jenis }) => {
     try {
         if (jenis === 'plc') {
@@ -1005,8 +1003,8 @@ ipcMain.handle('device:katalog', () => ({
 ipcMain.handle('device:pindai', () => perangkat.pindai());
 ipcMain.handle('device:pin', (_, { jenis, papan }) => perangkat.pinPapan(jenis, papan));
 
-// Sketsa firmware. Saat terpasang berkasnya ada di resources, bukan di
-// samping main.js - app.asar tidak bisa dibuka aplikasi luar.
+// Firmware sketch. Once installed the file lives in resources, not next to
+// main.js - app.asar can't be opened by external apps.
 ipcMain.handle('device:sketsa', (_, mana) => {
     const dir = app.isPackaged
         ? path.join(process.resourcesPath, 'firmware')
@@ -1021,7 +1019,7 @@ ipcMain.handle('output:test', (_, { script, verdict, bahasa }) =>
 
 // ---- Navigation ----
 ipcMain.handle('nav:go', async (_, page) => {
-    // page bisa berisi query string, contoh: "project.html?name=Foo"
+    // page may contain a query string, e.g. "project.html?name=Foo"
     const [filePart, queryPart] = String(page).split('?');
     const target = path.join(__dirname, 'renderer/pages', filePart);
     if (!fs.existsSync(target)) {
@@ -1036,13 +1034,12 @@ ipcMain.handle('nav:go', async (_, page) => {
         opts.query = query;
     }
 
-    // Halaman dengan perubahan belum tersimpan diberi kesempatan menahan
-    // perpindahan dan bertanya lebih dulu. Ditanyakan DI SINI, bukan di tiap
-    // tombol: ada dua puluh lebih tempat yang berpindah halaman, dan yang
-    // terlewat akan membuang pekerjaan pengguna tanpa sepatah kata.
+    // A page with unsaved changes gets a chance to hold up the navigation
+    // and ask first. It's asked HERE, not at every button: there are twenty-
+    // plus places that navigate to another page, and missing even one would
+    // discard the user's work without a word.
     //
-    // Halaman yang tidak punya penjaga menjawab true, jadi tidak ada yang
-    // perlu diubah pada halaman biasa.
+    // A page with no guard answers true, so nothing needs to change on ordinary pages.
     let boleh = true;
     try {
         boleh = await mainWindow.webContents.executeJavaScript(
@@ -1050,22 +1047,22 @@ ipcMain.handle('nav:go', async (_, page) => {
             + ' ? window.bolehTinggalkanHalaman() : true'
         );
     } catch (err) {
-        // Penjaga rusak tidak boleh mengunci aplikasi. Dicatat, lalu jalan.
+        // A broken guard must not lock up the app. Log it, then proceed.
         console.warn('[nav:go] penjaga halaman gagal:', err.message);
         boleh = true;
     }
     if (!boleh) return { ok: false, error: 'dibatalkan pengguna' };
 
-    // Penjaga sudah setuju, jadi beforeunload halaman ini tidak boleh
-    // membatalkan lagi - lihat will-prevent-unload di bawah.
+    // The guard already agreed, so this page's beforeunload must not
+    // cancel again - see will-prevent-unload below.
     pindahDisetujui = true;
 
-    // Promise dari loadFile TIDAK selalu selesai: kalau unload-nya tetap
-    // tertahan, ia menggantung selamanya. Menunggunya berarti nav:go ikut
-    // menggantung DAN pindahDisetujui menyala terus - yang diam-diam mematikan
-    // konfirmasi "perubahan belum disimpan" saat jendela ditutup. Maka izinnya
-    // dilepas oleh peristiwa selesai-memuat, dengan penjaga waktu sebagai
-    // jaring pengaman, bukan oleh await.
+    // The Promise from loadFile does NOT always resolve: if the unload stays
+    // stuck, it hangs forever. Awaiting it would mean nav:go hangs too AND
+    // pindahDisetujui stays on forever - which silently disables the
+    // "unsaved changes" confirmation when the window is closed. So the flag
+    // is released by the load-finished event instead, with a safety-net
+    // timer as backup, rather than by awaiting it.
     const lepasIzin = () => { pindahDisetujui = false; };
     const jaringPengaman = setTimeout(lepasIzin, 5000);
     mainWindow.webContents.once('did-stop-loading', () => {

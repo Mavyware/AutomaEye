@@ -88,26 +88,25 @@ let siap = false;
 function back() { window.api.goTo(`project.html?name=${encodeURIComponent(projectName)}`); }
 function keRun() { window.api.goTo(`run.html?project=${encodeURIComponent(projectName)}`); }
 
-// Ditanyakan sekali, di sini, untuk SEMUA cara meninggalkan halaman - menu
-// samping, tombol kembali, maupun tombol Run. Sebelumnya hanya tombol Run yang
-// bertanya, dan jawabannya pun tidak berpengaruh karena beforeunload tetap
-// membatalkan perpindahannya.
+// Asked once, here, for EVERY way of leaving the page - the side menu, the
+// back button, or the Run button. It used to be only the Run button that
+// asked, and even its answer had no effect because beforeunload still canceled the navigation.
 window.bolehTinggalkanHalaman = async () => {
     if (!adaPerubahan) return true;
     const lanjut = await tanya('Pengaturan output yang baru diubah belum disimpan.',
         { judul: 'Perubahan belum disimpan', ya: 'Lanjut tanpa menyimpan' });
-    // Penanda dilepas begitu pengguna setuju, supaya beforeunload tidak
-    // membatalkan perpindahan yang baru saja disetujui.
+    // The flag is released as soon as the user agrees, so beforeunload
+    // doesn't cancel the navigation that was just approved.
     if (lanjut) adaPerubahan = false;
     return lanjut;
 };
 
 const tandai = () => { if (siap) adaPerubahan = true; };
 
-// ---------------- pemilihan perangkat ----------------
-// Tiga pilihan sejajar: dua perangkat nyata, dan kode kustom untuk yang
-// tidak tercakup keduanya. Sinyal OK/NG bawaan tetap ada sebagai pilihan
-// paling sederhana, supaya project lama tidak kehilangan perilakunya.
+// ---------------- device selection ----------------
+// Three options side by side: two real devices, and custom code for
+// whatever neither one covers. The default OK/NG signal still exists as the
+// simplest option, so old projects don't lose their behavior.
 const PILIHAN = [
     { id: 'arduino', ikon: '🔌', nama: 'Arduino',      ket: 'Kirim sinyal per kelas ke pin papan Arduino' },
     { id: 'esp32',   ikon: '📶', nama: 'ESP32',        ket: 'Sama seperti Arduino, papan ESP32' },
@@ -169,8 +168,8 @@ async function pilihPerangkat(id) {
         tandai(); renderPerangkat();
         return;
     }
-    // Perangkat nyata: seri papan dan portnya ditanyakan dulu, karena tanpa
-    // keduanya pemetaan pin tidak punya arti.
+    // A real device: its board series and port are asked for first, because
+    // without both the pin mapping is meaningless.
     const berubah = cfg.device.jenis !== id;
     if (berubah) {
         cfg.device.jenis = id;
@@ -178,7 +177,7 @@ async function pilihPerangkat(id) {
         cfg.device.baud = katalog.katalog[id].baudBawaan;
     }
     const jadi = await dialogPerangkat(id);
-    if (!jadi && !cfg.device.papan) {          // dibatalkan dan belum pernah diatur
+    if (!jadi && !cfg.device.papan) {          // canceled and never configured before
         if (berubah) cfg.device.jenis = pilihanAktif();
         return;
     }
@@ -188,7 +187,7 @@ async function pilihPerangkat(id) {
     await renderPin();
 }
 
-// ---------------- dialog perangkat ----------------
+// ---------------- device dialog ----------------
 function dialogPerangkat(jenis) {
     return new Promise((selesai) => {
         const j = katalog.katalog[jenis];
@@ -294,8 +293,8 @@ function dialogPerangkat(jenis) {
             const st = latar.querySelector('#dpStatus');
             st.textContent = 'Memindai…';
             const daftar = await window.api.devicePindai();
-            // Kalau port belum pernah dipilih, sarankan yang paling mungkin -
-            // tapi jangan pernah menimpa pilihan yang sudah ada.
+            // If no port has ever been picked, suggest the most likely one -
+            // but never overwrite a selection that already exists.
             if (!portTerpilih) {
                 const saran = daftar.find((p) => p.tebakan === jenis) || daftar.find((p) => p.kemungkinanPapan);
                 if (saran) portTerpilih = saran.path;
@@ -309,16 +308,16 @@ function dialogPerangkat(jenis) {
         };
         latar.querySelector('#dpPindai').onclick = pindai;
 
-        // Medan yang tampil mengikuti cara sambungnya: Modbus TCP tidak punya
-        // port serial, dan Arduino/ESP32 tidak punya unit ID.
+        // Which fields show depends on the connection method: Modbus TCP has
+        // no serial port, and Arduino/ESP32 has no unit ID.
         const aturMedan = () => {
             const kon = latar.querySelector('#dpKoneksi').value;
             const jaringan = kon === 'tcp';
             latar.querySelector('#dpSerial').style.display = jaringan ? 'none' : '';
             latar.querySelector('#dpJaringan').style.display = jaringan ? '' : 'none';
             latar.querySelector('#dpUnit').style.display = jenis === 'plc' ? '' : 'none';
-            // Sketsa Arduino/ESP32 selalu 8N1; menawarkan pilihan di sana hanya
-            // memberi tombol yang bisa merusak tanpa memberi manfaat.
+            // The Arduino/ESP32 sketch is always 8N1; offering a choice
+            // there would only add a button that can break things with no benefit.
             const utkPlc = jenis === 'plc';
             latar.querySelector('#dpParitasBungkus').style.display = utkPlc ? '' : 'none';
             latar.querySelector('#dpStopBungkus').style.display = utkPlc ? '' : 'none';
@@ -331,7 +330,7 @@ function dialogPerangkat(jenis) {
             const b = j.papan[latar.querySelector('#dpPapan').value];
             const ct = latar.querySelector('#dpCatatan');
             if (ct) ct.textContent = (b && b.catatan) ? b.catatan : '';
-            // Pindai sekali saja saat medan serial pertama kali tampil.
+            // Scan just once, the first time the serial fields appear.
             if (!jaringan && !latar.querySelector('#dpPort').dataset.sudah) pindai();
         };
         latar.querySelector('#dpKoneksi').onchange = aturMedan;
@@ -370,7 +369,7 @@ function dialogPerangkat(jenis) {
     });
 }
 
-// ---------------- pemetaan kelas → pin ----------------
+// ---------------- class → pin mapping ----------------
 function nilaiPin(model, kelas) {
     const m = (cfg.pinKelas || []).find((x) => x.model === model && x.kelas === kelas);
     return m || { pin: '', aktif: 'HIGH' };
@@ -386,8 +385,8 @@ async function renderPin() {
         body.innerHTML = '<p class="muted">Pilih seri papan dulu supaya pinnya bisa ditawarkan.</p>';
         return;
     }
-    // Papan punya daftar pin yang pasti; PLC tidak - alamat coil ditentukan
-    // program PLC-nya sendiri, jadi diisi bebas dan hanya dicek berupa angka.
+    // A board has a fixed pin list; a PLC doesn't - the coil address is
+    // determined by the PLC's own program, so it's entered freely and only checked as a number.
     const pakaiAlamat = !!(katalog.katalog[cfg.device.jenis] || {}).alamatCoil;
     const pin = pakaiAlamat ? [] : await window.api.devicePin(cfg.device.jenis, cfg.device.papan);
     const labelKeluaran = pakaiAlamat ? 'Coil' : 'Pin';
@@ -435,8 +434,8 @@ async function renderPin() {
     tandaiBentrok();
 }
 
-// Satu pin untuk dua kelas berarti keduanya tidak bisa dibedakan di sisi
-// mesin. Ditandai saat itu juga, bukan ditahan sampai ditekan Simpan.
+// One pin for two classes means they can't be told apart on the machine
+// side. Flagged right away, not held back until Save is pressed.
 function tandaiBentrok() {
     const hitung = {};
     document.querySelectorAll('.pin-baris').forEach((row) => {
@@ -449,10 +448,10 @@ function tandaiBentrok() {
     });
 }
 
-// ---------------- sambungan & uji ----------------
-// Papan perlu menjalankan sketsa AutomaEyes supaya mengerti baris "PINS ...".
-// Tanpa itu perintahnya terkirim tapi tidak berarti apa-apa - jadi jalannya
-// disediakan tepat di sebelah tombol sambung.
+// ---------------- connection & test ----------------
+// The board needs to run the AutomaEyes sketch to understand a "PINS ..."
+// line. Without it the command gets sent but means nothing - so the sketch
+// is made available right next to the connect button.
 async function sambung() {
     const st = document.getElementById('devStatus');
     if (adaPerubahan) { pesan('Simpan dulu, supaya port yang dipakai sesuai yang Anda pilih.', 'warn'); return; }
@@ -466,8 +465,8 @@ async function sambung() {
 }
 
 async function bukaSketsa() {
-    // PLC tidak punya sketsa - yang dibuka panduannya, karena di situ letak
-    // penjelasan alamat coil dan cara sambungnya.
+    // A PLC has no sketch - the guide is what gets opened, since that's
+    // where the coil address and connection explanation live.
     const plc = cfg.device.jenis === 'plc';
     const r = await window.api.deviceSketsa(plc ? 'panduan' : 'sketsa');
     if (!r.ada) { pesan('Berkas panduan tidak ditemukan.', 'err'); return; }
@@ -483,10 +482,10 @@ async function ujiPin(pin, aktif, jenis) {
     pesan(`${label} ${pin} dinyalakan 0,6 detik lalu dipadamkan.`, 'ok');
 }
 
-// ---------------- kode kustom ----------------
-// ---------------- dialog bantuan ----------------
-// Penjelasannya panjang dan hanya dibutuhkan sesekali, jadi ditaruh di
-// dialog: dibaca saat perlu, lalu ditutup supaya kotak kodenya lega.
+// ---------------- custom code ----------------
+// ---------------- help dialog ----------------
+// The explanation is long and only needed occasionally, so it's put in a
+// dialog: read when needed, then closed to leave the code box roomy.
 const BANTUAN = {
     cara: {
         judul: 'Cara kerja',
@@ -697,17 +696,17 @@ function bukaBantuan() {
         };
     });
 
-    // Buka langsung di tab bahasa yang sedang dipakai, bukan selalu dari awal.
+    // Open directly on the language tab currently in use, not always from the start.
     const tabBahasa = latar.querySelector(`#bnTab button[data-k="${cfg.bahasa === 'py' ? 'py' : 'js'}"]`);
     if (tabBahasa) tabBahasa.click();
 }
 
-// Dua skrip disimpan terpisah, jadi berganti bahasa tidak menghapus kode
-// yang sudah ditulis di bahasa satunya.
+// The two scripts are stored separately, so switching languages doesn't
+// erase the code already written in the other one.
 function gantiBahasa(b) {
-    // Simpan isi kotak ke bahasa yang SEDANG dipakai, baru pindah. Saat
-    // pemuatan pertama tidak ada yang perlu disimpan - kotaknya masih kosong,
-    // dan menyimpannya justru menghapus skrip bawaan.
+    // Save the box's contents to the CURRENTLY used language, then switch.
+    // On the first load there's nothing to save - the box is still empty,
+    // and saving it would actually erase the default script.
     simpanKotak();
     muatBahasa(b);
 }
@@ -740,7 +739,7 @@ async function uji(verdict) {
         : `Kesalahan: ${r.error}\n${r.logs.join('\n')}`;
 }
 
-// ---------------- simpan ----------------
+// ---------------- save ----------------
 let simpanTimer = null;
 function pesanSimpan(teks, jenis) {
     const el = document.getElementById('simpanMsg');

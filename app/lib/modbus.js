@@ -1,26 +1,26 @@
-// Modbus untuk PLC — menulis coil dari hasil inspeksi.
+// Modbus for PLCs — writes coils from inspection results.
 //
-// Kenapa Modbus, bukan protokol khusus per merek: hampir semua PLC yang
-// dipakai di lini produksi (Omron, Mitsubishi, Delta, Siemens lewat modul,
-// Schneider, Wecon, dan klonnya) bicara Modbus. Jadi tidak ada firmware yang
-// perlu diunggah ke PLC - cukup petakan alamat coil-nya. Berbeda dari
-// Arduino/ESP32 yang memang perlu sketsa.
+// Why Modbus, not a brand-specific protocol: nearly every PLC used on
+// production lines (Omron, Mitsubishi, Delta, Siemens via a module,
+// Schneider, Wecon, and their clones) speaks Modbus. So there's no firmware
+// that needs to be uploaded to the PLC - just map its coil addresses.
+// Different from Arduino/ESP32, which do need a sketch.
 //
-// Dua cara sambung:
-//   RTU  - kabel serial / RS-485 lewat konverter USB
-//   TCP  - jaringan Ethernet
+// Two ways to connect:
+//   RTU  - serial cable / RS-485 via a USB converter
+//   TCP  - Ethernet network
 //
-// Ditulis tanpa pustaka luar. Modbus itu protokol kecil, dan repo ini publik:
-// satu dependensi lagi berarti satu pintu lagi yang harus dijaga.
+// Written with no external library. Modbus is a small protocol, and this
+// repo is public: one more dependency means one more door to keep watched.
 
 const net = require('net');
 
 let SerialPort = null;
-try { ({ SerialPort } = require('serialport')); } catch (_) { /* dilaporkan saat dipakai */ }
+try { ({ SerialPort } = require('serialport')); } catch (_) { /* reported when used */ }
 
-// ---------------------------------------------------------------- CRC & bingkai
+// ---------------------------------------------------------------- CRC & frames
 
-// CRC16 Modbus (polinomial 0xA001, awalan 0xFFFF).
+// Modbus CRC16 (polynomial 0xA001, seed 0xFFFF).
 function crc16(buf) {
     let crc = 0xFFFF;
     for (let i = 0; i < buf.length; i++) {
@@ -32,7 +32,7 @@ function crc16(buf) {
     return crc;
 }
 
-// PDU: tulis satu coil (0x05). Nilai ON = 0xFF00, OFF = 0x0000.
+// PDU: write a single coil (0x05). ON value = 0xFF00, OFF = 0x0000.
 function pduTulisSatu(alamat, nyala) {
     const b = Buffer.alloc(5);
     b[0] = 0x05;
@@ -41,9 +41,9 @@ function pduTulisSatu(alamat, nyala) {
     return b;
 }
 
-// PDU: tulis banyak coil berurutan (0x0F). Bit pertama menempati bit paling
-// rendah byte pertama - urutan ini sering tertukar dan menghasilkan coil yang
-// menyala bergeser satu.
+// PDU: write multiple consecutive coils (0x0F). The first bit occupies the
+// lowest bit of the first byte - this ordering is often mixed up and results
+// in the wrong coil lighting up, off by one.
 function pduTulisBanyak(alamatAwal, nilai) {
     const jumlahByte = Math.ceil(nilai.length / 8);
     const data = Buffer.alloc(jumlahByte);
@@ -67,9 +67,9 @@ let nomorTransaksi = 0;
 function bingkaiTCP(unit, pdu) {
     nomorTransaksi = (nomorTransaksi + 1) & 0xFFFF;
     const kepala = Buffer.alloc(7);
-    kepala.writeUInt16BE(nomorTransaksi, 0);   // nomor transaksi
-    kepala.writeUInt16BE(0, 2);                // protokol Modbus = 0
-    kepala.writeUInt16BE(pdu.length + 1, 4);   // panjang: unit + pdu
+    kepala.writeUInt16BE(nomorTransaksi, 0);   // transaction number
+    kepala.writeUInt16BE(0, 2);                // Modbus protocol = 0
+    kepala.writeUInt16BE(pdu.length + 1, 4);   // length: unit + pdu
     kepala[6] = unit;
     return Buffer.concat([kepala, pdu]);
 }
@@ -80,17 +80,16 @@ exports.pduTulisBanyak = pduTulisBanyak;
 exports.bingkaiRTU = bingkaiRTU;
 exports.bingkaiTCP = bingkaiTCP;
 
-// ---------------------------------------------------------------- rencana kirim
+// ---------------------------------------------------------------- send plan
 
-// Susun perintah untuk sekumpulan coil.
+// Build the commands for a set of coils.
 //
-// Kalau alamatnya berurutan tanpa lubang, semuanya muat dalam SATU bingkai
-// (0x0F) - satu perjalanan bolak-balik, dan PLC menerapkannya sekaligus.
+// If the addresses are consecutive with no gaps, they all fit in ONE frame
+// (0x0F) - a single round trip, and the PLC applies it all at once.
 //
-// Kalau ada lubang, tiap coil dikirim sendiri-sendiri (0x05). Menulis satu
-// blok yang mencakup lubangnya akan ikut mengubah coil milik program lain di
-// PLC yang sama - kerusakan diam yang jauh lebih mahal daripada beberapa
-// bingkai tambahan.
+// If there's a gap, each coil is sent on its own (0x05). Writing a single
+// block that spans the gap would also change a coil belonging to a different
+// program on the same PLC - a silent failure far more costly than a few extra frames.
 exports.rencana = (coil) => {
     if (!coil.length) return [];
     const urut = coil.slice().sort((a, b) => a.alamat - b.alamat);
@@ -108,7 +107,7 @@ function pduDari(langkah) {
 }
 exports.pduDari = pduDari;
 
-// ---------------------------------------------------------------- sambungan
+// ---------------------------------------------------------------- connection
 
 let sambungan = null;   // { jenis:'rtu'|'tcp', unit, tulis(buf), tutup(), info }
 
@@ -118,7 +117,7 @@ exports.status = () => (sambungan
 
 exports.tutup = () => {
     if (!sambungan) return;
-    try { sambungan.tutup(); } catch (_) { /* sudah tertutup */ }
+    try { sambungan.tutup(); } catch (_) { /* already closed */ }
     sambungan = null;
 };
 
@@ -147,7 +146,7 @@ exports.sambung = (dev) => new Promise((selesai) => {
             sudah = true;
             soket.setTimeout(0);
             soket.removeListener('error', gagal);
-            soket.on('error', () => { /* putus di tengah jalan: dilaporkan saat menulis */ });
+            soket.on('error', () => { /* dropped mid-way: reported when writing */ });
             sambungan = {
                 jenis: 'tcp', unit,
                 info: `${host}:${porta} unit ${unit}`,
@@ -159,7 +158,7 @@ exports.sambung = (dev) => new Promise((selesai) => {
         return;
     }
 
-    // RTU lewat serial
+    // RTU over serial
     if (!SerialPort) { selesai({ ok: false, error: 'Modul serialport tidak tersedia.' }); return; }
     const jalur = String(dev.port || '').trim();
     if (!jalur) { selesai({ ok: false, error: 'Port serial belum dipilih.' }); return; }
@@ -182,9 +181,9 @@ exports.sambung = (dev) => new Promise((selesai) => {
     });
 });
 
-// Kirim keadaan sekumpulan coil. Tidak menunggu balasan PLC: siklus inspeksi
-// berikutnya tidak boleh tertahan menunggu jawaban, dan kegagalan penulisan
-// sudah terdeteksi dari soket/port itu sendiri.
+// Send the state of a set of coils. Does not wait for a PLC reply: the next
+// inspection cycle must not be held up waiting for an answer, and a write
+// failure is already detected from the socket/port itself.
 exports.tulisCoil = async (coil) => {
     if (!sambungan) return { ok: false, error: 'Belum tersambung ke PLC.' };
     const langkah = exports.rencana(coil);

@@ -1,35 +1,36 @@
 """
-Susun dataset klasifikasi dari anotasi YOLO yang sudah ada.
+Build a classification dataset from existing YOLO annotations.
 
-Kenapa ada berkas ini
+Why this file exists
 ---------------------
-Seluruh aplikasi menyimpan dataset dalam satu bentuk: images/<split>/ berisi
-gambar, labels/<split>/ berisi berkas .txt YOLO. Bentuk itu dipakai deteksi,
-segmentasi, dan OCR, dan semua alat lain (split, augmentasi, hapus gambar,
-hitung statistik) sudah bekerja di atasnya.
+The whole app stores its dataset in one format: images/<split>/ holds
+images, labels/<split>/ holds YOLO .txt files. That format is used by
+detection, segmentation, and OCR, and every other tool (split, augmentation,
+deleting images, computing statistics) already works on top of it.
 
-Ultralytics tidak menerima bentuk itu untuk klasifikasi. Untuk task=classify,
-`check_cls_dataset` menuntut sebuah FOLDER bersusun
+Ultralytics doesn't accept that format for classification. For task=classify,
+`check_cls_dataset` requires a nested FOLDER structure
 
-    <akar>/train/<nama-kelas>/gambar.jpg
-    <akar>/val/<nama-kelas>/gambar.jpg
+    <root>/train/<class-name>/image.jpg
+    <root>/val/<class-name>/image.jpg
 
-dan menyimpulkan daftar kelasnya dari nama folder - data.yaml tidak dilirik
-sama sekali. Itulah sebabnya melatih model Classification dulu selalu gagal.
+and infers the class list from folder names - data.yaml isn't even looked
+at. That's why training a Classification model used to always fail.
 
-Jalan keluarnya bukan menyimpan dataset dalam dua bentuk sekaligus. Dua salinan
-berarti dua sumber kebenaran, dan cepat atau lambat keduanya berbeda isi.
-Susunan folder di sini dibangun ULANG tiap kali dilatih, dari label yang sama
-yang dipakai tipe model lain. Anotasi tetap satu-satunya sumber kebenaran; ini
-sekadar cara menyajikannya.
+The fix isn't to store the dataset in two formats at once. Two copies means
+two sources of truth, and sooner or later they'd drift apart. The folder
+structure here is REBUILT every time training runs, from the same labels
+used by the other model types. Annotations remain the single source of
+truth; this is just one way of presenting them.
 
-Kelas sebuah gambar diambil dari baris pertama berkas labelnya. Untuk
-klasifikasi, satu gambar memang hanya punya satu kelas: anotator menuliskannya
-sebagai satu kotak seluas gambar ("<kelas> 0.5 0.5 1 1").
+An image's class is taken from the first line of its label file. For
+classification, an image really does only have one class: the annotator
+writes it as a single box spanning the whole image ("<class> 0.5 0.5 1 1").
 
-Gambar ditautkan (hard link) bila bisa, bukan disalin. Dataset ribuan foto
-tidak perlu memakan tempat dua kali, dan menautkan jauh lebih cepat. Kalau
-sistem berkasnya menolak (mis. beda drive), barulah disalin.
+Images are linked (hard link) when possible, rather than copied. A dataset
+of thousands of photos shouldn't have to take up space twice, and linking is
+much faster. If the filesystem refuses (e.g. a different drive), it falls
+back to copying.
 """
 from pathlib import Path
 import os
@@ -40,14 +41,14 @@ SPLITS = ("train", "val", "test")
 
 
 def _aman(nama):
-    """Nama kelas jadi nama folder. Karakter yang dilarang Windows dibuang."""
+    """Turn a class name into a folder name. Characters Windows forbids are stripped."""
     bersih = "".join(c for c in str(nama) if c not in r'<>:"/\|?*').strip().rstrip(".")
     return bersih or "kelas"
 
 
 def _taut(src, dst):
-    """Hard link kalau bisa, salin kalau tidak. Keduanya menghasilkan berkas
-    yang bisa dibaca; hard link hanya lebih murah."""
+    """Hard link when possible, copy otherwise. Both produce a readable
+    file; a hard link is just cheaper."""
     if dst.exists():
         return
     try:
@@ -57,7 +58,7 @@ def _taut(src, dst):
 
 
 def _kelas_gambar(lbl_path):
-    """Indeks kelas dari baris pertama berkas label, atau None."""
+    """Class index from the first line of the label file, or None."""
     try:
         for baris in lbl_path.read_text(encoding="utf-8").splitlines():
             baris = baris.strip()
@@ -71,23 +72,23 @@ def _kelas_gambar(lbl_path):
 
 def build(ds_dir, names, out_dir=None, log=print):
     """
-    Bangun folder klasifikasi dari <ds_dir>/images + <ds_dir>/labels.
+    Build the classification folder from <ds_dir>/images + <ds_dir>/labels.
 
-    ds_dir : Path akar dataset (yang memuat images/, labels/, data.yaml)
-    names  : daftar nama kelas, urut sesuai indeks di berkas label
-    out_dir: tujuan; default <ds_dir>/cls
+    ds_dir : Path to the dataset root (containing images/, labels/, data.yaml)
+    names  : list of class names, ordered to match the label file indices
+    out_dir: destination; defaults to <ds_dir>/cls
 
-    Mengembalikan (Path akar hasil, ringkasan dict).
-    Melempar RuntimeError kalau tidak ada satu pun gambar berlabel - lebih baik
-    berhenti dengan sebab yang jelas daripada menyerahkan folder kosong ke
-    ultralytics dan mendapat galat yang tidak bisa dibaca pengguna.
+    Returns (Path to the result root, summary dict).
+    Raises RuntimeError if there isn't a single labeled image - better to
+    stop with a clear reason than hand ultralytics an empty folder and get
+    an error the user can't read.
     """
     ds_dir = Path(ds_dir)
     akar = Path(out_dir) if out_dir else ds_dir / "cls"
 
-    # Dibangun dari nol tiap kali. Sisa build sebelumnya - gambar yang sudah
-    # dihapus, kelas yang sudah diganti nama - kalau tidak dibuang akan ikut
-    # terlatih tanpa ada yang menyadari.
+    # Rebuilt from scratch every time. Leftovers from a previous build -
+    # images that were since deleted, classes that were since renamed - would
+    # silently get trained on if not discarded.
     if akar.exists():
         shutil.rmtree(akar, ignore_errors=True)
 
@@ -110,8 +111,8 @@ def build(ds_dir, names, out_dir=None, log=print):
                 ringkas["tanpaLabel"] += 1
                 continue
             if ci < 0 or ci >= len(names):
-                # Label menunjuk kelas yang sudah tidak ada di model. Dilewati,
-                # bukan dipaksa masuk ke kelas 0 - itu diam-diam merusak data.
+                # The label points to a class that no longer exists on the
+                # model. It's skipped, not forced into class 0 - that would silently corrupt the data.
                 ringkas["kelasAsing"] += 1
                 continue
 
@@ -132,9 +133,9 @@ def build(ds_dir, names, out_dir=None, log=print):
             "gambar di tab Anotasi, lalu jalankan Split."
         )
 
-    # Ultralytics selalu memvalidasi saat melatih dan selalu mencari folder val.
-    # Kalau dataset belum di-split, val belum ada. Daripada gagal, pakai train
-    # sebagai val - angkanya optimistis, jadi katakan begitu terang-terangan.
+    # Ultralytics always validates during training and always looks for a val
+    # folder. If the dataset hasn't been split yet, val doesn't exist. Rather
+    # than fail, train is used as val - the numbers will be optimistic, so say so plainly.
     if "val" not in ringkas["perSplit"]:
         val = akar / "val"
         for kelas_dir in (akar / "train").iterdir():
@@ -147,9 +148,8 @@ def build(ds_dir, names, out_dir=None, log=print):
             "Akurasi yang muncul akan terlalu bagus; lakukan Split (Langkah 3) "
             "untuk angka yang jujur.")
 
-    # Kelas yang tidak punya satu pun gambar tidak akan muncul sebagai folder,
-    # sehingga model diam-diam dilatih dengan kelas lebih sedikit daripada yang
-    # dikira pengguna. Itu perlu terdengar.
+    # A class with not even one image won't show up as a folder, so the model
+    # would silently be trained with fewer classes than the user thinks. That needs to be heard.
     kosong = [n for n in names if _aman(n) not in ringkas["perClass"]]
     if kosong:
         ringkas["kelasKosong"] = kosong

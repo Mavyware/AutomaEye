@@ -1,16 +1,16 @@
 """
-YOLO inference SERVER (persisten) — load model & torch SEKALI, lalu layani banyak
-request tanpa reload. Ini menghilangkan lag ~6 dtk/frame yang disebabkan oleh
-import torch + load model berulang tiap panggilan.
+YOLO inference SERVER (persistent) — loads the model & torch ONCE, then serves
+many requests with no reload. This removes the ~6s/frame lag caused by
+importing torch + loading the model on every single call.
 
-Protokol (baris demi baris via stdin/stdout):
-  - Saat siap:  stdout -> "@@READY@@"
-  - Request  :  stdin  <- {"id":1,"weights":"...best.pt","conf":0.35,"iou":0.45,
+Protocol (line by line via stdin/stdout):
+  - When ready:  stdout -> "@@READY@@"
+  - Request   :  stdin  <- {"id":1,"weights":"...best.pt","conf":0.35,"iou":0.45,
                             "imgsz":640,"classes":["a","b"],"image":"<base64 jpg>"}
-  - Response :  stdout -> "@@RESP@@ {json}"  (dengan field "id" yang sama)
+  - Response  :  stdout -> "@@RESP@@ {json}"  (with the same "id" field)
 
-Model di-cache per path weights → ganti-ganti model (Object Detector / Socket
-Measurement) tidak reload.
+Models are cached per weights path → switching models (Object Detector /
+Socket Measurement) doesn't reload.
 """
 import sys
 import io
@@ -24,7 +24,7 @@ def eprint(*a):
 
 
 def main():
-    # Import berat SEKALI di awal (bukan tiap request).
+    # Heavy import ONCE at startup (not per request).
     try:
         from ultralytics import YOLO
         from PIL import Image
@@ -33,7 +33,7 @@ def main():
         print("@@RESP@@ " + json.dumps({"error": f"deps missing: {e}. Run: pip install ultralytics pillow"}), flush=True)
         return
     try:
-        import cv2  # untuk pengukuran GD&T dari kontur mask (segmentation)
+        import cv2  # for GD&T measurement from the mask contour (segmentation)
     except Exception:
         cv2 = None
 
@@ -44,8 +44,8 @@ def main():
             return None
         try:
             cnt = np.array(contour, dtype=np.float32).reshape(-1, 1, 2)
-            # Haluskan kontur: buang duri/noise kecil di tepi mask supaya ukuran lebih stabil
-            # (kurangi fluktuasi minAreaRect akibat pantulan/kilau).
+            # Smooth the contour: remove small spikes/noise on the mask edge so
+            # the measurement is more stable (reduces minAreaRect jitter from glare/reflection).
             peri = cv2.arcLength(cnt, True)
             approx = cv2.approxPolyDP(cnt, 0.008 * peri, True)
             if approx is not None and len(approx) >= 3:
@@ -61,8 +61,8 @@ def main():
         except Exception:
             return None
 
-    # ---- Analisis tambahan untuk add-on (dipakai lib/workflow.js) ----
-    # Semua di sini murni CV klasik pada piksel frame; tidak menambah model AI.
+    # ---- Extra analysis for add-ons (used by lib/workflow.js) ----
+    # Everything here is pure classic CV on the frame's pixels; no extra AI model added.
 
     def crop(arr_bgr, det, pad=0):
         h, w = arr_bgr.shape[:2]
@@ -73,7 +73,7 @@ def main():
         return arr_bgr[y1:y2, x1:x2]
 
     def analyze_color(arr_bgr, det):
-        """Rata-rata HSV + RGB di dalam kotak deteksi (Color Inspection)."""
+        """Average HSV + RGB inside the detection box (Color Inspection)."""
         roi = crop(arr_bgr, det)
         if roi is None or cv2 is None:
             return None
@@ -84,8 +84,8 @@ def main():
 
     def analyze_scratch(arr_bgr, det):
         """
-        Deteksi goresan tanpa AI: tepi tipis-memanjang di dalam ROI.
-        Goresan = kontur dengan rasio panjang:lebar besar namun luas kecil.
+        Scratch detection without AI: thin, elongated edges within the ROI.
+        A scratch = a contour with a large length:width ratio but small area.
         """
         roi = crop(arr_bgr, det)
         if roi is None or cv2 is None:
@@ -106,7 +106,7 @@ def main():
                 continue
             elong = max(w, h) / max(min(w, h), 1e-3)
             length_ratio = max(w, h) / max(roi.shape[0], roi.shape[1])
-            # Panjang & sangat tipis = ciri goresan, bukan tepi objek biasa.
+            # Long & very thin = the signature of a scratch, not an ordinary object edge.
             if elong >= 6 and length_ratio >= 0.15:
                 count += 1
                 worst = max(worst, elong)
@@ -114,7 +114,7 @@ def main():
                 "edgeRatio": float(cv2.countNonZero(edges)) / area_roi}
 
     def analyze_codes(arr_bgr):
-        """Decode QR (2D Code) dan barcode (1D Code) dari seluruh frame."""
+        """Decode QR (2D Code) and barcode (1D Code) from the whole frame."""
         out = {"qr": [], "barcode": []}
         if cv2 is None:
             return out
@@ -137,9 +137,9 @@ def main():
 
     def read_text(detections):
         """
-        OCR berbasis model AI OCR: tiap karakter adalah satu deteksi, jadi
-        teksnya dirangkai dengan mengurutkan deteksi dari kiri ke kanan.
-        Tidak butuh mesin OCR terpisah.
+        OCR based on the AI OCR model: each character is one detection, so
+        the text is assembled by sorting detections left to right.
+        No separate OCR engine needed.
         """
         chars = [d for d in detections if d.get("class_name")]
         if not chars:
@@ -170,15 +170,15 @@ def main():
         min_conf = 1.0
         verdict = "OK"
 
-        # --- Model klasifikasi ---
-        # Tidak ada kotak sama sekali: r.boxes selalu None, jawabannya di
-        # r.probs. Tanpa cabang ini perulangan di bawah tidak menemukan apa pun
-        # dan setiap benda dinyatakan OK - lolos diam-diam, kegagalan paling
-        # berbahaya untuk alat quality control.
+        # --- Classification model ---
+        # No boxes at all: r.boxes is always None, the answer is in r.probs.
+        # Without this branch the loop below finds nothing and every object
+        # gets marked OK - a silent pass-through, the most dangerous kind of
+        # failure for a quality control tool.
         #
-        # Nama kelas diambil dari model, bukan dari daftar "classes" yang
-        # dikirim aplikasi: saat melatih, ultralytics mengurutkan nama folder
-        # kelas secara abjad, jadi urutan indeksnya belum tentu sama.
+        # The class name is taken from the model, not from the "classes" list
+        # sent by the app: during training, ultralytics sorts class folder
+        # names alphabetically, so the index order isn't necessarily the same.
         is_cls = bool(results) and getattr(results[0], "probs", None) is not None
         if is_cls:
             r = results[0]
@@ -187,10 +187,10 @@ def main():
             c = float(r.probs.top1conf)
             cls_name = mnames.get(ci, str(ci))
             h, w = arr.shape[:2]
-            # Kelasnya berlaku untuk seluruh gambar, jadi kotaknya seluas
-            # gambar. Bentuk hasilnya dibuat sama persis dengan hasil deteksi,
-            # sehingga workflow, pin output, dan laporan tidak perlu tahu tipe
-            # modelnya - termasuk add-on warna/goresan yang membaca kotak.
+            # The class applies to the whole image, so the box spans the whole
+            # image. The result shape is made exactly identical to a detection
+            # result, so the workflow, pin output, and reports don't need to
+            # know the model's type - including the color/scratch add-ons that read the box.
             detections.append({
                 "x1": 0.0, "y1": 0.0, "x2": float(w), "y2": float(h),
                 "confidence": c, "class_id": ci, "class_name": cls_name,
@@ -226,8 +226,8 @@ def main():
                     verdict = "NG"
                     if c < min_conf:
                         min_conf = c
-        # Analisis tambahan hanya dijalankan bila add-on-nya memang dipakai,
-        # supaya frame yang tidak butuh tidak ikut kena biaya CV-nya.
+        # Extra analysis only runs when its add-on is actually in use, so a
+        # frame that doesn't need it doesn't pay the CV cost.
         want = set(req.get("analyze") or [])
         extra = {}
         if want:

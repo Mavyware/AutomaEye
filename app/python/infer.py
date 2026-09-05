@@ -1,10 +1,10 @@
 """
-YOLO inference sidecar — dipanggil sekali per gambar.
+YOLO inference sidecar — invoked once per image.
 
-Alur:
-  1. Electron spawn: python infer.py --weights best.pt --classes OK,scratch,...
-  2. Electron kirim base64 JPEG via STDIN
-  3. Script decode, run YOLO, output JSON ke STDOUT
+Flow:
+  1. Electron spawns: python infer.py --weights best.pt --classes OK,scratch,...
+  2. Electron sends base64 JPEG via STDIN
+  3. The script decodes it, runs YOLO, outputs JSON to STDOUT
 
 Output JSON:
   {
@@ -32,7 +32,7 @@ def main():
 
     classes = args.classes.split(",")
 
-    # Baca base64 JPEG dari stdin
+    # Read base64 JPEG from stdin
     b64 = sys.stdin.readline().strip()
     if not b64:
         print(json.dumps({"error": "no input"}))
@@ -44,7 +44,7 @@ def main():
         print(json.dumps({"error": f"base64 decode: {e}"}))
         sys.exit(1)
 
-    # Lazy import — hindari import ultralytics kalau tidak ada input
+    # Lazy import — avoid importing ultralytics if there's no input
     try:
         from ultralytics import YOLO
         from PIL import Image
@@ -53,7 +53,7 @@ def main():
         print(json.dumps({"error": f"deps missing: {e}. Run: pip install ultralytics pillow"}))
         sys.exit(1)
     try:
-        import cv2  # untuk pengukuran GD&T dari kontur mask (segmentation)
+        import cv2  # for GD&T measurement from the mask contour (segmentation)
     except Exception:
         cv2 = None
 
@@ -72,8 +72,8 @@ def main():
     infer_ms = (time.time() - t0) * 1000
 
     def measure_from_contour(contour):
-        """Ukuran (piksel) dari kontur mask segmentation — untuk GD&T presisi.
-        diameterPx = diameter lingkaran min-enclosing; width/height = sisi min-area rect."""
+        """Size (pixels) from the segmentation mask contour — for precise GD&T.
+        diameterPx = min-enclosing circle diameter; width/height = min-area rect sides."""
         if cv2 is None or contour is None or len(contour) < 3:
             return None
         try:
@@ -93,15 +93,15 @@ def main():
     min_conf = 1.0
     verdict = "OK"
 
-    # --- Model klasifikasi ---
-    # Klasifikasi tidak menghasilkan kotak sama sekali: r.boxes selalu None dan
-    # jawabannya ada di r.probs. Tanpa cabang ini, perulangan di bawah tidak
-    # menemukan apa pun dan setiap benda dinyatakan OK - lolos diam-diam, yang
-    # justru kegagalan paling berbahaya untuk alat quality control.
+    # --- Classification model ---
+    # Classification produces no boxes at all: r.boxes is always None and the
+    # answer is in r.probs. Without this branch, the loop below finds nothing
+    # and every object gets marked OK - a silent pass-through, which is
+    # exactly the most dangerous kind of failure for a quality control tool.
     #
-    # Nama kelas diambil dari model, BUKAN dari --classes. check_cls_dataset
-    # mengurutkan nama folder secara abjad saat melatih, jadi indeks model belum
-    # tentu sama urutannya dengan daftar kelas di aplikasi.
+    # The class name is taken from the model, NOT from --classes.
+    # check_cls_dataset sorts folder names alphabetically during training, so
+    # the model's index order isn't necessarily the same as the app's class list.
     if results and getattr(results[0], "probs", None) is not None:
         r = results[0]
         mnames = r.names if isinstance(r.names, dict) else dict(enumerate(r.names))
@@ -109,9 +109,9 @@ def main():
         conf = float(r.probs.top1conf)
         cls_name = mnames.get(ci, str(ci))
         h, w = arr.shape[:2]
-        # Kelas berlaku untuk seluruh gambar, jadi kotaknya seluas gambar.
-        # Bentuknya dibuat sama dengan hasil deteksi supaya workflow, output
-        # pin, dan laporan tidak perlu tahu tipe modelnya.
+        # The class applies to the whole image, so the box spans the whole image.
+        # Its shape is made identical to a detection result so the workflow,
+        # pin output, and reports don't need to know the model's type.
         detections.append({
             "x1": 0.0, "y1": 0.0, "x2": float(w), "y2": float(h),
             "confidence": conf,
@@ -133,7 +133,7 @@ def main():
     for r in results:
         if r.boxes is None:
             continue
-        # Kontur mask (kalau model segmentation) — selaras urutannya dengan boxes.
+        # Mask contour (if it's a segmentation model) — order aligned with boxes.
         masks_xy = None
         if getattr(r, "masks", None) is not None:
             try:

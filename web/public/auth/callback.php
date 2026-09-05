@@ -55,9 +55,9 @@ try {
         throw new RuntimeException('Provider did not return an email address.');
     }
 
-    // Permintaan akses repo dari aplikasi desktop: yang dibutuhkan aplikasi
-    // adalah access token GitHub-nya, bukan sesi web. Diserahkan terenkripsi
-    // lewat halaman handoff; server tidak menyimpan token ini.
+    // A repo access request from the desktop app: what the app needs is the
+    // GitHub access token itself, not a web session. It's handed over
+    // encrypted via the handoff page; the server doesn't store this token.
     if ($purpose === 'repo' && $redirect && $provider === 'github') {
         $ghLogin = (string) ($profile['login'] ?? '');
         $handoff = Auth::issueGithubHandoff($token['access_token'], $ghLogin);

@@ -1,12 +1,12 @@
-// Bangun baris tabel Excel dari hasil deteksi tersimpan (outputs/<tanggal>/*.json).
-// Kolom: ID · link gambar · verdict · Kotak 1..N (Panjang,Lebar) · Lubang 1..M (Ø) · waktu deteksi (ms).
-// Fitur yang TIDAK terdeteksi → slot kolomnya dibiarkan kosong (dipetakan by posisi X kiri→kanan).
+// Build Excel table rows from saved detection results (outputs/<date>/*.json).
+// Columns: ID · image link · verdict · Box 1..N (Length,Width) · Hole 1..M (Ø) · detection time (ms).
+// A feature that was NOT detected → its column slot is left empty (mapped by X position left→right).
 const fs = require('fs');
 const path = require('path');
 
 function centerX(d) { return (Number(d.x1) + Number(d.x2)) / 2; }
 
-// Ambil nilai mm dari gdt (kind: 'long'=panjang, 'short'=lebar, 'dia'=diameter).
+// Get the mm value from gdt (kind: 'long'=length, 'short'=width, 'dia'=diameter).
 function gval(d, kind) {
     const g = (d.gdt || []).find(x => x.kind === kind);
     if (!g) return null;
@@ -14,7 +14,7 @@ function gval(d, kind) {
     return isFinite(n) ? n : null;
 }
 
-// Kelompokkan deteksi → kelas dominan bentuk kotak (rect) & lingkaran (circle).
+// Group detections → the dominant rectangle (rect) & circle (circle) shape classes.
 function classify(dets) {
     const byClass = {};
     for (const d of dets) {
@@ -32,7 +32,7 @@ function classify(dets) {
     return { boxes: boxCls ? byClass[boxCls].items : [], holes: holeCls ? byClass[holeCls].items : [] };
 }
 
-// Petakan fitur ke n slot berdasar posisi X (kiri→kanan). Slot kosong = null.
+// Map features to n slots based on X position (left→right). Empty slot = null.
 function assignSlots(items, n) {
     const out = new Array(n).fill(null);
     if (!items.length) return out;
@@ -42,7 +42,7 @@ function assignSlots(items, n) {
     for (const it of items.slice().sort((a, b) => centerX(a) - centerX(b))) {
         let slot = Math.round((centerX(it) - xmin) / span * (n - 1));
         slot = Math.max(0, Math.min(n - 1, slot));
-        if (out[slot] != null) {              // slot terisi → cari slot kosong terdekat
+        if (out[slot] != null) {              // slot taken → find the nearest empty slot
             let d = 1, placed = false;
             while (d < n && !placed) {
                 if (slot - d >= 0 && out[slot - d] == null) { out[slot - d] = it; placed = true; }
@@ -54,7 +54,7 @@ function assignSlots(items, n) {
     return out;
 }
 
-// projectDir = folder project; date = 'YYYY-MM-DD'. opts.nBox / opts.nHole.
+// projectDir = project folder; date = 'YYYY-MM-DD'. opts.nBox / opts.nHole.
 exports.buildRows = (projectDir, date, opts) => {
     const NBOX = (opts && opts.nBox) || 8;
     const NHOLE = (opts && opts.nHole) || 6;
