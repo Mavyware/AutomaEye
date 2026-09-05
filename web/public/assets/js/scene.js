@@ -16,7 +16,7 @@ if (mount && annoRoot && stage) {
   try {
     init();
   } catch (err) {
-    console.warn('AutomaEye: 3D scene unavailable', err);
+    console.warn('AutomaEyes: 3D scene unavailable', err);
   }
 }
 

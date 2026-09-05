@@ -46,6 +46,11 @@ def main():
                     help="Lanjutkan training dari runs/train/weights/last.pt")
     args = ap.parse_args()
 
+    # Klasifikasi memakai jalur dataset yang sama sekali berbeda di ultralytics
+    # (folder per-kelas, bukan data.yaml). Ditentukan sekali di sini supaya
+    # cabangnya jelas, bukan tersebar sebagai perbandingan string.
+    is_cls = args.type == "AI Classification"
+
     # ---- Validasi dataset SEBELUM training (biar error jelas, bukan exit 1 misterius) ----
     ds = Path(args.data).parent
 
@@ -80,10 +85,44 @@ def main():
         print("[X] Tidak ada gambar training. Import/split dataset dulu.", flush=True)
         sys.exit(1)
     if n_lbl == 0:
-        print("[X] Tidak ada label yang COCOK dengan gambar training.", flush=True)
-        print("    Nama file label harus sama dengan nama gambar. "
-              "Beri label lewat tab Anotasi, lalu 'Clean & Rebuild + Split'.", flush=True)
+        if is_cls:
+            print("[X] Belum ada gambar yang diberi kelas.", flush=True)
+            print("    Buka tab Anotasi, pilih kelas untuk tiap gambar "
+                  "(tekan angka 1-9), lalu jalankan Split.", flush=True)
+        else:
+            print("[X] Tidak ada label yang COCOK dengan gambar training.", flush=True)
+            print("    Nama file label harus sama dengan nama gambar. "
+                  "Beri label lewat tab Anotasi, lalu 'Clean & Rebuild + Split'.", flush=True)
         sys.exit(1)
+
+    # ---- Bentuk dataset yang diminta ultralytics ----
+    # Deteksi/segmentasi/OCR: data.yaml.
+    # Klasifikasi: sebuah FOLDER train/<kelas>/*.jpg - check_cls_dataset menolak
+    # data.yaml dan menyimpulkan kelas dari nama folder. Folder itu dibangun
+    # ulang dari label yang sama, jadi tidak ada salinan dataset kedua yang
+    # harus dijaga tetap sinkron.
+    data_arg = args.data
+    if is_cls:
+        try:
+            import yaml
+            cfg = yaml.safe_load(Path(args.data).read_text(encoding="utf-8")) or {}
+            names = cfg.get("names") or []
+            if isinstance(names, dict):
+                names = [names[k] for k in sorted(names, key=lambda x: int(x))]
+        except Exception as e:
+            print(f"[X] Gagal membaca daftar kelas dari data.yaml: {e}", flush=True)
+            sys.exit(1)
+        if not names:
+            print("[X] Model ini belum punya kelas. Tambahkan kelas dulu.", flush=True)
+            sys.exit(1)
+        try:
+            import clsdata
+            akar, _ = clsdata.build(ds, names,
+                                    log=lambda m: print(m, flush=True))
+            data_arg = str(akar)
+        except Exception as e:
+            print(f"[X] {e}", flush=True)
+            sys.exit(1)
 
     try:
         from ultralytics import YOLO
@@ -163,6 +202,30 @@ def main():
                                 pass
                     return 0.0
 
+                if is_cls:
+                    # Klasifikasi tidak punya mAP/precision/recall - yang ada
+                    # akurasi top-1 dan top-5, dan satu angka loss (bukan tiga).
+                    # Dikirim di slot mAP50/mAP50-95 supaya grafik yang sudah
+                    # ada tetap terpakai; UI menamainya ulang lewat "task".
+                    top1 = _g("metrics/accuracy_top1")
+                    top5 = _g("metrics/accuracy_top5")
+                    loss = 0.0
+                    try:
+                        li = trainer.label_loss_items(trainer.tloss, prefix="train")
+                        loss = float(next(iter(li.values()), 0.0))
+                    except Exception:
+                        loss = _g("train/loss")
+                    print("EPOCH_METRICS " + _json.dumps({
+                        "task": "classify",
+                        "epoch": e, "total": args.epochs,
+                        "mAP50": top1, "mAP5095": top5,
+                        "top1": top1, "top5": top5,
+                        "precision": 0.0, "recall": 0.0, "f1": 0.0,
+                        "boxLoss": 0.0, "clsLoss": loss, "dflLoss": 0.0,
+                        "valBox": 0.0, "valCls": _g("val/loss"), "valDfl": 0.0,
+                    }), flush=True)
+                    return
+
                 prec = _g("metrics/precision(B)")
                 rec = _g("metrics/recall(B)")
                 map50 = _g("metrics/mAP50(B)")
@@ -203,7 +266,7 @@ def main():
             results = model.train(resume=True)
         else:
             results = model.train(
-                data=args.data,
+                data=data_arg,
                 epochs=args.epochs,
                 batch=args.batch,
                 imgsz=args.imgsz,
@@ -226,10 +289,15 @@ def main():
         print(f"Saved: {target}", flush=True)
 
     m = results.results_dict if hasattr(results, "results_dict") else {}
-    mAP = m.get("metrics/mAP50(B)", 0.0)
-    P = m.get("metrics/precision(B)", 0.0)
-    R = m.get("metrics/recall(B)", 0.0)
-    print(f"results mAP50: {mAP:.4f} P: {P:.4f} R: {R:.4f}", flush=True)
+    if is_cls:
+        top1 = float(m.get("metrics/accuracy_top1", 0.0) or 0.0)
+        top5 = float(m.get("metrics/accuracy_top5", 0.0) or 0.0)
+        print(f"results top1: {top1:.4f} top5: {top5:.4f}", flush=True)
+    else:
+        mAP = m.get("metrics/mAP50(B)", 0.0)
+        P = m.get("metrics/precision(B)", 0.0)
+        R = m.get("metrics/recall(B)", 0.0)
+        print(f"results mAP50: {mAP:.4f} P: {P:.4f} R: {R:.4f}", flush=True)
 
 
 if __name__ == "__main__":

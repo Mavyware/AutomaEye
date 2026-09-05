@@ -1,6 +1,6 @@
 {
   "name": "automaeyes",
-  "version": "0.2.3",
+  "version": "0.3.0",
   "description": "AutomaEyes — AI Quality Control",
   "main": "main.js",
   "author": "Reno Mardiputra",
@@ -9,7 +9,11 @@
     "start": "electron .",
     "dev": "electron . --dev",
     "dist": "electron-builder --win",
-    "pack": "electron-builder --win --dir"
+    "pack": "electron-builder --win --dir",
+    "test:cls": "python tests/cls_pipeline.py",
+    "test:runtime": "python tests/cls_runtime.py",
+    "test:annot": "electron tests/annotator",
+    "test": "npm run test:cls && npm run test:runtime && npm run test:annot"
   },
   "devDependencies": {
     "electron": "^44.2.0",

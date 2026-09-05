@@ -64,6 +64,10 @@ Boxes for detection, polygons for segmentation, circles for holes and shafts.
 Shapes follow the real edges of a part, which is what makes GD&T measurement
 accurate — a bounding box cannot describe a round hole.
 
+For **classification**, where the class describes the whole image rather than a
+region of it, the workspace switches to a single class picker — press 1-9, and
+it saves and moves to the next image. There is nothing to draw.
+
 Annotation happens inside the model workspace, not in a separate tool. There is
 no second account to create and no export step.
 
@@ -143,6 +147,16 @@ Build the Windows installer:
 ```bash
 npm run dist
 ```
+
+Run the tests:
+
+```bash
+npm test
+```
+
+They cover the parts that have failed silently in the past — see
+[`app/tests/README.md`](app/tests/README.md). No test framework is installed;
+they use the Python and Electron the app already depends on.
 
 The repository holds the desktop application (`app/`) and the account website
 (`web/`).

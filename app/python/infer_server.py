@@ -169,7 +169,37 @@ def main():
         detections = []
         min_conf = 1.0
         verdict = "OK"
-        for r in results:
+
+        # --- Model klasifikasi ---
+        # Tidak ada kotak sama sekali: r.boxes selalu None, jawabannya di
+        # r.probs. Tanpa cabang ini perulangan di bawah tidak menemukan apa pun
+        # dan setiap benda dinyatakan OK - lolos diam-diam, kegagalan paling
+        # berbahaya untuk alat quality control.
+        #
+        # Nama kelas diambil dari model, bukan dari daftar "classes" yang
+        # dikirim aplikasi: saat melatih, ultralytics mengurutkan nama folder
+        # kelas secara abjad, jadi urutan indeksnya belum tentu sama.
+        is_cls = bool(results) and getattr(results[0], "probs", None) is not None
+        if is_cls:
+            r = results[0]
+            mnames = r.names if isinstance(r.names, dict) else dict(enumerate(r.names))
+            ci = int(r.probs.top1)
+            c = float(r.probs.top1conf)
+            cls_name = mnames.get(ci, str(ci))
+            h, w = arr.shape[:2]
+            # Kelasnya berlaku untuk seluruh gambar, jadi kotaknya seluas
+            # gambar. Bentuk hasilnya dibuat sama persis dengan hasil deteksi,
+            # sehingga workflow, pin output, dan laporan tidak perlu tahu tipe
+            # modelnya - termasuk add-on warna/goresan yang membaca kotak.
+            detections.append({
+                "x1": 0.0, "y1": 0.0, "x2": float(w), "y2": float(h),
+                "confidence": c, "class_id": ci, "class_name": cls_name,
+            })
+            if cls_name != "OK":
+                verdict = "NG"
+                min_conf = c
+
+        for r in ([] if is_cls else results):
             if r.boxes is None:
                 continue
             masks_xy = None

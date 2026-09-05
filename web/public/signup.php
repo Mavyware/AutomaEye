@@ -32,7 +32,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 }
 
-$pageTitle = 'Sign up — AutomaEye';
+$pageTitle = 'Sign up — AutomaEyes';
 require __DIR__ . '/../src/includes/header.php';
 ?>
 <canvas id="story-bg"></canvas>

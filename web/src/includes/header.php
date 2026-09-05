@@ -22,7 +22,7 @@ $user = Auth::user();
     <span class="brand-mark" aria-hidden="true">
       <img src="/assets/img/logo-64.png" width="28" height="28" alt="">
     </span>
-    <span class="brand-name">Automa<span class="accent">Eye</span></span>
+    <span class="brand-name">Automa<span class="accent">Eyes</span></span>
   </a>
   <nav class="site-nav">
     <?php if ($user): ?>

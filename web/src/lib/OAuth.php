@@ -71,7 +71,7 @@ final class OAuth
             CURLOPT_RETURNTRANSFER => true,
             CURLOPT_HTTPHEADER => array_merge([
                 'Authorization: Bearer ' . $accessToken,
-                'User-Agent: AutomaEye',
+                'User-Agent: AutomaEyes',
             ], $extraHeaders),
             CURLOPT_TIMEOUT => 10,
         ]);

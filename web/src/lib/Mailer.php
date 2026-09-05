@@ -13,7 +13,7 @@ final class Mailer
     public static function send(string $toEmail, string $toName, string $subject, string $bodyHtml, string $bodyText): bool
     {
         if (MAIL_MAILER !== 'smtp' || !MAIL_HOST || !class_exists(PHPMailer::class)) {
-            error_log("[AutomaEye] Mail (not sent, mailer=" . MAIL_MAILER . ") to {$toEmail}: {$subject}\n{$bodyText}");
+            error_log("[AutomaEyes] Mail (not sent, mailer=" . MAIL_MAILER . ") to {$toEmail}: {$subject}\n{$bodyText}");
             return MAIL_MAILER === 'log';
         }
 
@@ -41,7 +41,7 @@ final class Mailer
             $mail->send();
             return true;
         } catch (PHPMailerException $e) {
-            error_log('[AutomaEye] Mail send failed to ' . $toEmail . ': ' . $mail->ErrorInfo);
+            error_log('[AutomaEyes] Mail send failed to ' . $toEmail . ': ' . $mail->ErrorInfo);
             return false;
         }
     }

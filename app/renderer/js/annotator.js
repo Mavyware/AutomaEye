@@ -29,10 +29,20 @@
     // menekan "R" atau Delete di tab Train ikut mengubah alat anotasi.
     const terlihat = () => !!host && host.offsetParent !== null;
 
+    // Klasifikasi menganotasi hal yang berbeda: bukan "benda apa di sebelah
+    // mana", melainkan "gambar ini gambar apa". Tidak ada yang perlu digambar,
+    // jadi alat gambarnya disembunyikan dan yang tersisa hanya memilih kelas.
+    //
+    // Kelasnya tetap disimpan sebagai berkas label YOLO biasa - satu baris,
+    // kotak seluas gambar. Dengan begitu split, augmentasi, penghapusan gambar,
+    // dan penghitungan statistik tetap bekerja apa adanya, tanpa bentuk
+    // penyimpanan kedua yang harus dijaga tetap sinkron.
+    const modeKelas = () => aiType === 'AI Classification';
+
     const MARKUP = `
         <div class="an-head">
             <span class="an-title" id="an-title">Anotasi</span>
-            <span class="an-catatan">Semua gambar dianotasi di sini &mdash; pembagian train/val/test di Langkah 3</span>
+            <span class="an-catatan" id="an-catatan">Semua gambar dianotasi di sini &mdash; pembagian train/val/test di Langkah 3</span>
             <span style="flex:1"></span>
             <button class="btn small" id="an-prev">&larr; Sebelumnya</button>
             <button class="btn small" id="an-next">Berikutnya &rarr;</button>
@@ -106,10 +116,20 @@
         aiType = m.type || m.aiType || 'AI Detection';
         $('title').textContent = `${modelName} · ${aiType}`;
 
-        // Semua alat tersedia untuk semua tipe model. Poligon/lingkaran berguna
-        // bukan hanya untuk segmentasi: bentuk yang mengikuti tepi benda membuat
-        // pengukuran GD&T jauh lebih akurat daripada kotak.
-        setTool(aiType === 'AI Segmentation' ? 'poly' : 'rect');
+        if (modeKelas()) {
+            host.classList.add('an-mode-kelas');
+            $('catatan').innerHTML = 'Pilih satu kelas untuk tiap gambar &mdash; tekan <strong>1-9</strong>, '
+                + 'tersimpan sendiri lalu lompat ke gambar berikutnya';
+            $('help').innerHTML = 'Model klasifikasi menilai <strong>seluruh gambar</strong>, '
+                + 'jadi tidak ada yang perlu digambar.<br>Tekan <strong>1-9</strong> atau klik kelas di atas '
+                + '&mdash; tersimpan otomatis lalu maju ke gambar berikutnya.<br>'
+                + '<strong>&larr; &rarr;</strong> pindah gambar tanpa mengubah apa pun.';
+        } else {
+            // Semua alat tersedia untuk semua tipe model. Poligon/lingkaran berguna
+            // bukan hanya untuk segmentasi: bentuk yang mengikuti tepi benda membuat
+            // pengukuran GD&T jauh lebih akurat daripada kotak.
+            setTool(aiType === 'AI Segmentation' ? 'poly' : 'rect');
+        }
         renderClasses();
         await muatSemua();
     }
@@ -117,7 +137,7 @@
     function unmount() {
         window.removeEventListener('resize', onResize);
         document.removeEventListener('keydown', onKey);
-        if (host) host.innerHTML = '';
+        if (host) { host.classList.remove('an-mode-kelas'); host.innerHTML = ''; }
         host = null; canvas = null; ctx = null; imgEl = null;
         images = []; shapes = []; polyPts = []; idx = -1; selected = -1; dirty = false;
     }
@@ -140,8 +160,13 @@
 
     function renderClasses() {
         const el = $('classList');
+        // Di mode gambar, sorotan menandai kelas untuk objek BERIKUTNYA. Di mode
+        // kelas, ia menandai kelas gambar yang sedang dibuka - dan gambar yang
+        // belum diberi kelas sengaja tidak menyorot apa pun, supaya terlihat
+        // jelas mana yang belum dikerjakan.
+        const terpilih = modeKelas() ? (shapes.length ? shapes[0].cls : -1) : activeCls;
         el.innerHTML = classes.map((c, i) => `
-            <button class="an-cls ${i === activeCls ? 'active' : ''}" data-i="${i}">
+            <button class="an-cls ${i === terpilih ? 'active' : ''}" data-i="${i}">
                 <span class="an-swatch" style="background:${COLORS[i % COLORS.length]}"></span>${esc(c)} <span style="color:var(--muted)">(${i + 1})</span>
             </button>`).join('') || '<p class="an-hint">Model ini belum punya kelas.</p>';
         el.querySelectorAll('.an-cls').forEach((b) => { b.onclick = () => setClass(+b.dataset.i); });
@@ -149,6 +174,18 @@
 
     function setClass(i) {
         activeCls = i;
+        if (modeKelas()) {
+            if (idx < 0) return;
+            // Satu kelas per gambar: yang lama diganti, bukan ditambah.
+            shapes = [{ cls: i, cx: 0.5, cy: 0.5, w: 1, h: 1 }];
+            dirty = true;
+            renderClasses(); redraw();
+            // Disimpan langsung. Memberi kelas pada ratusan gambar adalah kerja
+            // berulang; menuntut Ctrl+S di tiap gambar hanya menambah satu
+            // ketukan yang tidak memutuskan apa-apa.
+            save().then(() => { if (idx < images.length - 1) selectImg(idx + 1); });
+            return;
+        }
         if (selected >= 0 && shapes[selected]) { shapes[selected].cls = i; dirty = true; }
         renderClasses(); redraw();
     }
@@ -182,6 +219,8 @@
             <div class="an-item ${i === idx ? 'active' : ''}" data-i="${i}" title="${esc(im.name)}">
                 <span class="an-nm">${esc(im.name)}</span>
                 ${sudahDibagi && im.split !== 'train' ? `<span class="an-split">${esc(im.split)}</span>` : ''}
+                ${modeKelas() && im.boxes && im.boxes.length
+                    ? `<span class="an-split">${esc(classes[im.boxes[0].cls] || im.boxes[0].cls)}</span>` : ''}
                 <span class="an-dot ${(im.boxes && im.boxes.length) ? 'on' : 'off'}"></span>
             </div>`).join('') || '<p class="an-hint">Belum ada gambar. Upload dulu di tab Dataset.</p>';
         el.querySelectorAll('.an-item').forEach((d) => { d.onclick = () => selectImg(+d.dataset.i); });
@@ -202,6 +241,10 @@
         imgEl.onload = () => { fitCanvas(); redraw(); };
         imgEl.src = r.dataUrl;
         renderImgList();
+        // Daftar kelas ikut digambar ulang: di mode klasifikasi, sorotannya
+        // menandai kelas GAMBAR INI, jadi kalau tidak diperbarui, kelas gambar
+        // sebelumnya terlihat seolah sudah dipilih untuk gambar yang baru.
+        renderClasses();
     }
 
     function fitCanvas() {
@@ -241,6 +284,28 @@
         if (!ctx) return;
         const W = canvas.width, H = canvas.height;
         ctx.clearRect(0, 0, W, H);
+
+        if (modeKelas()) {
+            // Menggambar kotak seluas gambar tidak menjelaskan apa pun - ia cuma
+            // membingkai ulang tepi gambar. Yang berguna adalah nama kelasnya.
+            if (shapes.length) {
+                const col = COLORS[shapes[0].cls % COLORS.length];
+                const teks = classes[shapes[0].cls] || String(shapes[0].cls);
+                ctx.font = '600 15px sans-serif';
+                ctx.fillStyle = col;
+                ctx.fillRect(8, 8, ctx.measureText(teks).width + 24, 26);
+                ctx.fillStyle = '#fff';
+                ctx.fillText(teks, 20, 26);
+                ctx.strokeStyle = col; ctx.lineWidth = 3;
+                ctx.strokeRect(1.5, 1.5, W - 3, H - 3);
+            }
+            $('shapeCount').textContent = shapes.length ? 1 : 0;
+            const daftar = $('shapeList');
+            daftar.innerHTML = shapes.length
+                ? `<div class="an-row sel"><span><span class="an-swatch" style="background:${COLORS[shapes[0].cls % COLORS.length]}"></span>${esc(classes[shapes[0].cls] || shapes[0].cls)}</span></div>`
+                : '<p class="an-hint">Gambar ini belum diberi kelas.</p>';
+            return;
+        }
 
         shapes.forEach((s, i) => {
             const col = COLORS[s.cls % COLORS.length];
@@ -329,7 +394,7 @@
     }
 
     function onDown(e) {
-        if (!imgEl.src) return;
+        if (!imgEl.src || modeKelas()) return;
         const [x, y] = relPos(e);
 
         if (tool === 'edit') {
@@ -348,6 +413,7 @@
     }
 
     function onMove(e) {
+        if (modeKelas()) return;
         const [x, y] = relPos(e);
         if (vertexDrag !== null && selected >= 0) {
             const s = shapes[selected];
@@ -365,6 +431,7 @@
     }
 
     function onUp(e) {
+        if (modeKelas()) return;
         if (drag) drag.ctrl = e.ctrlKey;
         if (vertexDrag !== null) { vertexDrag = null; return; }
         if (!drag) return;
@@ -428,6 +495,13 @@
         if (!terlihat()) return;
         if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT' || e.target.tagName === 'TEXTAREA') return;
         if (e.ctrlKey && e.key.toLowerCase() === 's') { e.preventDefault(); save(); return; }
+        if (modeKelas()) {
+            // R/P/C/E, Del, dan Enter tidak punya arti kalau tidak ada yang digambar.
+            if (e.key >= '1' && e.key <= '9') { const i = +e.key - 1; if (i < classes.length) setClass(i); }
+            else if (e.key === 'ArrowLeft') prevImg();
+            else if (e.key === 'ArrowRight') nextImg();
+            return;
+        }
         const k = e.key.toLowerCase();
         if (k === 'r') setTool('rect');
         else if (k === 'p') setTool('poly');

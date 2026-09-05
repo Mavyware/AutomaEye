@@ -21,19 +21,19 @@ if (!$redirect || $token === '') {
 $sep = str_contains($redirect, '?') ? '&' : '?';
 $appUrl = $redirect . $sep . 'token=' . urlencode($token);
 
-$pageTitle = 'Membuka AutomaEye — AutomaEye';
+$pageTitle = 'Membuka AutomaEyes — AutomaEyes';
 require __DIR__ . '/../../src/includes/header.php';
 ?>
 <main class="auth-shell">
   <div class="auth-card">
-    <h1>Membuka AutomaEye</h1>
+    <h1>Membuka AutomaEyes</h1>
     <p class="sub">Aplikasi desktop sedang dibuka. Jika muncul konfirmasi dari browser, pilih <strong>Open AutomaEyes</strong>.</p>
 
-    <a class="btn btn-primary btn-block btn-lg" id="openApp" href="<?= e($appUrl) ?>">Buka AutomaEye</a>
+    <a class="btn btn-primary btn-block btn-lg" id="openApp" href="<?= e($appUrl) ?>">Buka AutomaEyes</a>
 
     <p class="foot-note" style="margin-top:18px">
       Sudah terbuka? Tab ini boleh ditutup.<br>
-      Aplikasi tidak terbuka? Pastikan AutomaEye sudah terpasang dan berjalan, lalu klik tombol di atas.
+      Aplikasi tidak terbuka? Pastikan AutomaEyes sudah terpasang dan berjalan, lalu klik tombol di atas.
     </p>
     <p class="foot-note"><a href="/welcome.php">Kembali ke halaman akun</a></p>
   </div>

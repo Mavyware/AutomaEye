@@ -41,7 +41,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 }
 
-$pageTitle = 'Set a new password — AutomaEye';
+$pageTitle = 'Set a new password — AutomaEyes';
 require __DIR__ . '/../src/includes/header.php';
 ?>
 <canvas id="story-bg"></canvas>

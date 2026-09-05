@@ -72,7 +72,7 @@ try {
     }
     redirect('/welcome.php');
 } catch (Throwable $e) {
-    error_log('[AutomaEye] OAuth (' . $provider . ') failed: ' . $e->getMessage());
+    error_log('[AutomaEyes] OAuth (' . $provider . ') failed: ' . $e->getMessage());
     flash('error', 'Sign-in with ' . ucfirst($provider) . ' failed. Please try again.');
     redirect('/login.php');
 }

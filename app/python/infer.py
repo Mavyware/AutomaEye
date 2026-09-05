@@ -92,6 +92,44 @@ def main():
     detections = []
     min_conf = 1.0
     verdict = "OK"
+
+    # --- Model klasifikasi ---
+    # Klasifikasi tidak menghasilkan kotak sama sekali: r.boxes selalu None dan
+    # jawabannya ada di r.probs. Tanpa cabang ini, perulangan di bawah tidak
+    # menemukan apa pun dan setiap benda dinyatakan OK - lolos diam-diam, yang
+    # justru kegagalan paling berbahaya untuk alat quality control.
+    #
+    # Nama kelas diambil dari model, BUKAN dari --classes. check_cls_dataset
+    # mengurutkan nama folder secara abjad saat melatih, jadi indeks model belum
+    # tentu sama urutannya dengan daftar kelas di aplikasi.
+    if results and getattr(results[0], "probs", None) is not None:
+        r = results[0]
+        mnames = r.names if isinstance(r.names, dict) else dict(enumerate(r.names))
+        ci = int(r.probs.top1)
+        conf = float(r.probs.top1conf)
+        cls_name = mnames.get(ci, str(ci))
+        h, w = arr.shape[:2]
+        # Kelas berlaku untuk seluruh gambar, jadi kotaknya seluas gambar.
+        # Bentuknya dibuat sama dengan hasil deteksi supaya workflow, output
+        # pin, dan laporan tidak perlu tahu tipe modelnya.
+        detections.append({
+            "x1": 0.0, "y1": 0.0, "x2": float(w), "y2": float(h),
+            "confidence": conf,
+            "class_id": ci,
+            "class_name": cls_name,
+        })
+        if cls_name != "OK":
+            verdict = "NG"
+            min_conf = conf
+        output = {
+            "verdict": verdict,
+            "minConfidence": min_conf if verdict == "NG" else 1.0,
+            "inferenceMS": infer_ms,
+            "detections": detections,
+        }
+        print(json.dumps(output))
+        return
+
     for r in results:
         if r.boxes is None:
             continue

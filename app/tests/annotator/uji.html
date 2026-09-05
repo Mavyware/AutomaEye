@@ -1,0 +1,120 @@
+<!doctype html>
+<meta charset="utf-8">
+<link rel="stylesheet" href="../../renderer/css/style.css">
+<div id="tuan"></div>
+<script>
+// --- Pengganti bagian aplikasi yang tidak ikut diuji ---
+const disimpan = [];          // catatan tiap kali annotSave dipanggil
+window.pesan = () => {};
+window.tanya = async () => true;
+
+const GAMBAR = [
+    { name: 'a1.jpg', boxes: [] },
+    { name: 'a2.jpg', boxes: [] },
+];
+// PNG 1x1 transparan - cukup untuk memicu img.onload.
+const PIKSEL = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=';
+
+window.api = {
+    loadProject: async () => ({
+        models: [{ name: 'ModelUji', type: 'AI Classification', classes: ['zebra', 'apel'] }],
+    }),
+    annotList: async (_p, _m, split) => (split === 'train' ? GAMBAR.map(g => ({ ...g })) : []),
+    annotImage: async () => ({ ok: true, dataUrl: PIKSEL }),
+    annotSave: async (_p, _m, split, name, shapes) => {
+        disimpan.push({ split, name, shapes: JSON.parse(JSON.stringify(shapes)) });
+        const g = GAMBAR.find(x => x.name === name);
+        if (g) g.boxes = shapes;
+        return { ok: true, count: shapes.length };
+    },
+};
+</script>
+<script src="../../renderer/js/annotator.js"></script>
+<script>
+const tunggu = (ms) => new Promise(r => setTimeout(r, ms));
+
+(async () => {
+    const gagal = [];
+    const cek = (syarat, pesan) => { if (!syarat) gagal.push(pesan); };
+
+    const tuan = document.getElementById('tuan');
+    await Annotator.mount(tuan, { project: 'P', model: 'ModelUji' });
+    await tunggu(120);
+
+    // 1. Mode klasifikasi aktif: alat gambar disembunyikan.
+    cek(tuan.classList.contains('an-mode-kelas'), 'kelas penanda mode tidak dipasang');
+    const toolbar = tuan.querySelector('.an-toolbar');
+    cek(toolbar && getComputedStyle(toolbar).display === 'none',
+        'toolbar alat gambar masih terlihat di mode klasifikasi');
+
+    // 2. Kedua kelas muncul sebagai tombol, dan belum ada yang tersorot
+    //    karena gambar pertama belum diberi kelas.
+    const tombol = tuan.querySelectorAll('.an-cls');
+    cek(tombol.length === 2, 'jumlah tombol kelas: ' + tombol.length);
+    cek(tuan.querySelectorAll('.an-cls.active').length === 0,
+        'ada kelas tersorot padahal gambar belum dianotasi');
+
+    // 3. Menekan tombol kelas => tersimpan sebagai kotak seluas gambar,
+    //    lalu maju ke gambar berikutnya.
+    tombol[1].click();                       // 'apel' = indeks aplikasi 1
+    await tunggu(200);
+
+    cek(disimpan.length === 1, 'annotSave dipanggil ' + disimpan.length + 'x, harusnya 1');
+    if (disimpan.length) {
+        const s = disimpan[0];
+        cek(s.name === 'a1.jpg', 'tersimpan ke gambar yang salah: ' + s.name);
+        cek(s.split === 'train', 'split salah: ' + s.split);
+        cek(s.shapes.length === 1, 'jumlah bentuk: ' + s.shapes.length);
+        const b = s.shapes[0] || {};
+        cek(b.cls === 1, 'indeks kelas tersimpan: ' + b.cls);
+        cek(b.cx === 0.5 && b.cy === 0.5 && b.w === 1 && b.h === 1,
+            'bukan kotak seluas gambar: ' + JSON.stringify(b));
+    }
+
+    // 4. Sudah pindah ke gambar kedua, dan gambar kedua masih kosong.
+    const aktif = tuan.querySelector('.an-item.active .an-nm');
+    cek(aktif && aktif.textContent === 'a2.jpg',
+        'tidak maju ke gambar berikutnya: ' + (aktif && aktif.textContent));
+    cek(tuan.querySelectorAll('.an-cls.active').length === 0,
+        'kelas gambar sebelumnya ikut tersorot di gambar baru');
+
+    // 5. Daftar gambar menampilkan nama kelas gambar yang sudah dianotasi.
+    const baris1 = tuan.querySelectorAll('.an-item')[0];
+    cek(/apel/.test(baris1.textContent), 'nama kelas tidak muncul di daftar gambar');
+
+    // 6. Memberi kelas pada gambar kedua tidak boleh menambah bentuk kedua.
+    tuan.querySelectorAll('.an-cls')[0].click();   // 'zebra'
+    await tunggu(200);
+    cek(disimpan.length === 2, 'penyimpanan kedua tidak terjadi');
+    if (disimpan.length > 1) {
+        cek(disimpan[1].name === 'a2.jpg', 'gambar kedua salah: ' + disimpan[1].name);
+        cek(disimpan[1].shapes.length === 1,
+            'bentuk menumpuk: ' + disimpan[1].shapes.length);
+        cek(disimpan[1].shapes[0].cls === 0, 'kelas kedua: ' + disimpan[1].shapes[0].cls);
+    }
+
+    // 7. Mengganti kelas gambar yang sama harus MENIMPA, bukan menambah.
+    tuan.querySelectorAll('.an-cls')[1].click();
+    await tunggu(200);
+    const terakhir = disimpan[disimpan.length - 1];
+    cek(terakhir.shapes.length === 1, 'mengganti kelas malah menambah bentuk');
+    cek(terakhir.shapes[0].cls === 1, 'kelas tidak tertimpa');
+
+    // 8. Menggambar dengan mouse tidak boleh menghasilkan apa pun.
+    const kanvas = document.getElementById('an-canvas');
+    const jml = disimpan.length;
+    kanvas.dispatchEvent(new MouseEvent('mousedown', { clientX: 5, clientY: 5, bubbles: true }));
+    kanvas.dispatchEvent(new MouseEvent('mousemove', { clientX: 40, clientY: 40, bubbles: true }));
+    kanvas.dispatchEvent(new MouseEvent('mouseup', { clientX: 40, clientY: 40, bubbles: true }));
+    await tunggu(60);
+    cek(document.getElementById('an-shapeCount').textContent === '1',
+        'menggambar dengan mouse menambah objek di mode klasifikasi');
+    cek(disimpan.length === jml, 'menggambar memicu penyimpanan');
+
+    window.__hasilUji = { lulus: gagal.length === 0, gagal, penyimpanan: disimpan.length };
+    console.log(gagal.length ? 'GAGAL:\n - ' + gagal.join('\n - ') : 'ANOTASI LULUS');
+})().catch(e => {
+    window.__hasilUji = { lulus: false, gagal: ['galat: ' + e.message + '\n' + e.stack] };
+    console.log('GALAT: ' + e.message);
+});
+</script>

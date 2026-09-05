@@ -536,64 +536,6 @@ a { color: inherit; text-decoration: none; }
   font-size: .82rem;
 }
 
-/* ---------- Scroll-gated boot sequence ---------- */
-body.boot-locked { overflow: hidden; }
-
-#boot-sequence {
-  position: fixed;
-  inset: 0;
-  z-index: 100;
-  background: #000;
-  font-family: var(--font-mono);
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  padding: 0 clamp(20px, 10vw, 160px);
-}
-#boot-sequence.is-exiting { pointer-events: none; }
-#boot-sequence.is-blank .boot-lines { opacity: 0; transition: opacity .12s ease; }
-/* Each scroll gesture nudges transform/opacity by JS (see liftOneStep) - this
-   transition is what makes every individual nudge ease instead of snapping. */
-#boot-sequence.is-liftable {
-  transition: transform .45s cubic-bezier(.65,0,.35,1), opacity .4s ease;
-}
-#boot-sequence.is-hidden { display: none; }
-
-.boot-lines { display: flex; flex-direction: column; gap: 14px; }
-.boot-line {
-  font-size: clamp(.8rem, 1.6vw, 1.05rem);
-  letter-spacing: .04em;
-  color: var(--text);
-  white-space: nowrap;
-  opacity: 0;
-  transform: translateY(6px);
-  transition: opacity .35s ease, transform .35s ease;
-}
-.boot-line.is-shown { opacity: 1; transform: none; }
-.boot-line .prompt { color: var(--accent); margin-right: 10px; }
-.boot-line .status { color: var(--text-dim); margin-left: 10px; }
-.boot-line .status.ready { color: var(--accent); font-weight: 600; }
-
-.boot-hint {
-  margin-top: 30px;
-  font-size: .72rem;
-  letter-spacing: .14em;
-  color: var(--text-dim);
-  opacity: 0;
-  transition: opacity .3s ease;
-}
-.boot-hint.is-shown { opacity: .8; animation: hint-pulse 1.8s ease-in-out infinite; }
-@keyframes hint-pulse { 0%,100% { opacity: .45; } 50% { opacity: .9; } }
-
-/* Character fragments thrown outward when the sequence exits */
-.boot-shard {
-  position: fixed;
-  z-index: 101;
-  pointer-events: none;
-  will-change: transform, opacity;
-  transition: transform .9s cubic-bezier(.2,.7,.3,1), opacity .9s ease;
-}
-
 /* ---------- Scroll-driven 3D story (5 stages) ---------- */
 .story3d { position: relative; height: 500vh; }
 .story3d-pin {

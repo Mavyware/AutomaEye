@@ -12,7 +12,7 @@ if (file_exists(ROOT_DIR . '/config.local.php')) {
 }
 
 // --- App config (override via config.local.php in production) ---
-defined('APP_NAME') || define('APP_NAME', 'AutomaEye');
+defined('APP_NAME') || define('APP_NAME', 'AutomaEyes');
 defined('APP_URL') || define('APP_URL', 'http://localhost:8000');
 defined('APP_SCHEME') || define('APP_SCHEME', 'automaeye'); // automaeye://auth?token=...
 // Where the download button points. /download.php serves the installer

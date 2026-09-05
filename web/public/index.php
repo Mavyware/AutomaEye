@@ -5,16 +5,6 @@ $pageTitle = 'AutomaEyes - AI Quality Control';
 $bodyClass = 'has-story-bg';
 require __DIR__ . '/../src/includes/header.php';
 ?>
-<div id="boot-sequence">
-  <div class="boot-lines">
-    <div class="boot-line" data-status="OK"><span class="prompt">&gt;</span>INITIALIZE AUTOMAEYE CORE...<span class="status"></span></div>
-    <div class="boot-line" data-status="OK"><span class="prompt">&gt;</span>MOUNTING CAMERA INPUT...<span class="status"></span></div>
-    <div class="boot-line" data-status="OK"><span class="prompt">&gt;</span>LOADING INFERENCE ENGINE...<span class="status"></span></div>
-    <div class="boot-line" data-status="OK"><span class="prompt">&gt;</span>SYNCING WITH GITHUB...<span class="status"></span></div>
-    <div class="boot-line" data-status="READY"><span class="prompt">&gt;</span><span class="status ready"></span></div>
-  </div>
-  <div class="boot-hint" id="boot-hint">&#9660; SCROLL TO CONTINUE</div>
-</div>
 <canvas id="story-bg"></canvas>
 
 <main class="story">
@@ -23,7 +13,7 @@ require __DIR__ . '/../src/includes/header.php';
     <div>
       <span class="eyebrow">AI Quality Control</span>
       <h1>See the edge.<br><span class="grad">Automate the eye.</span></h1>
-      <p>AutomaEyes inspects your parts as they come off the line: it finds defects, measures dimensions, and sends the OK/NG result straight to your PLC. You train it on your own parts, and your data stays in your own hands.</p>
+      <p>AutomaEyes inspects your parts as they come off the line: it finds defects, measures dimensions, and drives the machine that sorts them. You train it on photos of your own parts, on your own computer, and your data never leaves your hands.</p>
       <div class="hero-actions">
         <?php if ($user): ?>
           <?php /* Already signed in: sending them to "create an account" is a
@@ -52,9 +42,9 @@ require __DIR__ . '/../src/includes/header.php';
       <div class="story3d-rail">
         <div class="item" data-i="0"><span class="num">01</span><span class="label">Camera input</span></div>
         <div class="item" data-i="1"><span class="num">02</span><span class="label">Detection frame</span></div>
-        <div class="item" data-i="2"><span class="num">03</span><span class="label">Live interface</span></div>
+        <div class="item" data-i="2"><span class="num">03</span><span class="label">Live inspection</span></div>
         <div class="item" data-i="3"><span class="num">04</span><span class="label">Defect flagged</span></div>
-        <div class="item" data-i="4"><span class="num">05</span><span class="label">Output to controller</span></div>
+        <div class="item" data-i="4"><span class="num">05</span><span class="label">Output to the line</span></div>
       </div>
 
       <div class="story3d-track"><div class="story3d-fill" id="story3d-fill"></div></div>
@@ -91,89 +81,89 @@ require __DIR__ . '/../src/includes/header.php';
               <div class="step-copy">
                 <span class="step-index">[01] Connect</span>
                 <h2>Your data, your GitHub</h2>
-                <p>Sign in and connect your own GitHub account. Every dataset you build lives in a repo you control - private when it's sensitive, public when you want to share it.</p>
+                <p>Sign in and connect your own GitHub account. Every project, dataset, and trained model lives in a repository you control &mdash; private when the parts are confidential. There is no storage server on our side.</p>
                 <ul>
                   <li>Private or public repos, your choice</li>
                   <li>Versioned datasets, not vendor lock-in</li>
-                  <li>Full history of every labeled frame</li>
+                  <li>Revoke our access from GitHub at any time</li>
                 </ul>
               </div>
             </li>
 
-            <li class="step-item" data-step="1" data-label="Create">
+            <li class="step-item" data-step="1" data-label="Dataset">
               <div class="step-copy">
-                <span class="step-index">[02] Create</span>
-                <h2>Create a model</h2>
-                <p>Train from your dataset or bring in a pretrained one. AutomaEye handles the annotation-to-weights path so you can focus on what the model should recognize.</p>
+                <span class="step-index">[02] Dataset</span>
+                <h2>Start with photos of your own parts</h2>
+                <p>Create a model &mdash; detection, segmentation, classification, or OCR &mdash; and bring in photos of the parts you actually inspect. A general-purpose model trained on someone else&rsquo;s parts will not find your defects.</p>
                 <ul>
-                  <li>Guided labeling workflow</li>
-                  <li>Train, evaluate, iterate in place</li>
-                  <li>Export weights sized for the edge</li>
+                  <li>Detection, segmentation, classification, OCR</li>
+                  <li>Name the classes you care about</li>
+                  <li>Add more photos at any time</li>
                 </ul>
               </div>
             </li>
 
-            <li class="step-item" data-step="2" data-label="Build">
+            <li class="step-item" data-step="2" data-label="Annotate">
               <div class="step-copy">
-                <span class="step-index">[03] Build</span>
-                <h2>Drag, drop, pipeline</h2>
-                <p>Assemble the full pipeline visually - no code required. Chain inputs, models, and outputs into a flow that matches exactly what your edge device needs to do.</p>
+                <span class="step-index">[03] Annotate</span>
+                <h2>Label them without leaving the app</h2>
+                <p>Boxes for detection, polygons for segmentation, circles for holes and shafts. Shapes that follow the real edge of a part are what make measurement accurate &mdash; a bounding box cannot describe a round hole.</p>
                 <ul>
-                  <li>Drag-and-drop pipeline canvas</li>
-                  <li>Reusable blocks across projects</li>
-                  <li>Live preview as you build</li>
+                  <li>Built in &mdash; no second tool, no second account</li>
+                  <li>No export step between labelling and training</li>
+                  <li>Keyboard-driven, built for hundreds of images</li>
                 </ul>
               </div>
             </li>
 
-            <li class="step-item" data-step="3" data-label="Input">
+            <li class="step-item" data-step="3" data-label="Split">
               <div class="step-copy">
-                <span class="step-index">[04] Input</span>
-                <h2>Choose your camera, set positioning</h2>
-                <p>Pick the camera input feeding the pipeline, then set the positioning model so AutomaEye understands where it's looking and what "in frame" means for your use case.</p>
+                <span class="step-index">[04] Split &amp; augment</span>
+                <h2>Split first, augment second</h2>
+                <p>Divide the set into training, validation, and test. Augmentation then applies to the <strong>training set only</strong> &mdash; augmenting the other two leaks information between the halves and quietly inflates your scores.</p>
                 <ul>
-                  <li>USB, IP, and RTSP camera support</li>
-                  <li>Positioning and calibration built-in</li>
-                  <li>Multiple inputs per pipeline</li>
+                  <li>Reproducible split, same result every time</li>
+                  <li>Augmentation is optional</li>
+                  <li>Leak-prone options are simply not offered</li>
                 </ul>
               </div>
             </li>
 
-            <li class="step-item" data-step="4" data-label="Detect">
+            <li class="step-item" data-step="4" data-label="Train">
               <div class="step-copy">
-                <span class="step-index">[05] Detect</span>
-                <h2>Run inference in real time</h2>
-                <p>The inference model runs right on the edge device - low latency, no round trip to the cloud required for every frame.</p>
+                <span class="step-index">[05] Train &amp; test</span>
+                <h2>Train it, then check whether it worked</h2>
+                <p>Training runs on your machine, and every run is kept as a new version. Then evaluate against the test set the model has never seen: metrics, curves, a confusion matrix, and the actual predictions to look through.</p>
                 <ul>
-                  <li>Optimized for edge hardware</li>
-                  <li>Bounding boxes, classes, confidence</li>
-                  <li>Swap models without rebuilding the pipeline</li>
+                  <li>Live loss and accuracy while it trains</li>
+                  <li>Per-class results, not just one number</li>
+                  <li>Every version kept, so you can go back</li>
                 </ul>
               </div>
             </li>
 
-            <li class="step-item" data-step="5" data-label="Act">
+            <li class="step-item" data-step="5" data-label="Workflow">
               <div class="step-copy">
-                <span class="step-index">[06] Act</span>
-                <h2>Send it somewhere useful</h2>
-                <p>Route results to an output - a webhook, a dashboard, a local trigger. What the pipeline sees becomes what your system does, automatically.</p>
+                <span class="step-index">[06] Workflow</span>
+                <h2>Chain the models into an inspection</h2>
+                <p>Position the part, inspect it, decide. Stages modelled on industrial vision systems &mdash; capture, positioning, inspection, communication &mdash; with tolerances, a calibration-drift check, and what should happen on the first NG.</p>
                 <ul>
-                  <li>Webhooks, MQTT, local automations</li>
-                  <li>Structured, queryable event logs</li>
-                  <li>Alerts on the conditions you define</li>
+                  <li>GD&amp;T measurement with per-class tolerances</li>
+                  <li>1D/2D code reading and printed-text checks</li>
+                  <li>Presence, count, colour, and scratch checks</li>
                 </ul>
               </div>
             </li>
 
-            <li class="step-item" data-step="6" data-label="Manage">
+            <li class="step-item" data-step="6" data-label="Output">
               <div class="step-copy">
-                <span class="step-index">[07] Manage</span>
-                <h2>Keep every input in order</h2>
-                <p>Review captured frames, re-label edge cases, and feed corrections straight back into your dataset - all without leaving the pipeline you built.</p>
+                <span class="step-index">[07] Output</span>
+                <h2>Reach the machine that sorts the part</h2>
+                <p>Every class maps to a real output. Arduino and ESP32 over USB with the sketch included; PLCs over Modbus RTU or TCP with no firmware at all. Each output has a Test button, so you can verify the wiring before the line runs.</p>
                 <ul>
-                  <li>Frame review and re-labeling</li>
-                  <li>Continuous dataset improvement</li>
-                  <li>Runs locally, syncs when you're ready</li>
+                  <li>Arduino, ESP32, and Modbus PLCs</li>
+                  <li>Or write the output yourself in JavaScript or Python</li>
+                  <li>Daily reports and measurement data to Excel</li>
                 </ul>
               </div>
             </li>
@@ -209,7 +199,7 @@ require __DIR__ . '/../src/includes/header.php';
 
   <section class="story-section story-outro" data-reveal>
     <h2>That's the whole pipeline.<br>Now run it on your machine.</h2>
-    <p>AutomaEyes runs locally on Windows, right next to your cameras. Log in to link your account, then download the app.</p>
+    <p>AutomaEyes runs locally on Windows, right next to your cameras. The installer sets up everything it needs &mdash; including Python &mdash; so there is nothing else to download. Log in to link your account, then install it.</p>
     <div class="download-panel">
       <a href="<?= e(DOWNLOAD_PAGE) ?>" class="btn btn-primary btn-lg">Download for Windows</a>
       <?php if (!$user): ?>

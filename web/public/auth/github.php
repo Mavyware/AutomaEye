@@ -5,7 +5,7 @@ if (!GITHUB_CLIENT_ID) {
     // Jangan dilempar ke /login.php: kalau sesi web masih hidup, user akan
     // terus dilempar lagi ke /welcome.php dan mendarat di halaman Download —
     // sama sekali tidak menjelaskan bahwa ini salah konfigurasi server.
-    $pageTitle = 'GitHub belum dikonfigurasi — AutomaEye';
+    $pageTitle = 'GitHub belum dikonfigurasi — AutomaEyes';
     require __DIR__ . '/../../src/includes/header.php';
     ?>
     <main class="auth-shell">

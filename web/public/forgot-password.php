@@ -34,7 +34,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 }
 
-$pageTitle = 'Reset your password — AutomaEye';
+$pageTitle = 'Reset your password — AutomaEyes';
 require __DIR__ . '/../src/includes/header.php';
 ?>
 <canvas id="story-bg"></canvas>

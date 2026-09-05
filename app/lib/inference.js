@@ -177,6 +177,13 @@ exports.startTraining = (cfg, root, projectName, modelName, onProgress, opts = {
 
             const m2 = line.match(/results mAP50:\s*([\d.]+)\s+P:\s*([\d.]+)\s+R:\s*([\d.]+)/i);
             if (m2) onProgress({ finalMAP: +m2[1], finalP: +m2[2], finalR: +m2[3] });
+
+            // Klasifikasi tidak punya mAP/precision/recall. Ringkasannya
+            // dilaporkan sebagai akurasi top-1/top-5, dan sengaja dikirim
+            // dengan nama sendiri supaya tidak ada angka yang tersimpan di
+            // bawah label yang salah.
+            const m3 = line.match(/results top1:\s*([\d.]+)\s+top5:\s*([\d.]+)/i);
+            if (m3) onProgress({ finalTop1: +m3[1], finalTop5: +m3[2] });
         });
     };
 

@@ -22,7 +22,7 @@ if (mount && storyEl) {
   try {
     init();
   } catch (err) {
-    console.warn('AutomaEye: story 3D unavailable', err);
+    console.warn('AutomaEyes: story 3D unavailable', err);
   }
 }
 
@@ -54,7 +54,7 @@ function init() {
   /* ---------- Object A: the inspected part - a socket/connector housing ----------
    * Reads as the thing being QC'd: a dark connector block with a grid of
    * terminal sockets on its face, matching the socket-holder inspection
-   * shown on the AutomaEye run screen (green box + confidence readout).
+   * shown on the AutomaEyes run screen (green box + confidence readout).
    */
   const partGroup = new THREE.Group();
   const partMaterials = [];

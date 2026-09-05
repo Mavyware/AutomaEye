@@ -52,7 +52,7 @@ if (!$error) {
     $error = flash('error');
 }
 
-$pageTitle = $redirect ? 'Buka AutomaEye Desktop — AutomaEye' : 'Log in — AutomaEye';
+$pageTitle = $redirect ? 'Buka AutomaEyes Desktop — AutomaEyes' : 'Log in — AutomaEyes';
 require __DIR__ . '/../src/includes/header.php';
 ?>
 <canvas id="story-bg"></canvas>
@@ -60,7 +60,7 @@ require __DIR__ . '/../src/includes/header.php';
   <div class="auth-card">
 
 <?php if ($appUser): /* Sudah login + datang dari aplikasi desktop */ ?>
-    <h1>Buka AutomaEye Desktop</h1>
+    <h1>Buka AutomaEyes Desktop</h1>
     <p class="sub">Aplikasi desktop meminta akses ke akun Anda.</p>
 
     <div class="alert alert-success" style="text-align:left">
@@ -81,7 +81,7 @@ require __DIR__ . '/../src/includes/header.php';
 
 <?php else: ?>
     <?php if ($redirect): ?>
-      <h1>Buka AutomaEye Desktop</h1>
+      <h1>Buka AutomaEyes Desktop</h1>
       <p class="sub">Masuk untuk menghubungkan akun Anda ke aplikasi desktop.</p>
     <?php else: ?>
       <h1>Welcome back</h1>

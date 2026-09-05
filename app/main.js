@@ -489,6 +489,7 @@ ipcMain.handle('training:start', async (event, { project, model, resume }) => {
     let lastMetrics = {};
     return inference.startTraining(cfg, projectsRoot, project, model, (progress) => {
         if (progress.finalMAP != null) lastMetrics = { mAP: progress.finalMAP, P: progress.finalP, R: progress.finalR };
+        if (progress.finalTop1 != null) lastMetrics = { top1: progress.finalTop1, top5: progress.finalTop5 };
         // Training sukses → snapshot jadi VERSI baru (v1, v2, ...).
         if (progress.done && progress.exitCode === 0) {
             try { progress.version = projects.snapshotVersion(projectsRoot, project, model, lastMetrics); }

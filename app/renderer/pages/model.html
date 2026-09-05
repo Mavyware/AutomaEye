@@ -950,7 +950,9 @@ function renderVersions() {
     const active = currentModel.activeVersion;
     el.innerHTML = vers.slice().reverse().map(v => {
         const mt = v.metrics || {};
-        const met = (mt.mAP != null) ? `mAP50 ${(mt.mAP * 100).toFixed(1)}% · P ${((mt.P || 0) * 100).toFixed(0)}% · R ${((mt.R || 0) * 100).toFixed(0)}%` : '';
+        const met = (mt.top1 != null)
+            ? `Akurasi ${(mt.top1 * 100).toFixed(1)}%`
+            : (mt.mAP != null) ? `mAP50 ${(mt.mAP * 100).toFixed(1)}% · P ${((mt.P || 0) * 100).toFixed(0)}% · R ${((mt.R || 0) * 100).toFixed(0)}%` : '';
         const d = v.date ? new Date(v.date).toLocaleString() : '';
         const isActive = v.id === active;
         return `<div style="display:flex;align-items:center;gap:8px;padding:6px 8px;border:1px solid var(--border);border-radius:4px;margin-bottom:4px">
@@ -1128,7 +1130,7 @@ function renderEval(res) {
 
     const tb = document.querySelector('#evTable tbody');
     tb.innerHTML = (res.perClass || []).map(c =>
-        `<tr><td>${esc(c.name)}</td><td>${_pe(c.precision)}</td><td>${_pe(c.recall)}</td><td>${_pe(c.map50)}</td><td>${_pe(c.map5095)}</td></tr>`
+        `<tr><td>${esc(c.name)}</td><td>${_pe(c.precision)}</td><td>${_pe(c.recall)}</td><td>${c.map50 == null ? '—' : _pe(c.map50)}</td><td>${c.map5095 == null ? '—' : _pe(c.map5095)}</td></tr>`
     ).join('') || '<tr><td colspan="5" class="muted">Tidak ada data per-kelas</td></tr>';
 
     const pl = res.plots || {};
@@ -1374,7 +1376,52 @@ function resetDash() {
     renderDash();
 }
 function _pct(v){ return (v == null) ? '—' : (v * 100).toFixed(1) + '%'; }
+
+// Klasifikasi memakai grafik yang sama, tapi angkanya bukan mAP/precision/recall
+// melainkan akurasi top-1 dan top-5. Yang diganti hanya NAMA-nya - membiarkan
+// akurasi tampil di bawah tulisan "mAP@50" jauh lebih buruk daripada tidak
+// menampilkannya sama sekali, karena angkanya terlihat masuk akal.
+let _dashCls = null;   // null = belum ditentukan
+function _labelDash() {
+    const cls = !!(currentModel && currentModel.type === 'AI Classification');
+    if (_dashCls === cls) return;
+    _dashCls = cls;
+    const setLabel = (id, teks) => {
+        const c = document.getElementById(id);
+        const l = c && c.parentElement && c.parentElement.querySelector('.mc-label');
+        if (l) l.textContent = teks;
+    };
+    const kartu = (id, tampil) => {
+        const c = document.getElementById(id);
+        if (c && c.parentElement) c.parentElement.style.display = tampil ? '' : 'none';
+    };
+    const kotak = (canvasId, tampil) => {
+        const c = document.getElementById(canvasId);
+        const box = c && c.closest('.chart-box');
+        if (box) box.style.display = tampil ? '' : 'none';
+    };
+    if (cls) {
+        setLabel('cardMap', 'Akurasi Top-1');
+        setLabel('cardMap95', 'Akurasi Top-5');
+        // F1/Precision/Recall tidak dihitung untuk klasifikasi saat training —
+        // per-kelas-nya muncul di tab Test, dari confusion matrix.
+        kartu('cardF1', false); kartu('cardP', false); kartu('cardR', false);
+        const t = document.querySelector('#chartMap');
+        const judul = t && t.closest('.chart-box') && t.closest('.chart-box').querySelector('.chart-title');
+        if (judul) judul.innerHTML = '<span class="lg-dot" style="background:#7c3aed"></span>Akurasi Top-1'
+            + '<span class="lg-dot" style="background:#c4b5fd; margin-left:10px"></span>'
+            + '<span class="muted" style="font-weight:400">Top-5</span>';
+        // Klasifikasi hanya punya satu angka loss, bukan box/cls/dfl.
+        kotak('chartBox', false); kotak('chartDfl', false);
+    } else {
+        setLabel('cardMap', 'mAP@50');
+        setLabel('cardMap95', 'mAP@50-95');
+        kartu('cardF1', true); kartu('cardP', true); kartu('cardR', true);
+        kotak('chartBox', true); kotak('chartDfl', true);
+    }
+}
 function pushDash(m) {
+    _labelDash();
     dash.ep.push(m.epoch);
     dash.map.push(m.mAP50 || 0); dash.map95.push(m.mAP5095 || 0);
     dash.p.push(m.precision || 0); dash.r.push(m.recall || 0); dash.f1.push(m.f1 || 0);
@@ -1865,6 +1912,14 @@ window.api.onTrainingProgress(data => {
     }
 
     // Metrik final saat muncul dari train.py
+    if (p.finalTop1 != null) {
+        _lastMetrics = { map: p.finalTop1, p: 0, r: 0, f1: 0, top1: p.finalTop1, top5: p.finalTop5 || 0 };
+        const box = document.getElementById('trainMetrics');
+        if (box) box.style.display = 'flex';
+        if (box) box.innerHTML =
+            `<span>Akurasi Top-1: <strong>${(p.finalTop1 * 100).toFixed(1)}%</strong></span>`
+            + `<span>Top-5: <strong>${((p.finalTop5 || 0) * 100).toFixed(1)}%</strong></span>`;
+    }
     if (p.finalMAP != null || p.finalP != null || p.finalR != null) {
         _lastMetrics.map = p.finalMAP || 0;
         _lastMetrics.p = p.finalP || 0;

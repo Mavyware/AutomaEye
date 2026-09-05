@@ -559,6 +559,22 @@ textarea { resize: vertical; }
 .an-cls.active { border-color: var(--accent); background: var(--accent-light); font-weight: 600; }
 .an-swatch { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 6px; vertical-align: middle; }
 
+/* --- Mode klasifikasi ---
+   Satu kelas untuk seluruh gambar, jadi tidak ada yang perlu digambar: alat
+   gambar disembunyikan dan daftar kelas naik pangkat jadi kendali utama.
+   Tombolnya dibuat besar karena inilah satu-satunya yang diklik berulang kali,
+   ratusan kali, saat memberi kelas pada sebuah dataset. */
+.an-mode-kelas .an-toolbar { display: none; }
+.an-mode-kelas .an-stage { cursor: default; }
+.an-mode-kelas .an-stage canvas { pointer-events: none; }
+.an-mode-kelas .an-cls {
+    font-size: 13px; padding: 9px 10px; margin-bottom: 6px;
+}
+.an-mode-kelas .an-cls.active {
+    border-color: var(--accent); background: var(--accent); color: #fff;
+}
+.an-mode-kelas .an-cls.active .an-swatch { box-shadow: 0 0 0 1.5px #fff; }
+
 .an-row {
     font-size: 11px; padding: 4px 6px; border-bottom: 1px solid var(--border);
     display: flex; justify-content: space-between; align-items: center; cursor: pointer;
