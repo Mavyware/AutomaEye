@@ -17,7 +17,7 @@
   },
   "dependencies": {
     "adm-zip": "^0.5.18",
-    "js-yaml": "^4.1.0",
+    "js-yaml": "^4.3.2",
     "serialport": "^12.0.0"
   },
   "allowScripts": {
