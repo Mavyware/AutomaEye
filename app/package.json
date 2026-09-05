@@ -23,7 +23,7 @@
   },
   "dependencies": {
     "adm-zip": "^0.6.0",
-    "js-yaml": "^4.1.0",
+    "js-yaml": "^5.4.1",
     "serialport": "^13.0.0"
   },
   "allowScripts": {
