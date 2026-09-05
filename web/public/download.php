@@ -45,13 +45,72 @@ function versionOf(string $path): string
     return preg_match('/AutomaEyes-Setup-([0-9.]+)\.exe$/', basename($path), $m) ? $m[1] : '0';
 }
 
+/**
+ * URL of the newest installer published on GitHub.
+ *
+ * Looked up rather than hardcoded: the asset filename carries the version, so
+ * a fixed URL would have to be edited on every release, and forgetting once
+ * quietly serves an old build.
+ *
+ * The answer is cached for an hour. GitHub rate-limits unauthenticated calls,
+ * and a download button that starts failing because a limit was reached would
+ * be very hard to explain.
+ */
+function latestAssetUrl(): ?string
+{
+    $cache = STORAGE_DIR . '/latest-release.json';
+
+    if (is_readable($cache) && (time() - (int) filemtime($cache)) < 3600) {
+        $c = json_decode((string) file_get_contents($cache), true);
+        if (is_array($c) && !empty($c['url'])) {
+            return (string) $c['url'];
+        }
+    }
+
+    $ctx = stream_context_create(['http' => [
+        'method' => 'GET',
+        'timeout' => 6,
+        // GitHub rejects requests without a User-Agent.
+        'header' => "User-Agent: AutomaEyes-Site\r\nAccept: application/vnd.github+json\r\n",
+        'ignore_errors' => true,
+    ]]);
+
+    $raw = @file_get_contents(
+        'https://api.github.com/repos/' . RELEASE_REPO . '/releases/latest',
+        false,
+        $ctx
+    );
+    $data = $raw === false ? null : json_decode($raw, true);
+
+    if (is_array($data) && !empty($data['assets'])) {
+        foreach ($data['assets'] as $a) {
+            if (isset($a['name'], $a['browser_download_url'])
+                && str_ends_with((string) $a['name'], '.exe')) {
+                $url = (string) $a['browser_download_url'];
+                @file_put_contents($cache, json_encode(['url' => $url, 'at' => time()]));
+                return $url;
+            }
+        }
+    }
+
+    // Lookup failed. A stale cached URL still points at a real installer, and
+    // an older version is far better than a dead button.
+    if (is_readable($cache)) {
+        $c = json_decode((string) file_get_contents($cache), true);
+        if (is_array($c) && !empty($c['url'])) {
+            return (string) $c['url'];
+        }
+    }
+
+    return null;
+}
+
 $file = localInstaller();
 
 if ($file === null) {
     // Nothing hosted here — hand the browser straight to the release asset.
-    $url = defined('DOWNLOAD_URL') && DOWNLOAD_URL !== '#' && DOWNLOAD_URL !== ''
-        ? DOWNLOAD_URL
-        : '';
+    $url = latestAssetUrl()
+        ?? (defined('DOWNLOAD_URL') && DOWNLOAD_URL !== '#' ? DOWNLOAD_URL : '');
 
     if ($url === '') {
         http_response_code(503);

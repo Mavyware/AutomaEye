@@ -1,0 +1,101 @@
+AutomaEyes License
+
+Copyright (c) 2026 Mavyware. All rights reserved.
+
+This is a source-available license, not an open source license. The source is
+published so that anyone can read it and verify how the software handles their
+data. It does not place the software in the public domain, and it does not
+grant the right to create derivative works.
+
+
+1. DEFINITIONS
+
+   "The Software" means the AutomaEyes desktop application, its website, and
+   all source code, documentation, and assets in this repository, excluding
+   Third-Party Components as defined in section 6.
+
+   "Mavyware" means the copyright holder, and includes the AutomaEyes
+   development team acting on its behalf.
+
+
+2. WHAT YOU MAY DO
+
+   a. Read. You may read, study, and audit the entire source.
+
+   b. Use. You may run the Software, for any purpose, including commercial
+      production use, on any number of machines, without a fee.
+
+   c. Redistribute. You may copy and share the Software, in source or in
+      compiled form, provided that:
+        - it is distributed unmodified, and
+        - this license file is included, and
+        - you do not charge for the Software itself.
+
+   No permission or notification is required for any of the above.
+
+
+3. WHAT YOU MAY NOT DO
+
+   a. Modify. You may not alter the Software, or create derivative works from
+      it, for distribution or for use by anyone other than yourself. Changes
+      are made through section 4.
+
+   b. Resell. You may not sell, license, sublicense, or rent the Software, and
+      you may not include it in a product or service that is sold, without a
+      separate written agreement with Mavyware.
+
+   c. Remove attribution. You may not remove or obscure copyright notices,
+      this license, or the AutomaEyes name and branding.
+
+
+4. CONTRIBUTING CHANGES
+
+   Changes to the Software are made by pull request against this repository.
+
+   Every pull request is reviewed by the Mavyware development team. A change is
+   accepted when it fixes a defect, or adds a feature that the team judges to
+   be a genuine improvement, and when it meets the project's quality standards.
+   Acceptance is at Mavyware's sole discretion, and no reason need be given for
+   a rejection.
+
+   By submitting a pull request you grant Mavyware a perpetual, worldwide,
+   irrevocable, royalty-free license to use, modify, and distribute your
+   contribution as part of the Software, including in future versions released
+   under different terms. You keep the copyright to what you wrote.
+
+   You may make local modifications for the sole purpose of preparing and
+   testing such a contribution. Those modifications may not be distributed.
+
+
+5. NO WARRANTY, NO LIABILITY
+
+   THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+   IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+   FITNESS FOR A PARTICULAR PURPOSE, AND NONINFRINGEMENT.
+
+   IN NO EVENT SHALL MAVYWARE BE LIABLE FOR ANY CLAIM, DAMAGES, OR OTHER
+   LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT, OR OTHERWISE, ARISING
+   FROM, OUT OF, OR IN CONNECTION WITH THE SOFTWARE OR ITS USE.
+
+   This matters in practice: AutomaEyes inspects parts and drives equipment on
+   a production line. It is a tool that assists an operator, not a certified
+   safety system, and it must not be relied upon as the sole means of ensuring
+   product safety or machine safety.
+
+
+6. THIRD-PARTY COMPONENTS
+
+   The Software depends on, and its installer distributes, software written by
+   others — including Electron, Node.js, Python, Ultralytics YOLO, OpenCV, and
+   the packages listed in package.json and requirements.txt.
+
+   Those components remain under their own licenses, held by their own
+   copyright holders. Nothing in this license grants or restricts any right in
+   them, and nothing here overrides their terms.
+
+
+7. GRANTS BEYOND THIS LICENSE
+
+   Rights not granted above may be granted in writing. To ask about
+   modification rights, resale, OEM bundling, or any other use this license
+   does not cover, contact mavyware@automaeyes.my.id.

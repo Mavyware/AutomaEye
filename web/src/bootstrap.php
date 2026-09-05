@@ -19,8 +19,13 @@ defined('APP_SCHEME') || define('APP_SCHEME', 'automaeye'); // automaeye://auth?
 // directly - either a locally hosted file, or a redirect to the release
 // asset - so visitors never land on a GitHub page to pick a file.
 defined('DOWNLOAD_PAGE') || define('DOWNLOAD_PAGE', '/download.php');
-// Fallback used by /download.php when no installer is hosted on this server.
-defined('DOWNLOAD_URL') || define('DOWNLOAD_URL', 'https://github.com/Mavyware/AutomaEye/releases/latest/download/AutomaEyes-Setup-0.2.0.exe');
+// Repository holding the releases, used by /download.php when no installer
+// is hosted on this server. The asset filename carries the version number,
+// so it is looked up rather than written here - otherwise every release
+// would need this line edited, and forgetting once serves an old build.
+defined('RELEASE_REPO') || define('RELEASE_REPO', 'Mavyware/AutomaEyes');
+// Last-resort URL if the lookup fails.
+defined('DOWNLOAD_URL') || define('DOWNLOAD_URL', 'https://github.com/Mavyware/AutomaEyes/releases/latest');
 
 // --- Database. Empty DB_HOST falls back to a local SQLite file under storage/. ---
 defined('DB_HOST') || define('DB_HOST', '');

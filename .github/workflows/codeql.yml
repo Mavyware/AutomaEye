@@ -1,0 +1,41 @@
+# Static analysis for the JavaScript that runs the desktop app and the Python
+# that trains and runs models.
+#
+# PHP is not covered: CodeQL does not support it. The website is reviewed by
+# hand, and the parts that matter most — authentication and the OAuth hand-off
+# to the app — are described in SECURITY.md so they can be audited directly.
+name: CodeQL
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  schedule:
+    # Weekly, so newly published rules reach an unchanged codebase too.
+    - cron: '0 3 * * 1'
+
+jobs:
+  analyze:
+    name: Analyze ${{ matrix.language }}
+    runs-on: ubuntu-latest
+    permissions:
+      security-events: write
+      contents: read
+
+    strategy:
+      fail-fast: false
+      matrix:
+        language: [javascript-typescript, python]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: github/codeql-action/init@v3
+        with:
+          language: ${{ matrix.language }}
+          queries: security-and-quality
+
+      - uses: github/codeql-action/analyze@v3
+        with:
+          category: /language:${{ matrix.language }}

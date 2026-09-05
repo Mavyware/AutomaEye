@@ -1,0 +1,30 @@
+# Dependency updates.
+#
+# The desktop app ships Electron and native modules to production machines, so
+# a known vulnerability in a dependency reaches a factory floor, not just a
+# developer laptop. Weekly is often enough for a project this size — daily
+# would mostly produce noise nobody reads.
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: /app
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    groups:
+      # One PR for routine patches keeps the queue readable; anything that
+      # changes a major version still arrives on its own, because those need
+      # to be looked at properly.
+      patches:
+        update-types: [patch, minor]
+
+  - package-ecosystem: pip
+    directory: /app/python
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 3
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly
