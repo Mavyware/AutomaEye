@@ -203,7 +203,7 @@ require __DIR__ . '/../src/includes/header.php';
     <h2>That's the whole pipeline.<br>Now run it on your machine.</h2>
     <p>AutomaEye runs locally on Windows, right next to your cameras. Log in to link your account, then download the app.</p>
     <div class="download-panel">
-      <a href="<?= e(DOWNLOAD_URL) ?>" class="btn btn-primary btn-lg">Download for Windows</a>
+      <a href="<?= e(DOWNLOAD_PAGE) ?>" class="btn btn-primary btn-lg">Download for Windows</a>
       <?php if (!Auth::check()): ?>
         <a href="/login.php" class="btn btn-ghost">Already installed? Log in to connect it</a>
       <?php else: ?>

@@ -15,7 +15,7 @@ require __DIR__ . '/../src/includes/header.php';
     <h1>You're logged in, <?= e(explode(' ', $user['name'])[0] ?: $user['name']) ?>.</h1>
     <p class="sub">If AutomaEye sent you here, switch back to the app — it'll pick up your session automatically. Otherwise, grab the desktop app below.</p>
     <div class="social-row">
-      <a class="btn btn-primary btn-block btn-lg" href="<?= e(DOWNLOAD_URL) ?>">Download for Windows</a>
+      <a class="btn btn-primary btn-block btn-lg" href="<?= e(DOWNLOAD_PAGE) ?>">Download for Windows</a>
       <a class="btn btn-ghost btn-block" href="/logout.php">Log out</a>
     </div>
   </div>

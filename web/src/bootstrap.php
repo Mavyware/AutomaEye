@@ -15,7 +15,12 @@ if (file_exists(ROOT_DIR . '/config.local.php')) {
 defined('APP_NAME') || define('APP_NAME', 'AutomaEye');
 defined('APP_URL') || define('APP_URL', 'http://localhost:8000');
 defined('APP_SCHEME') || define('APP_SCHEME', 'automaeye'); // automaeye://auth?token=...
-defined('DOWNLOAD_URL') || define('DOWNLOAD_URL', '#'); // Windows installer URL
+// Where the download button points. /download.php serves the installer
+// directly - either a locally hosted file, or a redirect to the release
+// asset - so visitors never land on a GitHub page to pick a file.
+defined('DOWNLOAD_PAGE') || define('DOWNLOAD_PAGE', '/download.php');
+// Fallback used by /download.php when no installer is hosted on this server.
+defined('DOWNLOAD_URL') || define('DOWNLOAD_URL', 'https://github.com/Mavyware/AutomaEye/releases/latest/download/AutomaEyes-Setup-0.2.0.exe');
 
 // --- Database. Empty DB_HOST falls back to a local SQLite file under storage/. ---
 defined('DB_HOST') || define('DB_HOST', '');

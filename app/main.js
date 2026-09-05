@@ -377,7 +377,15 @@ app.on('window-all-closed', () => {
 // ================================================================
 
 // ---- Config ----
-ipcMain.handle('config:get', () => cfg);
+ipcMain.handle('config:get', () => ({
+    ...cfg,
+    // Versi selalu diambil dari aplikasi yang benar-benar berjalan, bukan dari
+    // config.yaml. Config milik pengguna tersimpan di folder data dan TIDAK
+    // ikut diperbarui saat aplikasi di-update, jadi angkanya akan terus
+    // tertinggal - "Tentang aplikasi" sempat menampilkan 0.1.1 padahal yang
+    // berjalan 0.1.2.
+    app: { ...(cfg.app || {}), version: app.getVersion() },
+}));
 ipcMain.handle('config:set', (_, patch) => {
     // Deep merge: kalau patch berisi nested object (arduino, model, dll),
     // merge per-field bukan replace whole object
