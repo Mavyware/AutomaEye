@@ -1,0 +1,5 @@
+<!doctype html><meta charset="utf-8"><h1>RUSAK</h1>
+<script>
+window.addEventListener('beforeunload', (e) => { e.preventDefault(); e.returnValue=''; });
+window.bolehTinggalkanHalaman = () => { throw new Error('penjaga rusak'); };
+</script>

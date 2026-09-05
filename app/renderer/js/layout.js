@@ -504,7 +504,12 @@ async function _buatLaporan(judul, panggil, ringkas) {
         const r = await panggil(project, tanggal);
         if (!r || !r.ok) { pesan('Gagal membuat laporan: ' + ((r && r.error) || 'tidak diketahui'), 'err'); return; }
         if (await tanya(`${ringkas(r)}\n${r.xlsxPath}`,
-            { judul: 'Laporan siap', ya: 'Buka berkas', tidak: 'Nanti saja' })) window.api.openPath(r.xlsxPath);
+            { judul: 'Laporan siap', ya: 'Buka berkas', tidak: 'Nanti saja' })) {
+        // openPath kini bisa menolak (lihat lib/keamanan.js). Penolakan yang
+        // tidak ditampilkan terasa seperti tombol yang rusak.
+        const b = await window.api.openPath(r.xlsxPath);
+        if (b && b.ok === false) pesan(b.error || 'Berkas tidak bisa dibuka.', 'err');
+    }
     } catch (e) {
         pesan('Gagal membuat laporan: ' + e.message, 'err');
     }

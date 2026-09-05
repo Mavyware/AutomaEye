@@ -1,0 +1,6 @@
+<!doctype html><meta charset="utf-8"><h1>IZINKAN</h1>
+<script>
+let adaPerubahan = true;
+window.addEventListener('beforeunload', (e) => { if (adaPerubahan) { e.preventDefault(); e.returnValue=''; } });
+window.bolehTinggalkanHalaman = async () => { adaPerubahan = false; return true; };
+</script>

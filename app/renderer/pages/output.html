@@ -86,11 +86,21 @@ let adaPerubahan = false;
 let siap = false;
 
 function back() { window.api.goTo(`project.html?name=${encodeURIComponent(projectName)}`); }
-async function keRun() {
-    if (adaPerubahan && !await tanya('Pengaturan output yang baru diubah belum disimpan.',
-        { judul: 'Perubahan belum disimpan', ya: 'Lanjut tanpa menyimpan' })) return;
-    window.api.goTo(`run.html?project=${encodeURIComponent(projectName)}`);
-}
+function keRun() { window.api.goTo(`run.html?project=${encodeURIComponent(projectName)}`); }
+
+// Ditanyakan sekali, di sini, untuk SEMUA cara meninggalkan halaman - menu
+// samping, tombol kembali, maupun tombol Run. Sebelumnya hanya tombol Run yang
+// bertanya, dan jawabannya pun tidak berpengaruh karena beforeunload tetap
+// membatalkan perpindahannya.
+window.bolehTinggalkanHalaman = async () => {
+    if (!adaPerubahan) return true;
+    const lanjut = await tanya('Pengaturan output yang baru diubah belum disimpan.',
+        { judul: 'Perubahan belum disimpan', ya: 'Lanjut tanpa menyimpan' });
+    // Penanda dilepas begitu pengguna setuju, supaya beforeunload tidak
+    // membatalkan perpindahan yang baru saja disetujui.
+    if (lanjut) adaPerubahan = false;
+    return lanjut;
+};
 
 const tandai = () => { if (siap) adaPerubahan = true; };
 
@@ -461,7 +471,8 @@ async function bukaSketsa() {
     const plc = cfg.device.jenis === 'plc';
     const r = await window.api.deviceSketsa(plc ? 'panduan' : 'sketsa');
     if (!r.ada) { pesan('Berkas panduan tidak ditemukan.', 'err'); return; }
-    window.api.openPath(r.berkas);
+    const b = await window.api.openPath(r.berkas);
+    if (b && b.ok === false) pesan(b.error || 'Berkas tidak bisa dibuka.', 'err');
 }
 
 async function ujiPin(pin, aktif, jenis) {

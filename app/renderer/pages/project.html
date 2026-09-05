@@ -127,7 +127,10 @@ async function render() {
             const arrow = i < currentProject.workflow.steps.length - 1 ? '<span class="chain-arrow">→</span>' : '';
             return `<span class="chain-step">[${s.stepIndex}] ${esc(s.modelName)} <small>(${esc(s.category || 'Inspection')})</small></span> ${arrow}`;
         }).join('');
-        wf.innerHTML = `<div class="chain">${chain}</div><p class="muted" style="font-size:11px">Aksi saat NG pertama: <strong>${currentProject.workflow.onFirstNG}</strong></p>`;
+        // workflow.json ikut disinkronkan dari repo GitHub, jadi isinya belum
+        // tentu ditulis oleh pengguna ini. Nama step di atas sudah di-esc;
+        // nilai ini sempat terlewat.
+        wf.innerHTML = `<div class="chain">${chain}</div><p class="muted" style="font-size:11px">Aksi saat NG pertama: <strong>${esc(currentProject.workflow.onFirstNG || '')}</strong></p>`;
     }
 }
 

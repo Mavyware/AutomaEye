@@ -15,9 +15,11 @@ From the `app/` directory:
 
 ```bash
 npm test              # everything
+npm run test:sec      # input guards (plain node, no Electron)
 npm run test:cls      # classification training + evaluation
 npm run test:runtime  # classification inference (needs test:cls first)
 npm run test:annot    # annotation workspace, in a real browser engine
+npm run test:nav      # page navigation with unsaved changes
 ```
 
 The Python tests need `ultralytics` installed. They build a small synthetic
@@ -49,6 +51,26 @@ silent pass, which is the worst possible failure for a quality-control tool.
 The test deliberately passes the class list in the application's order, so that
 any code reading it instead of the model's own names produces a swapped result
 and fails.
+
+**`keamanan.js`** — the guards on values arriving from the renderer
+(`lib/keamanan.js`).
+
+`shell.openPath` *runs* a file with its default application, so an unrestricted
+path from the renderer means arbitrary program execution the moment any page is
+compromised — and in Electron a renderer holds the whole `window.api` surface.
+The report date is worse than it looks: it is used to build both a filename and
+a folder name, so `../..` escapes the project folder. These tests assert on the
+rejections, including a sibling folder whose name merely starts the same way,
+and dates that match the pattern but are not real days.
+
+**`navigation/`** — moving between pages when a page has unsaved changes.
+
+A page that cancels `beforeunload` makes Electron abandon `loadFile` **without
+showing anything**: the app simply sits on the same page. Chromium only honours
+the cancellation after the user has interacted with the page, which is why the
+symptom looked random. These tests drive real clicks so the cancellation is
+actually in force, and cover the guard allowing, refusing, and throwing — a
+broken guard must never lock the app in place.
 
 **`annotator/`** — the annotation workspace in classification mode, run in real
 Chromium via Electron rather than a DOM simulation.

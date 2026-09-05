@@ -49,3 +49,7 @@ build/
 # ---- Sampah OS ----
 Thumbs.db
 .DS_Store
+
+# Hasil sementara dari uji Electron
+app/tests/**/hasil.json
+app/tests/**/jejak.json

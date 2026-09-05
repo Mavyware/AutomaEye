@@ -554,6 +554,19 @@ window.addEventListener('beforeunload', (e) => {
     if (annotatorSiap && window.Annotator.isDirty()) { e.preventDefault(); e.returnValue = ''; }
 });
 
+// Penjaga perpindahan halaman - lihat catatan yang sama di workflow.html.
+let abaikanAnotasi = false;
+window.bolehTinggalkanHalaman = async () => {
+    if (abaikanAnotasi) return true;
+    if (!annotatorSiap || !window.Annotator.isDirty()) return true;
+    const lanjut = await tanya('Anotasi pada gambar ini belum disimpan.',
+        { judul: 'Perubahan belum disimpan', ya: 'Tinggalkan tanpa menyimpan' });
+    // Annotator memegang penandanya sendiri dan tidak menyediakan cara
+    // melepasnya, jadi persetujuannya diingat di sini.
+    if (lanjut) abaikanAnotasi = true;
+    return lanjut;
+};
+
 // Auto-switch tab kalau ada query param ?tab=train
 window.addEventListener('DOMContentLoaded', () => {
     const targetTab = param('tab');

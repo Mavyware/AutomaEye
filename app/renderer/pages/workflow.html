@@ -359,6 +359,17 @@ window.addEventListener('beforeunload', (e) => {
     if (adaPerubahan) { e.preventDefault(); e.returnValue = ''; }
 });
 
+// Penjaga perpindahan halaman. beforeunload di atas hanya menahan penutupan
+// jendela; perpindahan antar halaman ditanyakan di sini supaya dialognya
+// muncul di dalam halaman, bukan dialog sistem.
+window.bolehTinggalkanHalaman = async () => {
+    if (!adaPerubahan) return true;
+    const lanjut = await tanya('Susunan step yang baru diatur belum disimpan.',
+        { judul: 'Perubahan belum disimpan', ya: 'Tinggalkan tanpa menyimpan' });
+    if (lanjut) adaPerubahan = false;
+    return lanjut;
+};
+
 // Pesan disampaikan di halaman, bukan lewat alert. Selain menghentikan
 // seluruh jendela, alert menutupi susunan step yang baru saja diatur -
 // padahal justru itu yang ingin dilihat setelah menyimpan.

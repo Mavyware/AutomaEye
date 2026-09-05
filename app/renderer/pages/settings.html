@@ -133,9 +133,15 @@ load();
 async function refreshAccount() {
     const st = await window.api.authStatus();
     const el = document.getElementById('acctStatus');
-    const akun = st.session ? `Masuk sebagai <strong>${st.session.user.name}</strong> (${st.session.user.email})` : 'Belum login';
+    // Nama akun, alamat email, dan nama repo semuanya teks bebas yang tidak
+    // ditentukan aplikasi ini. Di Electron, satu celah XSS di halaman mana pun
+    // memberi akses ke seluruh window.api - jadi teks dari luar tidak pernah
+    // boleh masuk ke innerHTML mentah-mentah.
+    const akun = st.session
+        ? `Masuk sebagai <strong>${esc(st.session.user.name)}</strong> (${esc(st.session.user.email)})`
+        : 'Belum login';
     const gh = st.github
-        ? `Tersambung ke <strong>${st.github.repo}</strong> &middot; folder: ${st.projectsRoot}`
+        ? `Tersambung ke <strong>${esc(st.github.repo)}</strong> &middot; folder: ${esc(st.projectsRoot)}`
         : 'GitHub belum tersambung';
     el.innerHTML = `${akun}<br>${gh}`;
 }

@@ -25,6 +25,7 @@ const appauth = require('./lib/appauth');
 const github = require('./lib/github');
 const updater = require('./lib/updater');
 const prereq = require('./lib/prereq');
+const keamanan = require('./lib/keamanan');
 
 let _autoPullDone = false, _autoPullResult = null;
 let _updateInfo = null;   // hasil cek versi terakhir
@@ -32,6 +33,9 @@ let _prereqOk = null;    // null = belum diperiksa
 let _prereqSkipped = false;
 
 let mainWindow;
+// true hanya selama perpindahan halaman yang sudah disetujui penjaga,
+// supaya beforeunload tidak membatalkannya lagi.
+let pindahDisetujui = false;
 let cfg;
 let projectsRoot; // absolute path hasil resolve saat runtime (JANGAN disimpan ke config.yaml)
 
@@ -147,6 +151,34 @@ function createWindow() {
             webviewTag: false, // tidak dipakai; mematikannya mengurangi permukaan serangan
             backgroundThrottling: false, // JANGAN throttle loop/kamera saat window tak fokus
         },
+    });
+
+    // Halaman yang punya perubahan belum tersimpan memasang beforeunload
+    // pembatal. Di Electron, pembatalan itu menghentikan loadFile dan penutupan
+    // jendela TANPA menampilkan apa pun: aplikasi tampak macet di halaman yang
+    // sama. (Chromium baru menghormatinya setelah ada interaksi pengguna, jadi
+    // gejalanya baru muncul setelah pengguna menyentuh halaman - yang membuatnya
+    // terlihat acak.)
+    //
+    // Perpindahan antar halaman sudah ditanyakan lebih dulu oleh nav:go dengan
+    // dialog dalam-halaman, jadi di sini cukup diizinkan. Yang tersisa adalah
+    // penutupan jendela, dan itu harus memakai dialog sistem - tidak ada
+    // halaman yang tersisa untuk menampung dialog sendiri.
+    mainWindow.webContents.on('will-prevent-unload', (event) => {
+        if (pindahDisetujui) {
+            event.preventDefault();   // abaikan beforeunload, lanjutkan
+            return;
+        }
+        const pilih = dialog.showMessageBoxSync(mainWindow, {
+            type: 'warning',
+            buttons: ['Tutup tanpa menyimpan', 'Batal'],
+            defaultId: 1,
+            cancelId: 1,
+            title: 'Perubahan belum disimpan',
+            message: 'Ada perubahan yang belum disimpan.',
+            detail: 'Menutup sekarang akan membuang perubahan itu.',
+        });
+        if (pilih === 0) event.preventDefault();
     });
     // Log dari halaman diteruskan ke terminal; tanpa ini, kesalahan di
     // renderer tidak terlihat sama sekali saat menjalankan lewat npm start.
@@ -671,7 +703,12 @@ ipcMain.handle('github:disconnect', () => {
 ipcMain.handle('eval:run', async (event, { project, model, split }) =>
     inference.evaluate(cfg, projectsRoot, project, model, split, (p) =>
         event.sender.send('eval:progress', { project, model, ...p })));
-ipcMain.handle('eval:openDir', (_, { dir }) => shell.openPath(dir));
+ipcMain.handle('eval:openDir', (_, { dir }) => {
+    // Path-nya datang dari renderer, sama seperti file:open - lihat catatan di sana.
+    if (!bolehDibuka(dir)) return { ok: false, error: 'Folder ini tidak boleh dibuka dari aplikasi.' };
+    shell.openPath(dir);
+    return { ok: true };
+});
 
 // ---- Workflow ----
 ipcMain.handle('workflow:save', (_, { project, steps, onFirstNG }) =>
@@ -779,7 +816,10 @@ ipcMain.handle('calibration:run', async (event, { project, model }) => {
 });
 
 // Laporan harian (statistik murni, tanpa LLM) — dipakai tombol di halaman project.
+const tanggalSah = keamanan.tanggalSah;
+
 ipcMain.handle('report:dailyXlsx', (_, { project, date }) => {
+    if (!tanggalSah(date)) return { ok: false, error: 'Tanggal tidak valid.' };
     try {
         const xlsxlite = require('./lib/xlsxlite');
         const p = projects.load(projectsRoot, project);
@@ -807,7 +847,36 @@ ipcMain.handle('report:dailyXlsx', (_, { project, date }) => {
         return { ok: false, error: e.message };
     }
 });
-ipcMain.handle('file:open', (_, p) => shell.openPath(p));
+// Folder yang boleh dibuka lewat shell.openPath.
+//
+// openPath MENJALANKAN berkas dengan aplikasi bawaannya - untuk .exe, .bat,
+// atau .lnk artinya menjalankan program. Handler ini menerima path dari
+// renderer, jadi tanpa batasan, satu celah XSS di halaman mana pun cukup untuk
+// menjalankan program apa pun di komputer pengguna. Itu ancaman yang sama
+// persis dengan yang sudah dijaga di shell:openExternal tepat di bawah ini.
+//
+// Yang benar-benar dibuka aplikasi hanyalah laporan .xlsx, folder hasil
+// evaluasi, folder dataset, dan berkas panduan/sketsa - semuanya di dalam
+// folder project atau folder firmware bawaan.
+function akarBolehDibuka() {
+    const akar = [projectsRoot, app.getPath('userData')];
+    akar.push(app.isPackaged
+        ? path.join(process.resourcesPath, 'firmware')
+        : path.join(__dirname, 'firmware'));
+    return akar.filter(Boolean).map((a) => path.resolve(a));
+}
+
+// Aturannya sendiri ada di lib/keamanan.js supaya bisa diuji tanpa
+// menjalankan seluruh aplikasi - lihat tests/keamanan.js.
+const bolehDibuka = (target) =>
+    keamanan.bolehDibuka(target, akarBolehDibuka(),
+        (m) => console.warn('[security] openPath ' + m));
+
+ipcMain.handle('file:open', (_, p) => {
+    if (!bolehDibuka(p)) return { ok: false, error: 'Berkas ini tidak boleh dibuka dari aplikasi.' };
+    shell.openPath(p);
+    return { ok: true };
+});
 // openPath() hanya untuk file lokal; URL harus lewat openExternal().
 // Dibatasi http/https: tanpa ini, renderer yang disusupi bisa meminta OS
 // membuka skema lain (file:, ms-msdt:, dsb) — jalur eksekusi kode klasik.
@@ -824,6 +893,7 @@ ipcMain.handle('shell:openExternal', (_, url) => {
 
 // Excel data deteksi: 1 baris/part (ID, link gambar, Kotak 1-8 P×L, Lubang 1-6 Ø, waktu deteksi).
 ipcMain.handle('report:detectionXlsx', (_, { project, date }) => {
+    if (!tanggalSah(date)) return { ok: false, error: 'Tanggal tidak valid.' };
     try {
         const xlsxlite = require('./lib/xlsxlite');
         const detreport = require('./lib/detreport');
@@ -950,7 +1020,7 @@ ipcMain.handle('output:test', (_, { script, verdict, bahasa }) =>
         : customoutput.test(script, arduino, verdict)));
 
 // ---- Navigation ----
-ipcMain.handle('nav:go', (_, page) => {
+ipcMain.handle('nav:go', async (_, page) => {
     // page bisa berisi query string, contoh: "project.html?name=Foo"
     const [filePart, queryPart] = String(page).split('?');
     const target = path.join(__dirname, 'renderer/pages', filePart);
@@ -965,6 +1035,48 @@ ipcMain.handle('nav:go', (_, page) => {
         for (const [k, v] of params) query[k] = v;
         opts.query = query;
     }
-    mainWindow.loadFile(target, opts);
+
+    // Halaman dengan perubahan belum tersimpan diberi kesempatan menahan
+    // perpindahan dan bertanya lebih dulu. Ditanyakan DI SINI, bukan di tiap
+    // tombol: ada dua puluh lebih tempat yang berpindah halaman, dan yang
+    // terlewat akan membuang pekerjaan pengguna tanpa sepatah kata.
+    //
+    // Halaman yang tidak punya penjaga menjawab true, jadi tidak ada yang
+    // perlu diubah pada halaman biasa.
+    let boleh = true;
+    try {
+        boleh = await mainWindow.webContents.executeJavaScript(
+            'typeof window.bolehTinggalkanHalaman === "function"'
+            + ' ? window.bolehTinggalkanHalaman() : true'
+        );
+    } catch (err) {
+        // Penjaga rusak tidak boleh mengunci aplikasi. Dicatat, lalu jalan.
+        console.warn('[nav:go] penjaga halaman gagal:', err.message);
+        boleh = true;
+    }
+    if (!boleh) return { ok: false, error: 'dibatalkan pengguna' };
+
+    // Penjaga sudah setuju, jadi beforeunload halaman ini tidak boleh
+    // membatalkan lagi - lihat will-prevent-unload di bawah.
+    pindahDisetujui = true;
+
+    // Promise dari loadFile TIDAK selalu selesai: kalau unload-nya tetap
+    // tertahan, ia menggantung selamanya. Menunggunya berarti nav:go ikut
+    // menggantung DAN pindahDisetujui menyala terus - yang diam-diam mematikan
+    // konfirmasi "perubahan belum disimpan" saat jendela ditutup. Maka izinnya
+    // dilepas oleh peristiwa selesai-memuat, dengan penjaga waktu sebagai
+    // jaring pengaman, bukan oleh await.
+    const lepasIzin = () => { pindahDisetujui = false; };
+    const jaringPengaman = setTimeout(lepasIzin, 5000);
+    mainWindow.webContents.once('did-stop-loading', () => {
+        clearTimeout(jaringPengaman);
+        lepasIzin();
+    });
+    mainWindow.loadFile(target, opts).catch((err) => {
+        console.warn('[nav:go] gagal memuat halaman:', err.message);
+        clearTimeout(jaringPengaman);
+        lepasIzin();
+    });
+
     return { ok: true };
 });
