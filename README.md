@@ -134,7 +134,8 @@ Daily summaries and per-detection measurement data, exported to Excel.
 Only needed if you are working on AutomaEyes itself. To *use* the application,
 download the installer above — it needs none of this.
 
-Requires **Node.js LTS** and **Python 3.10+**.
+Requires **Node.js LTS** and **Python 3.12+** (numpy 2.5+ no longer supports
+older Python versions).
 
 ```bash
 cd app
@@ -167,11 +168,13 @@ The repository holds the desktop application (`app/`) and the account website
 
 Pull requests are welcome, and are how changes to AutomaEyes are made. Bug
 fixes and well-made features are reviewed by the Mavyware development team.
+See [CONTRIBUTING.md](CONTRIBUTING.md) for how to set up, test, and submit one.
 
 Bug reports and suggestions are welcome through Issues.
 
-**Contributors:** [Code8Byte](https://github.com/Code8Byte) · the Mavyware
-development team.
+**Contributors:** [Code8Byte](https://github.com/Code8Byte) (CEO, Mavyware) ·
+[CodeVouz](https://github.com/CodeVouz) (Founder, AutomaEyes) · Claude (AI
+Development Team) · Dependabot (dependency updates).
 
 ---
 
