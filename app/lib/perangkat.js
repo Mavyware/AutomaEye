@@ -1,21 +1,21 @@
-// Katalog perangkat keluaran (Arduino / ESP32 / PLC) dan pemindai port.
+// Catalog of output devices (Arduino / ESP32 / PLC) and port scanner.
 //
-// Dipakai halaman Output: pengguna memilih perangkat, lalu memetakan tiap
-// kelas model ke satu keluaran - pin pada papan, atau alamat coil pada PLC.
-// Modul ini hanya menyediakan pengetahuannya; mengirim sinyal tetap urusan
-// lib/arduino.js (papan) dan lib/modbus.js (PLC).
+// Used by the Output page: the user picks a device, then maps each model
+// class to one output - a pin on the board, or a coil address on the PLC.
+// This module only supplies the knowledge; sending the actual signal is
+// still handled by lib/arduino.js (board) and lib/modbus.js (PLC).
 
 const arduino = require('./arduino');
 
-// Rentang pin yang aman dipakai sebagai keluaran digital.
+// Range of pins that are safe to use as digital outputs.
 //
-// Yang sengaja TIDAK dimasukkan:
-//   - Arduino pin 0 dan 1: itu jalur serial yang dipakai aplikasi ini untuk
-//     bicara ke papannya. Memakainya sebagai keluaran memutus koneksinya
-//     sendiri, dan gejalanya membingungkan - papan seolah hilang.
-//   - ESP32 GPIO 6-11: tersambung ke flash internal. Menggerakkannya membuat
-//     papan reboot atau gagal boot.
-//   - ESP32 GPIO 34-39: hanya bisa membaca, tidak bisa mengeluarkan tegangan.
+// Deliberately NOT included:
+//   - Arduino pins 0 and 1: those are the serial lines this app uses to talk
+//     to the board. Using them as outputs breaks its own connection, and the
+//     symptom is confusing - the board seems to disappear.
+//   - ESP32 GPIO 6-11: wired to internal flash. Toggling them makes the
+//     board reboot or fail to boot.
+//   - ESP32 GPIO 34-39: input only, cannot drive a voltage out.
 const rentang = (a, b) => Array.from({ length: b - a + 1 }, (_, i) => a + i);
 
 const KATALOG = {
@@ -40,15 +40,15 @@ const KATALOG = {
             c3:       { nama: 'ESP32-C3',           pin: [...rentang(0, 10), 18, 19, 20, 21] },
         },
     },
-    // PLC tidak perlu firmware: hampir semuanya sudah bicara Modbus dari
-    // pabrik. Yang dipetakan bukan pin fisik melainkan alamat coil, dan
-    // alamat itu ditentukan program PLC-nya sendiri - daftar merek di bawah
-    // hanya memberi titik mulai yang lazim, bukan jaminan. Selalu cocokkan
-    // dengan pemetaan di program PLC Anda.
+    // PLCs don't need firmware: nearly all of them already speak Modbus out
+    // of the box. What's mapped isn't a physical pin but a coil address, and
+    // that address is determined by the PLC's own program - the list of
+    // brands below only gives a common starting point, not a guarantee.
+    // Always match it against the mapping in your PLC program.
     plc: {
         nama: 'PLC (Modbus)',
         baudBawaan: 9600,
-        alamatCoil: true,                 // dipetakan lewat alamat, bukan daftar pin
+        alamatCoil: true,                 // mapped by address, not a pin list
         papan: {
             umum:       { nama: 'Modbus umum', basis: 0, catatan: 'Alamat coil apa adanya, sesuai program PLC.' },
             omron:      { nama: 'Omron CP1 / CJ', basis: 0, catatan: 'Coil biasanya dipetakan dari area CIO.' },
@@ -61,8 +61,8 @@ const KATALOG = {
     },
 };
 
-// Cara sambungnya. Untuk sekarang hanya USB serial yang benar-benar jalan;
-// yang lain disebut supaya jelas belum tersedia, bukan disembunyikan.
+// Connection methods. For now only USB serial actually works;
+// the others are listed to be clear they're not yet available, not hidden.
 const KONEKSI = {
     usb: { nama: 'Kabel USB (serial)', siap: true, untuk: ['arduino', 'esp32'] },
     rtu: { nama: 'Modbus RTU (serial / RS-485)', siap: true, untuk: ['plc'] },
@@ -73,16 +73,16 @@ const KONEKSI = {
 exports.KATALOG = KATALOG;
 exports.KONEKSI = KONEKSI;
 
-// Tebak jenis papan dari vendor ID USB. Bukan kepastian - satu chip USB
-// dipakai banyak papan - jadi hasilnya hanya dipakai sebagai saran, dan
-// pengguna tetap yang memilih.
+// Guess the board type from the USB vendor ID. Not a certainty - one USB
+// chip is used by many boards - so the result is only used as a suggestion,
+// and the user still makes the final choice.
 function tebakDari(p) {
     const vid = String(p.vendorId || '').toLowerCase();
     const teks = ((p.manufacturer || '') + ' ' + (p.friendlyName || '')).toLowerCase();
     if (vid === '303a' || /esp32|espressif/.test(teks)) return 'esp32';
     if (vid === '2341' || vid === '2a03' || /arduino/.test(teks)) return 'arduino';
-    if (vid === '10c4') return 'esp32';     // CP210x, lazim pada DevKit ESP32
-    if (vid === '1a86' || vid === '0403') return 'arduino'; // CH340 / FTDI, lazim pada klon Arduino
+    if (vid === '10c4') return 'esp32';     // CP210x, common on ESP32 DevKit
+    if (vid === '1a86' || vid === '0403') return 'arduino'; // CH340 / FTDI, common on Arduino clones
     return null;
 }
 
@@ -93,9 +93,9 @@ function kemungkinanPapan(p) {
         || ['1a86', '10c4', '2341', '2a03', '0403', '303a'].includes(vid);
 }
 
-// Pindai port serial. Selalu mengembalikan seluruh port, dengan penanda mana
-// yang kemungkinan papan - port yang tidak dikenali tetap ditampilkan supaya
-// papan tak lazim tidak jadi tak terpilih sama sekali.
+// Scan serial ports. Always returns every port, flagging which ones are
+// likely a board - unrecognized ports are still shown so an unusual board
+// doesn't end up impossible to select.
 exports.pindai = async () => {
     const ports = await arduino.listPorts();
     return ports.map((p) => ({
@@ -110,7 +110,7 @@ exports.pindai = async () => {
     }));
 };
 
-// Daftar pin yang boleh dipilih untuk satu papan.
+// List of pins that may be selected for a given board.
 exports.pinPapan = (jenis, papan) => {
     const j = KATALOG[jenis];
     if (!j) return [];
@@ -118,8 +118,8 @@ exports.pinPapan = (jenis, papan) => {
     return b ? b.pin.slice() : [];
 };
 
-// Periksa konfigurasi sebelum disimpan. Mengembalikan daftar masalah dalam
-// bahasa manusia - kosong berarti aman.
+// Validate the configuration before saving. Returns a list of issues in
+// human-readable form - empty means it's safe.
 exports.periksa = (cfg) => {
     const masalah = [];
     if (!cfg || !cfg.device) return ['Perangkat belum dipilih.'];
@@ -138,7 +138,7 @@ exports.periksa = (cfg) => {
     const sah = pakaiAlamat ? new Set() : new Set(exports.pinPapan(jenis, papan).map(String));
     const terpakai = new Map();
     for (const m of (cfg.pinKelas || [])) {
-        if (m.pin === '' || m.pin == null) continue;      // belum diatur, bukan kesalahan
+        if (m.pin === '' || m.pin == null) continue;      // not set yet, not an error
         const pin = String(m.pin);
         if (pakaiAlamat && !/^\d+$/.test(pin)) {
             masalah.push(`Alamat coil "${pin}" bukan angka.`);
@@ -148,9 +148,9 @@ exports.periksa = (cfg) => {
             masalah.push(`Pin ${pin} tidak ada pada ${KATALOG[jenis] && KATALOG[jenis].papan[papan] ? KATALOG[jenis].papan[papan].nama : papan}.`);
             continue;
         }
-        // Satu pin untuk dua kelas berarti keduanya tidak bisa dibedakan
-        // di sisi mesin - ini kesalahan diam yang mahal kalau baru ketahuan
-        // saat lini produksi berjalan.
+        // One pin for two classes means they can't be told apart on the
+        // machine side - a silent mistake that gets expensive if it's only
+        // noticed once the production line is already running.
         const label = `${m.model} / ${m.kelas}`;
         if (terpakai.has(pin)) masalah.push(`Pin ${pin} dipakai dua kali: ${terpakai.get(pin)} dan ${label}.`);
         else terpakai.set(pin, label);

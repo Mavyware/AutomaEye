@@ -1,5 +1,5 @@
-// Preload bridge — expose backend API ke renderer secara aman
-// (contextIsolation on, tidak expose Node native langsung).
+// Preload bridge — safely exposes the backend API to the renderer
+// (contextIsolation on, no direct Node native exposure).
 const { contextBridge, ipcRenderer } = require('electron');
 
 contextBridge.exposeInMainWorld('api', {
@@ -35,7 +35,7 @@ contextBridge.exposeInMainWorld('api', {
     splitDataset: (project, model, ratios) => ipcRenderer.invoke('dataset:split', { project, model, ratios }),
     cleanRebuildDataset: (project, model, ratios) => ipcRenderer.invoke('dataset:cleanRebuild', { project, model, ratios }),
 
-    // Anotasi bawaan (tanpa pihak ketiga)
+    // Built-in annotation (no third party)
     annotList: (project, model, split) => ipcRenderer.invoke('annot:list', { project, model, split }),
     annotImage: (project, model, split, name) => ipcRenderer.invoke('annot:image', { project, model, split, name }),
     annotSave: (project, model, split, name, shapes) => ipcRenderer.invoke('annot:save', { project, model, split, name, shapes }),
@@ -47,7 +47,7 @@ contextBridge.exposeInMainWorld('api', {
     loadTrainHistory: (project, model) => ipcRenderer.invoke('training:loadHistory', { project, model }),
     onTrainingProgress: (cb) => ipcRenderer.on('training:progress', (_, data) => cb(data)),
 
-    // Sinkronisasi GitHub (Save/Load)
+    // GitHub sync (Save/Load)
     gitStatus: () => ipcRenderer.invoke('git:status'),
     gitPush: (message) => ipcRenderer.invoke('git:push', { message }),
     gitPull: () => ipcRenderer.invoke('git:pull'),
@@ -73,23 +73,23 @@ contextBridge.exposeInMainWorld('api', {
     runCalibration: (project, model) => ipcRenderer.invoke('calibration:run', { project, model }),
     onCalibrationProgress: (cb) => ipcRenderer.on('calibration:progress', (_, data) => cb(data)),
 
-    // Laporan (statistik murni, tanpa LLM)
+    // Reports (pure statistics, no LLM)
     reportDetectionXlsx: (project, date) => ipcRenderer.invoke('report:detectionXlsx', { project, date }),
     reportDailyXlsx: (project, date) => ipcRenderer.invoke('report:dailyXlsx', { project, date }),
     openPath: (p) => ipcRenderer.invoke('file:open', p),
 
-    // Prasyarat Python
+    // Python prerequisites
     prereqCheck: () => ipcRenderer.invoke('prereq:check'),
     prereqInstall: () => ipcRenderer.invoke('prereq:install'),
     prereqDone: () => ipcRenderer.invoke('prereq:done'),
     prereqSkip: () => ipcRenderer.invoke('prereq:skip'),
     onPrereqLog: (cb) => ipcRenderer.on('prereq:log', (_, line) => cb(line)),
 
-    // Pembaruan aplikasi
+    // App updates
     updateInfo: () => ipcRenderer.invoke('update:info'),
     updateRecheck: () => ipcRenderer.invoke('update:recheck'),
 
-    // Login website + koneksi GitHub milik user
+    // Website login + the user's own GitHub connection
     authStatus: () => ipcRenderer.invoke('auth:status'),
     authLogin: () => ipcRenderer.invoke('auth:login'),
     authLogout: () => ipcRenderer.invoke('auth:logout'),
@@ -103,7 +103,7 @@ contextBridge.exposeInMainWorld('api', {
     githubDisconnect: () => ipcRenderer.invoke('github:disconnect'),
     openExternal: (url) => ipcRenderer.invoke('shell:openExternal', url),
 
-    // Output kustom
+    // Custom output
     getOutputConfig: (project) => ipcRenderer.invoke('output:get', { project }),
     saveOutputConfig: (project, config) => ipcRenderer.invoke('output:save', { project, config }),
     deviceKatalog: () => ipcRenderer.invoke('device:katalog'),

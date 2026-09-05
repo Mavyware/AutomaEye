@@ -1,13 +1,13 @@
-// lib/updater.js — pemeriksaan versi aplikasi.
+// lib/updater.js — app version check.
 //
-// Aplikasi menanyakan versi terbaru ke situs saat start. Kalau versi yang
-// terpasang lebih lama dari minVersion, pemakaian diblokir sampai user
-// memperbarui — ini untuk perubahan yang membuat versi lama tidak lagi
-// kompatibel (mis. alur login atau format label berubah), supaya user tidak
-// mengalami kegagalan aneh yang sulit ditelusuri.
+// The app asks the site for the latest version at startup. If the installed
+// version is older than minVersion, usage is blocked until the user
+// updates — this is for changes that make the old version no longer
+// compatible (e.g. the login flow or label format changed), so the user
+// doesn't run into strange, hard-to-trace failures.
 //
-// Kalau situs tidak bisa dihubungi, aplikasi TETAP boleh dipakai. Lini
-// produksi tidak boleh berhenti hanya karena internet mati.
+// If the site can't be reached, the app can STILL be used. A production
+// line shouldn't stop just because the internet is down.
 
 const { app } = require('electron');
 
@@ -16,8 +16,8 @@ function siteUrl(cfg) {
 }
 
 /**
- * Bandingkan versi semantik "1.2.3".
- * @returns -1 kalau a < b, 0 kalau sama, 1 kalau a > b
+ * Compare semantic versions "1.2.3".
+ * @returns -1 if a < b, 0 if equal, 1 if a > b
  */
 function compareVersions(a, b) {
     const pa = String(a).split('.').map((n) => parseInt(n, 10) || 0);
@@ -47,7 +47,7 @@ exports.check = async (cfg) => {
             signal: AbortSignal.timeout(8000),
         });
     } catch (e) {
-        // Tidak bisa menghubungi situs bukan alasan menghentikan produksi.
+        // Not being able to reach the site is not a reason to halt production.
         return { ok: false, offline: true, current, error: e.message };
     }
 

@@ -1,30 +1,30 @@
-// Pangkas berkas yang tidak akan pernah dipakai di komputer target.
+// Trim files that will never be used on the target computer.
 //
-// Dijalankan electron-builder setelah aplikasi dipaketkan, sebelum installer
-// dibuat. Yang dibuang di sini bukan sekadar penghemat tempat: installer ini
-// diunduh ke komputer pabrik, kadang lewat jaringan yang lambat, jadi setiap
-// puluhan megabyte terasa.
+// Run by electron-builder after the app is packaged, before the installer is
+// built. What gets removed here isn't just about saving space: this
+// installer gets downloaded to factory computers, sometimes over a slow
+// network, so every few dozen megabytes matters.
 //
-// Yang TIDAK disentuh, walau besar:
-//   - AutomaEyes.exe (235 MB) itu Chromium; tidak bisa dikecilkan.
-//   - LICENSES.chromium.html (19 MB) wajib ikut secara hukum.
-//   - dxcompiler.dll + dxil.dll (26 MB) itu compiler shader DirectX, dipakai
-//     jalur WebGPU. Aplikasi ini hanya memakai canvas 2D, jadi membuangnya
-//     tampak aman - dan memang diuji: aplikasi tetap jalan tanpa keduanya.
-//     Tapi setelah dikompresi selisihnya cuma 6,6 MB (108,2 -> 101,6), dan
-//     kalau tebakan itu meleset di satu komputer pabrik, gejalanya berupa
-//     kegagalan GPU yang sangat sulit dilacak. Tidak sebanding. Diukur, bukan
-//     ditebak - jangan diulang tanpa alasan baru.
+// What is NOT touched, even though it's large:
+//   - AutomaEyes.exe (235 MB) is Chromium; it can't be shrunk.
+//   - LICENSES.chromium.html (19 MB) is legally required to be included.
+//   - dxcompiler.dll + dxil.dll (26 MB) are the DirectX shader compiler,
+//     used by the WebGPU path. This app only uses 2D canvas, so removing
+//     them looks safe - and it was in fact tested: the app still runs
+//     without them. But after compression the difference is only 6.6 MB
+//     (108.2 -> 101.6), and if that guess turns out wrong on one factory
+//     computer, the symptom is a GPU failure that's extremely hard to trace.
+//     Not worth it. Measured, not guessed - don't repeat this without a new reason.
 
 const fs = require('fs');
 const path = require('path');
 
-// Bahasa yang disimpan. en-US wajib: Chromium memakainya sebagai cadangan
-// kalau bahasa yang diminta tidak ada.
+// Languages kept. en-US is required: Chromium uses it as a fallback
+// when the requested language isn't available.
 const BAHASA = new Set(['en-US.pak', 'id.pak']);
 
-// Modul native serialport membawa biner untuk semua platform sekaligus.
-// Di installer Windows, hanya satu yang berguna.
+// The native serialport module ships binaries for every platform at once.
+// In the Windows installer, only one of them is useful.
 const PREBUILD_DIPAKAI = new Set(['win32-x64']);
 
 function ukuran(p) {
@@ -42,7 +42,7 @@ exports.default = async function (context) {
     const keluar = context.appOutDir;
     let hemat = 0;
 
-    // --- bahasa ---
+    // --- languages ---
     const dirBahasa = path.join(keluar, 'locales');
     if (fs.existsSync(dirBahasa)) {
         let dibuang = 0;
@@ -56,7 +56,7 @@ exports.default = async function (context) {
         console.log(`  • pangkas bahasa      dibuang=${dibuang} disimpan=${[...BAHASA].join(', ')}`);
     }
 
-    // --- prebuild native untuk platform lain ---
+    // --- native prebuilds for other platforms ---
     const dirPre = path.join(
         keluar, 'resources', 'app.asar.unpacked', 'node_modules',
         '@serialport', 'bindings-cpp', 'prebuilds'

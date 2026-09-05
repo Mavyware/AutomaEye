@@ -1,15 +1,15 @@
-// Output buatan pengguna yang ditulis dalam Python.
+// User-authored output written in Python.
 //
-// Pendamping lib/customoutput.js (JavaScript). Python ditawarkan karena
-// aplikasi ini memang sudah membutuhkannya untuk pelatihan model, dan karena
-// di lini produksi maupun di pekerjaan AI, Python-lah yang paling lazim
-// dipakai orang untuk menyambungkan hasil ke sistem lain.
+// Companion to lib/customoutput.js (JavaScript). Python is offered because
+// this app already needs it for model training, and because on both
+// production lines and AI work, Python is what people most commonly use
+// to hook results up to other systems.
 //
-// Skripnya dijalankan sebagai proses terpisah, bukan di dalam aplikasi.
-// Helper di dalamnya tidak melakukan I/O sendiri: mereka menuliskan perintah,
-// dan modul ini yang mengerjakannya. Alasannya port serial hanya bisa dibuka
-// satu proses - kalau skrip Python membukanya sendiri, ia bentrok dengan
-// aplikasi yang sedang memegang port itu.
+// The script runs as a separate process, not inside the app. The helpers
+// inside it don't do their own I/O: they write out commands, and this
+// module is what actually performs them. The reason is that a serial port
+// can only be opened by one process - if the Python script opened it itself,
+// it would clash with the app that's already holding that port.
 
 const { spawn } = require('child_process');
 const { pythonScript, pythonDir } = require('./paths');
@@ -17,7 +17,7 @@ const { pythonScript, pythonDir } = require('./paths');
 const BATAS_MS = 5000;
 const PENANDA = '@@CMD@@ ';
 
-exports.DEFAULT_SCRIPT = `# Bahasanya Python, dijalankan oleh aplikasi setiap ada hasil inspeksi.
+exports.DEFAULT_SCRIPT = `# Written in Python, run by the app every time there's an inspection result.
 #
 # result = {
 #   "verdict": "OK" | "NG",
@@ -44,7 +44,7 @@ def on_result(result):
     log("kelas terdeteksi: " + (", ".join(kelas) or "tidak ada"))
 `;
 
-/** Bentuk hasil yang dilihat skrip — sama persis dengan versi JavaScript. */
+/** The result shape seen by the script — exactly the same as the JavaScript version. */
 function toScriptResult(result) {
     const steps = (result.steps || []).map((s) => ({
         modelName: s.modelName || s.label || s.category || '',
@@ -62,7 +62,7 @@ function toScriptResult(result) {
     };
 }
 
-// Kerjakan satu perintah yang diminta skrip.
+// Carry out a single command requested by the script.
 function jalankanPerintah(cmd, arduino, logs) {
     if (cmd.jenis === 'serial') {
         logs.push(`serial_write(${JSON.stringify(cmd.data)})`);
@@ -85,7 +85,7 @@ function jalankanPerintah(cmd, arduino, logs) {
 }
 
 /**
- * Jalankan skrip Python untuk satu hasil inspeksi.
+ * Run the Python script for one inspection result.
  * @returns {Promise<{ok:boolean, logs:string[], error?:string}>}
  */
 exports.run = (script, result, arduino, pyCfg) => new Promise((selesai) => {
@@ -111,11 +111,11 @@ exports.run = (script, result, arduino, pyCfg) => new Promise((selesai) => {
         if (sudah) return;
         sudah = true;
         clearTimeout(pewaktu);
-        try { anak.kill(); } catch (_) { /* sudah mati */ }
+        try { anak.kill(); } catch (_) { /* already dead */ }
         selesai(hasil);
     };
 
-    // Skrip yang menggantung tidak boleh menahan lini produksi.
+    // A hung script must not hold up the production line.
     const pewaktu = setTimeout(() => {
         tutup({ ok: false, logs, error: `Skrip melebihi ${BATAS_MS / 1000} detik dan dihentikan.` });
     }, BATAS_MS);
@@ -126,8 +126,8 @@ exports.run = (script, result, arduino, pyCfg) => new Promise((selesai) => {
         sisa = baris.pop();
         for (const b of baris) {
             if (!b.startsWith(PENANDA)) {
-                // print() biasa dari skrip pengguna tetap berguna saat mencari
-                // kesalahan, jadi ikut ditampilkan alih-alih dibuang.
+                // A plain print() from the user's script is still useful when
+                // debugging, so it's shown instead of being discarded.
                 if (b.trim()) logs.push(b.trim());
                 continue;
             }
@@ -159,7 +159,7 @@ exports.run = (script, result, arduino, pyCfg) => new Promise((selesai) => {
     anak.stdin.end();
 });
 
-/** Uji dengan hasil contoh, tanpa perlu menjalankan inspeksi sungguhan. */
+/** Test with a sample result, without needing to run a real inspection. */
 exports.test = (script, arduino, verdict = 'OK', pyCfg) => exports.run(script, {
     finalVerdict: verdict,
     totalMS: 123.4,

@@ -1,11 +1,11 @@
-// lib/github.js — panggilan GitHub API memakai access token milik user.
+// lib/github.js — GitHub API calls using the user's access token.
 //
-// Tokennya didapat lewat OAuth di website (lihat lib/appauth.js), bukan device
-// flow: aplikasi desktop tidak menyimpan Client ID maupun secret sama sekali,
-// dan user tidak perlu mengetik kode apa pun — cukup menekan Authorize.
+// The token is obtained via OAuth on the website (see lib/appauth.js), not
+// the device flow: the desktop app doesn't store a Client ID or secret at
+// all, and the user doesn't need to type any code — just press Authorize.
 //
-// Scope 'repo' diminta website supaya app bisa push dataset/model ke repo
-// privat milik user sendiri — bukan ke repo pengembang.
+// The website requests 'repo' scope so the app can push datasets/models to
+// the user's own private repo — not to the developer's repo.
 
 const GH_API = 'https://api.github.com';
 
@@ -34,7 +34,7 @@ exports.getUser = async (token) => {
     return { ok: true, login: r.data.login, name: r.data.name, avatar: r.data.avatar_url };
 };
 
-/** Repo milik user (yang dia punya akses tulis), untuk dropdown "pakai repo yang ada". */
+/** Repos owned by the user (with write access), for the "use an existing repo" dropdown. */
 exports.listRepos = async (token) => {
     const r = await ghJson(`${GH_API}/user/repos?per_page=100&affiliation=owner&sort=updated`, {
         headers: { Authorization: `Bearer ${token}` },
@@ -51,7 +51,7 @@ exports.listRepos = async (token) => {
     };
 };
 
-/** Buat repo baru (default privat — dataset pabrik tidak seharusnya publik). */
+/** Create a new repo (private by default — factory datasets shouldn't be public). */
 exports.createRepo = async (token, name, isPrivate = true) => {
     const r = await ghJson(`${GH_API}/user/repos`, {
         method: 'POST',

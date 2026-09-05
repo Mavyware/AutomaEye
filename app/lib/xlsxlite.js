@@ -1,5 +1,5 @@
-// Penulis XLSX minimal (tanpa dependensi tambahan) — pakai adm-zip yang sudah ada.
-// Cukup untuk laporan sederhana: satu sheet, string/number, inline strings.
+// Minimal XLSX writer (no extra dependencies) — uses the existing adm-zip.
+// Enough for simple reports: one sheet, string/number, inline strings.
 const AdmZip = require('adm-zip');
 
 function esc(s) {
@@ -31,7 +31,7 @@ function sheetXml(rows) {
         `<sheetData>${body}</sheetData></worksheet>`;
 }
 
-// rows = array of arrays (tiap sel: string atau number). Return outPath.
+// rows = array of arrays (each cell: string or number). Returns outPath.
 exports.write = (outPath, sheetName, rows) => {
     const zip = new AdmZip();
     zip.addFile('[Content_Types].xml', Buffer.from(

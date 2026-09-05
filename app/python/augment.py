@@ -1,21 +1,21 @@
 """
-Dataset augmentation — output SEPARATE file per aug type per source image,
-DAN ikut men-transform label supaya anotasi tetap valid di gambar hasil.
+Dataset augmentation — outputs a SEPARATE file per aug type per source image,
+AND transforms the labels too so annotations stay valid on the resulting image.
 
-Mendukung DUA format label YOLO:
-  * Detection (bounding box): "cls cx cy w h"            (4 koordinat)
-  * Segmentation (polygon)  : "cls x1 y1 x2 y2 ... xn yn" (>=6, genap)
+Supports TWO YOLO label formats:
+  * Detection (bounding box): "cls cx cy w h"            (4 coordinates)
+  * Segmentation (polygon)  : "cls x1 y1 x2 y2 ... xn yn" (>=6, even count)
 
-Logika:
-  Untuk tiap gambar asli yang PUNYA label, untuk tiap aug type enabled &
-  tiap multiplier index:
-    - Apply HANYA aug type ini ke gambar
-    - Transform label sesuai aug:
-        * geometric (rotate / flip-h / flip-v) -> koordinat diubah
-        * photometric (blur / exposure / noise) -> label disalin apa adanya
+Logic:
+  For each original image that HAS a label, for each enabled aug type &
+  each multiplier index:
+    - Apply ONLY this aug type to the image
+    - Transform the label according to the aug:
+        * geometric (rotate / flip-h / flip-v) -> coordinates are changed
+        * photometric (blur / exposure / noise) -> the label is copied as-is
     - Save <stem>.<augtype>.aug<i>.jpg + .txt
 
-Gambar tanpa label DILEWATI. Progress: "PROGRESS <done>/<total>".
+Images with no label are SKIPPED. Progress: "PROGRESS <done>/<total>".
 """
 import argparse
 import random
@@ -53,7 +53,7 @@ def apply_noise(img, sigma):
 # ---------- Label parsing ----------
 # item = (cls_str, vals[list of float], is_poly[bool])
 #   bbox    : vals = [cx, cy, w, h]
-#   polygon : vals = [x1, y1, x2, y2, ...]  (semua normalized 0..1)
+#   polygon : vals = [x1, y1, x2, y2, ...]  (all normalized 0..1)
 
 def read_label(p):
     items = []
@@ -104,8 +104,8 @@ def flip_item(cls, vals, is_poly, axis):
 
 
 def rotate_item(cls, vals, is_poly, M, w, h):
-    """Putar pakai matrix affine yang SAMA dengan gambar. Poligon: tiap titik
-    ditransform lalu di-clamp ke [0,1]. Bbox: ambil axis-aligned box dari 4 sudut."""
+    """Rotate using the SAME affine matrix as the image. Polygon: each point
+    is transformed then clamped to [0,1]. Bbox: take the axis-aligned box from the 4 corners."""
     def tf(x, y):
         return (M[0, 0] * x + M[0, 1] * y + M[0, 2],
                 M[1, 0] * x + M[1, 1] * y + M[1, 2])
@@ -150,16 +150,16 @@ def main():
     ap.add_argument("--noise", action="store_true")
     ap.add_argument("--noise-sigma", type=float, default=8.0)
     ap.add_argument("--splits", default="train",
-                    help="split yang di-augment, pisah koma. mis: train  atau  train,val,test")
+                    help="splits to augment, comma-separated. e.g: train  or  train,val,test")
     ap.add_argument("--clean", action="store_true",
-                    help="hapus augmentasi lama (.aug) di split terkait sebelum generate baru")
+                    help="delete old augmentations (.aug) in the relevant split before generating new ones")
     args = ap.parse_args()
 
     base = Path(args.dir)
     splits = [s.strip() for s in (args.splits or "train").split(",") if s.strip()]
 
-    # Regenerasi bersih: hapus augmentasi lama (.aug) di split terkait dulu,
-    # supaya aug lama (mis. rotasi) tidak ikut saat generate set baru.
+    # Clean regeneration: delete old augmentations (.aug) in the relevant
+    # split first, so old augs (e.g. rotation) don't carry over when generating a new set.
     if args.clean:
         removed = 0
         for split in splits:
@@ -194,8 +194,8 @@ def main():
         print("[!] Tidak ada augmentasi enabled", flush=True)
         return
 
-    # Kumpulkan sumber PER SPLIT. Output tiap split ditulis kembali ke foldernya
-    # sendiri (train->train, val->val, test->test) → tidak ada percampuran antar-split.
+    # Collect sources PER SPLIT. Each split's output is written back to its
+    # own folder (train->train, val->val, test->test) → no mixing across splits.
     per_split = []          # (split, src_dir, lbl_dir, [(img, lbl), ...])
     total = 0
     skipped_no_label = 0

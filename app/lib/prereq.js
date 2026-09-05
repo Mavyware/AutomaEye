@@ -1,15 +1,15 @@
-// lib/prereq.js — pemeriksaan & pemasangan prasyarat Python.
+// lib/prereq.js — checking & installing Python prerequisites.
 //
-// Pembagian tugas dengan installer:
-//   installer : memasang Python sendiri kalau belum ada (~25 MB, senyap)
-//   aplikasi  : memasang paket Python (ultralytics menarik torch, >1 GB),
-//               dan bisa memasang Python juga kalau installer dilewati
+// Division of labor with the installer:
+//   installer : installs Python itself if missing (~25 MB, silent)
+//   the app   : installs Python packages (ultralytics pulls in torch, >1 GB),
+//               and can also install Python if the installer step was skipped
 //
-// Paket sengaja TIDAK dipaketkan ke installer maupun dipasang dari NSIS:
-// ukurannya membengkakkan installer dari 89 MB jadi lebih dari 1 GB, dan
-// unduhan sebesar itu tanpa indikator progres akan terlihat menggantung
-// lalu gagal tanpa penjelasan. Di aplikasi, prosesnya bisa ditampilkan,
-// diulang, dan dibatalkan.
+// Packages are deliberately NOT bundled into the installer or installed from
+// NSIS: their size would balloon the installer from 89 MB to over 1 GB, and
+// a download that big with no progress indicator would look like it's hung
+// and then fail with no explanation. In the app, the process can be shown,
+// retried, and canceled.
 
 const { spawn, execFile } = require('child_process');
 const path = require('path');
@@ -51,7 +51,7 @@ exports.check = async (cfg) => {
         python.tooOld = major < MIN_PYTHON[0] || (major === MIN_PYTHON[0] && minor < MIN_PYTHON[1]);
     }
 
-    // Tanpa Python, memeriksa modul tidak ada gunanya.
+    // Without Python, checking modules is pointless.
     if (!python.found || python.tooOld) {
         return {
             ok: false, python,
@@ -60,8 +60,8 @@ exports.check = async (cfg) => {
         };
     }
 
-    // Tiap modul dicek terpisah supaya bisa dilaporkan mana yang kurang,
-    // bukan sekadar "gagal".
+    // Each module is checked separately so it's possible to report which
+    // one is missing, instead of just "failed".
     const modules = [];
     for (const name of MODULES) {
         const r = await run(exe, ['-c', `import ${name}`]);
@@ -71,20 +71,20 @@ exports.check = async (cfg) => {
     return { ok: missing.length === 0, python, modules, missing };
 };
 
-/** URL installer Python resmi untuk Windows 64-bit. */
+/** URL of the official Python installer for Windows 64-bit. */
 exports.pythonDownloadUrl = () =>
     'https://www.python.org/ftp/python/3.12.7/python-3.12.7-amd64.exe';
 
 /**
- * Unduh lalu pasang Python tanpa campur tangan pengguna.
+ * Download then install Python with no user interaction.
  *
- * Dipasang untuk pengguna saat ini (InstallAllUsers=0) supaya tidak menuntut
- * hak administrator - installer AutomaEyes sendiri juga per-pengguna, jadi
- * meminta UAC di sini hanya akan menambah satu dinding lagi.
+ * Installed for the current user (InstallAllUsers=0) so it doesn't require
+ * administrator rights - AutomaEyes's own installer is also per-user, so
+ * asking for UAC here would just add one more wall.
  *
- * PrependPath=1 supaya "python" langsung dikenali; tanpa itu aplikasi harus
- * menebak lokasinya, dan tebakan yang salah muncul sebagai "Python tidak
- * ditemukan" padahal baru saja dipasang.
+ * PrependPath=1 so "python" is recognized right away; without it the app
+ * would have to guess its location, and a wrong guess shows up as "Python
+ * not found" even though it was just installed.
  *
  * @param {(line:string)=>void} onLine
  */
@@ -97,9 +97,9 @@ exports.installPython = (onLine) => new Promise((resolve) => {
 
     const unduh = (alamat, sisaRedirect = 5) => {
         https.get(alamat, (res) => {
-            // python.org memakai CDN yang mengarahkan ulang; tanpa ini
-            // yang tersimpan hanya halaman pengalihan, dan pemasangnya
-            // gagal dengan pesan yang tidak masuk akal.
+            // python.org uses a CDN that redirects; without this, only the
+            // redirect page would get saved, and the installer would fail
+            // with a nonsensical error message.
             if (res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
                 if (!sisaRedirect) { file.close(); resolve({ ok: false, error: 'Terlalu banyak pengalihan saat mengunduh.' }); return; }
                 res.resume();
@@ -129,23 +129,23 @@ exports.installPython = (onLine) => new Promise((resolve) => {
                 onLine('Unduhan selesai. Memasang Python (tanpa jendela tambahan)...');
                 const args = ['/quiet', 'InstallAllUsers=0', 'PrependPath=1',
                     'Include_pip=1', 'Include_launcher=1', 'AssociateFiles=0', 'Shortcuts=0'];
-                // spawn melempar SINKRON kalau berkasnya tidak bisa dieksekusi -
-                // unduhan rusak, terpotong, atau diblokir antivirus. Tanpa
-                // penjagaan ini, kesalahan itu lolos dan mematikan aplikasi
-                // alih-alih dilaporkan sebagai kegagalan pemasangan.
+                // spawn throws SYNCHRONOUSLY if the file can't be executed -
+                // a corrupted or truncated download, or one blocked by
+                // antivirus. Without this guard, that error would slip through
+                // and crash the app instead of being reported as an install failure.
                 let anak;
                 try {
                     anak = spawn(berkas, args, { windowsHide: true });
                 } catch (e) {
-                    try { fs.unlinkSync(berkas); } catch (_) { /* biarkan */ }
+                    try { fs.unlinkSync(berkas); } catch (_) { /* leave it */ }
                     resolve({ ok: false, error: `Berkas pemasang Python tidak bisa dijalankan (${e.code || e.message}). Kemungkinan unduhannya rusak atau diblokir antivirus.` });
                     return;
                 }
                 anak.on('error', (e) => resolve({ ok: false, error: e.message }));
                 anak.on('close', (code) => {
-                    try { fs.unlinkSync(berkas); } catch (_) { /* biarkan */ }
+                    try { fs.unlinkSync(berkas); } catch (_) { /* leave it */ }
                     if (code === 0) { onLine('Python terpasang.'); resolve({ ok: true }); return; }
-                    // 1602 = dibatalkan pengguna, 3010 = perlu restart.
+                    // 1602 = user canceled, 3010 = restart needed.
                     if (code === 3010) { onLine('Python terpasang (komputer perlu di-restart).'); resolve({ ok: true, restart: true }); return; }
                     resolve({ ok: false, error: `Pemasang Python berhenti dengan kode ${code}.` });
                 });
@@ -160,11 +160,11 @@ exports.installPython = (onLine) => new Promise((resolve) => {
 });
 
 /**
- * Lokasi Python hasil pemasangan per-pengguna.
+ * Location of a per-user Python install.
  *
- * Diperlukan karena PATH sebuah proses dibekukan saat proses itu dimulai:
- * Python yang baru dipasang tidak akan terlihat sampai aplikasi ditutup dan
- * dibuka lagi. Menambahkan jalurnya sendiri menghindarkan langkah itu.
+ * Needed because a process's PATH is frozen when that process starts: a
+ * freshly-installed Python won't be visible until the app is closed and
+ * reopened. Adding its path directly avoids that step.
  */
 exports.pythonUserPaths = () => {
     const dasar = path.join(os.homedir(), 'AppData', 'Local', 'Programs', 'Python');
@@ -175,8 +175,8 @@ exports.pythonUserPaths = () => {
             hasil.push(path.join(dasar, nama));
             hasil.push(path.join(dasar, nama, 'Scripts'));
         }
-    } catch (_) { /* belum ada foldernya */ }
-    // py launcher dipasang ke folder Windows, sudah ada di PATH baku.
+    } catch (_) { /* the folder doesn't exist yet */ }
+    // The py launcher is installed to the Windows folder, already on the default PATH.
     return hasil;
 };
 
@@ -184,7 +184,7 @@ let installProc = null;
 exports.isInstalling = () => !!installProc && !installProc.killed;
 
 /**
- * Pasang paket Python dari requirements.txt, streaming progresnya.
+ * Install Python packages from requirements.txt, streaming its progress.
  * @param {(line:string)=>void} onLine
  */
 exports.installPackages = (cfg, onLine) => new Promise((resolve) => {
@@ -193,7 +193,7 @@ exports.installPackages = (cfg, onLine) => new Promise((resolve) => {
     const req = path.join(pythonDir(), 'requirements.txt');
     const args = ['-m', 'pip', 'install', '-r', req,
         '--disable-pip-version-check',
-        '--progress-bar', 'off'];   // bar ANSI tidak terbaca rapi di UI
+        '--progress-bar', 'off'];   // the ANSI bar doesn't render cleanly in the UI
 
     onLine(`> ${pyExe(cfg)} ${args.join(' ')}\n`);
     installProc = spawn(pyExe(cfg), args, { windowsHide: true, cwd: pythonDir() });
@@ -216,7 +216,7 @@ exports.installPackages = (cfg, onLine) => new Promise((resolve) => {
 
 exports.cancelInstall = () => {
     if (installProc) {
-        try { installProc.kill(); } catch { /* sudah berhenti */ }
+        try { installProc.kill(); } catch { /* already stopped */ }
         installProc = null;
         return { ok: true };
     }

@@ -1,18 +1,18 @@
-// Ruang kerja anotasi — dipasang langsung di dalam halaman, bukan halaman
-// tersendiri yang harus "dibuka". Anotasi bagian dari alur dataset (Langkah 1),
-// jadi tempatnya memang di tab yang sama dengan Split dan Augmentasi.
+// Annotation workspace — mounted directly inside the page, not a separate
+// page that has to be "opened". Annotation is part of the dataset flow
+// (Step 1), so it belongs on the same tab as Split and Augmentation.
 //
-// Dibungkus dalam satu modul karena ia menumpang halaman yang sudah punya
-// puluhan nama global sendiri: seluruh ID dan kelasnya diberi awalan "an-",
-// dan tidak ada satu pun nama yang bocor ke lingkup global selain Annotator.
+// Wrapped in a single module because it piggybacks on a page that already
+// has dozens of its own global names: every ID and class gets the "an-"
+// prefix, and not a single name leaks into the global scope except Annotator.
 //
-// Cara pakai:
-//   Annotator.mount(elemen, { project, model });
-//   Annotator.isDirty();   // ada perubahan yang belum disimpan?
+// Usage:
+//   Annotator.mount(element, { project, model });
+//   Annotator.isDirty();   // are there unsaved changes?
 //   Annotator.unmount();
 (function () {
     const COLORS = ['#ef4444', '#3b82f6', '#22c55e', '#f59e0b', '#a855f7', '#06b6d4', '#ec4899', '#84cc16'];
-    const CIRCLE_PTS = 24;   // lingkaran disimpan sebagai poligon; 24 titik sudah halus
+    const CIRCLE_PTS = 24;   // circles are stored as polygons; 24 points is already smooth
 
     let host = null, projectName = '', modelName = '';
     let classes = [], aiType = 'AI Detection';
@@ -25,18 +25,18 @@
     const $ = (id) => document.getElementById('an-' + id);
     const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 
-    // Hanya bereaksi saat ruang kerjanya benar-benar terlihat. Tanpa ini,
-    // menekan "R" atau Delete di tab Train ikut mengubah alat anotasi.
+    // Only reacts when the workspace is actually visible. Without this,
+    // pressing "R" or Delete in the Train tab would also change the annotation tool.
     const terlihat = () => !!host && host.offsetParent !== null;
 
-    // Klasifikasi menganotasi hal yang berbeda: bukan "benda apa di sebelah
-    // mana", melainkan "gambar ini gambar apa". Tidak ada yang perlu digambar,
-    // jadi alat gambarnya disembunyikan dan yang tersisa hanya memilih kelas.
+    // Classification annotates something different: not "what object is
+    // where", but "what is this image, overall". There's nothing to draw,
+    // so the drawing tools are hidden and all that's left is picking a class.
     //
-    // Kelasnya tetap disimpan sebagai berkas label YOLO biasa - satu baris,
-    // kotak seluas gambar. Dengan begitu split, augmentasi, penghapusan gambar,
-    // dan penghitungan statistik tetap bekerja apa adanya, tanpa bentuk
-    // penyimpanan kedua yang harus dijaga tetap sinkron.
+    // The class is still stored as a normal YOLO label file - one line, a
+    // box spanning the whole image. That way split, augmentation, deleting
+    // images, and computing statistics keep working as-is, with no second
+    // storage format that has to be kept in sync.
     const modeKelas = () => aiType === 'AI Classification';
 
     const MARKUP = `
@@ -83,7 +83,7 @@
             </div>
         </div>`;
 
-    // ---------- pemasangan ----------
+    // ---------- mounting ----------
     async function mount(el, opts) {
         if (host) unmount();
         host = el;
@@ -125,9 +125,9 @@
                 + '&mdash; tersimpan otomatis lalu maju ke gambar berikutnya.<br>'
                 + '<strong>&larr; &rarr;</strong> pindah gambar tanpa mengubah apa pun.';
         } else {
-            // Semua alat tersedia untuk semua tipe model. Poligon/lingkaran berguna
-            // bukan hanya untuk segmentasi: bentuk yang mengikuti tepi benda membuat
-            // pengukuran GD&T jauh lebih akurat daripada kotak.
+            // All tools are available for every model type. Polygon/circle
+            // are useful for more than just segmentation: a shape that
+            // follows the object's edge makes GD&T measurement far more accurate than a box.
             setTool(aiType === 'AI Segmentation' ? 'poly' : 'rect');
         }
         renderClasses();
@@ -142,7 +142,7 @@
         images = []; shapes = []; polyPts = []; idx = -1; selected = -1; dirty = false;
     }
 
-    // ---------- alat & kelas ----------
+    // ---------- tools & classes ----------
     function setTool(t) {
         tool = t;
         polyPts = [];
@@ -160,10 +160,10 @@
 
     function renderClasses() {
         const el = $('classList');
-        // Di mode gambar, sorotan menandai kelas untuk objek BERIKUTNYA. Di mode
-        // kelas, ia menandai kelas gambar yang sedang dibuka - dan gambar yang
-        // belum diberi kelas sengaja tidak menyorot apa pun, supaya terlihat
-        // jelas mana yang belum dikerjakan.
+        // In drawing mode, the highlight marks the class for the NEXT object.
+        // In class mode, it marks the class of the currently open image - and
+        // an image that hasn't been given a class deliberately highlights
+        // nothing, so it's clear which ones haven't been done yet.
         const terpilih = modeKelas() ? (shapes.length ? shapes[0].cls : -1) : activeCls;
         el.innerHTML = classes.map((c, i) => `
             <button class="an-cls ${i === terpilih ? 'active' : ''}" data-i="${i}">
@@ -176,13 +176,13 @@
         activeCls = i;
         if (modeKelas()) {
             if (idx < 0) return;
-            // Satu kelas per gambar: yang lama diganti, bukan ditambah.
+            // One class per image: the old one is replaced, not added to.
             shapes = [{ cls: i, cx: 0.5, cy: 0.5, w: 1, h: 1 }];
             dirty = true;
             renderClasses(); redraw();
-            // Disimpan langsung. Memberi kelas pada ratusan gambar adalah kerja
-            // berulang; menuntut Ctrl+S di tiap gambar hanya menambah satu
-            // ketukan yang tidak memutuskan apa-apa.
+            // Saved immediately. Classifying hundreds of images is repetitive
+            // work; requiring Ctrl+S on every image would just add one more
+            // keystroke that decides nothing.
             save().then(() => { if (idx < images.length - 1) selectImg(idx + 1); });
             return;
         }
@@ -190,13 +190,13 @@
         renderClasses(); redraw();
     }
 
-    // ---------- daftar gambar ----------
-    // Anotasi tidak mengenal train/val/test. Pembagian itu urusan Langkah 3,
-    // dan splitDataset memang mengembalikan val/test ke train dulu sebelum
-    // membagi ulang - jadi sebelum di-split semuanya memang ada di satu tempat.
-    // Sesudah di-split pun gambarnya tetap bisa diperbaiki di sini, karena
-    // ketiga folder dibaca sebagai satu daftar. Tiap gambar mengingat folder
-    // asalnya sendiri, supaya labelnya tersimpan kembali ke tempat yang benar.
+    // ---------- image list ----------
+    // Annotation doesn't know about train/val/test. That division is Step
+    // 3's job, and splitDataset actually moves val/test back into train
+    // first before re-splitting - so before splitting, everything really is
+    // in one place. Even after splitting, images can still be fixed up here, because
+    // all three folders are read as a single list. Each image remembers its
+    // own source folder, so its label gets saved back to the right place.
     async function muatSemua() {
         const kumpulan = [];
         for (const s2 of ['train', 'val', 'test']) {
@@ -212,8 +212,8 @@
 
     function renderImgList() {
         const el = $('imgList');
-        // Penanda folder hanya muncul kalau datasetnya memang sudah dibagi:
-        // sebelum Langkah 3 semuanya di train, dan menuliskannya cuma ramai.
+        // The folder tag only appears if the dataset has actually been
+        // split: before Step 3 everything is in train, and showing it would just be noise.
         const sudahDibagi = images.some((im) => im.split !== 'train');
         el.innerHTML = images.map((im, i) => `
             <div class="an-item ${i === idx ? 'active' : ''}" data-i="${i}" title="${esc(im.name)}">
@@ -241,9 +241,9 @@
         imgEl.onload = () => { fitCanvas(); redraw(); };
         imgEl.src = r.dataUrl;
         renderImgList();
-        // Daftar kelas ikut digambar ulang: di mode klasifikasi, sorotannya
-        // menandai kelas GAMBAR INI, jadi kalau tidak diperbarui, kelas gambar
-        // sebelumnya terlihat seolah sudah dipilih untuk gambar yang baru.
+        // The class list is redrawn too: in classification mode, its
+        // highlight marks THIS IMAGE's class, so if it weren't refreshed,
+        // the previous image's class would look like it was already picked for the new one.
         renderClasses();
     }
 
@@ -257,16 +257,16 @@
 
     function onResize() { if (terlihat() && imgEl && imgEl.src) { fitCanvas(); redraw(); } }
 
-    // ---------- gambar ulang ----------
-    // Radius lingkaran/elips dalam PIKSEL kanvas.
+    // ---------- redraw ----------
+    // Circle/ellipse radius in canvas PIXELS.
     //
-    // Koordinat disimpan ternormalisasi 0-1 terhadap lebar dan tinggi secara
-    // terpisah. Kalau radius yang sama dipakai untuk x dan y, bentuknya bulat di
-    // ruang normalisasi tapi gepeng saat digambar pada gambar yang tidak persegi.
-    // Maka radius dihitung di ruang piksel dulu, baru dinormalkan kembali.
+    // Coordinates are stored normalized 0-1 against width and height
+    // separately. If the same radius were used for x and y, the shape would
+    // be round in normalized space but squashed when drawn on a non-square
+    // image. So the radius is computed in pixel space first, then normalized back.
     //
-    // Tanpa Ctrl: elips bebas mengikuti titik awal-akhir.
-    // Dengan Ctrl: dikunci jadi lingkaran sempurna (pakai sisi terpanjang).
+    // Without Ctrl: the ellipse freely follows the start-end points.
+    // With Ctrl: locked to a perfect circle (uses the longer side).
     function circleRadiusPx(d) {
         const dxPx = Math.abs(d.x1 - d.x0) * canvas.width;
         const dyPx = Math.abs(d.y1 - d.y0) * canvas.height;
@@ -286,8 +286,8 @@
         ctx.clearRect(0, 0, W, H);
 
         if (modeKelas()) {
-            // Menggambar kotak seluas gambar tidak menjelaskan apa pun - ia cuma
-            // membingkai ulang tepi gambar. Yang berguna adalah nama kelasnya.
+            // Drawing a box spanning the whole image explains nothing - it
+            // just reframes the image's own edge. What's useful is the class name.
             if (shapes.length) {
                 const col = COLORS[shapes[0].cls % COLORS.length];
                 const teks = classes[shapes[0].cls] || String(shapes[0].cls);
@@ -315,7 +315,7 @@
             pts.forEach((p, k) => (k === 0 ? ctx.moveTo(p[0] * W, p[1] * H) : ctx.lineTo(p[0] * W, p[1] * H)));
             ctx.closePath(); ctx.fill(); ctx.stroke();
 
-            // Titik hanya ditampilkan saat mode ubah, supaya tidak mengaburkan gambar.
+            // Points are only shown in edit mode, so they don't clutter the image.
             if (tool === 'edit' && i === selected) {
                 ctx.fillStyle = '#fff'; ctx.strokeStyle = col; ctx.lineWidth = 2;
                 pts.forEach((p) => { ctx.beginPath(); ctx.arc(p[0] * W, p[1] * H, 4.5, 0, Math.PI * 2); ctx.fill(); ctx.stroke(); });
@@ -362,7 +362,7 @@
 
     function pickShape(i) { selected = i; if (shapes[i]) activeCls = shapes[i].cls; renderClasses(); redraw(); }
 
-    // ---------- interaksi ----------
+    // ---------- interaction ----------
     function relPos(e) {
         const r = canvas.getBoundingClientRect();
         return [Math.min(1, Math.max(0, (e.clientX - r.left) / r.width)),
@@ -380,7 +380,7 @@
     }
 
     function hitShape(x, y) {
-        // Dicari dari belakang: objek yang digambar terakhir ada di atas.
+        // Searched from the back: the last object drawn is on top.
         for (let i = shapes.length - 1; i >= 0; i--) {
             const pts = shapePoints(shapes[i]);
             let inside = false;
@@ -419,7 +419,7 @@
             const s = shapes[selected];
             if (s.poly) { s.poly[vertexDrag * 2] = x; s.poly[vertexDrag * 2 + 1] = y; }
             else {
-                // Kotak diubah lewat sudutnya: sudut seberang dijadikan jangkar.
+                // The box is resized via its corner: the opposite corner becomes the anchor.
                 const pts = shapePoints(s);
                 const opp = pts[(vertexDrag + 2) % 4];
                 s.cx = (x + opp[0]) / 2; s.cy = (y + opp[1]) / 2;
@@ -439,13 +439,13 @@
 
         if (tool === 'circle') {
             const { rx, ry } = circleRadiusPx(drag);
-            // Ambang minimum dalam piksel supaya klik tak sengaja tidak jadi objek.
+            // A minimum pixel threshold so an accidental click doesn't become an object.
             if (Math.max(rx, ry) > 3) {
                 const poly = [];
                 for (let i = 0; i < CIRCLE_PTS; i++) {
                     const a = (i / CIRCLE_PTS) * Math.PI * 2;
-                    // Radius piksel dikembalikan ke satuan normalisasi per sumbu,
-                    // sehingga bentuknya tetap bulat saat digambar ulang.
+                    // The pixel radius is converted back to normalized units
+                    // per axis, so the shape stays round when redrawn.
                     poly.push(Math.min(1, Math.max(0, drag.x0 + (Math.cos(a) * rx) / canvas.width)),
                               Math.min(1, Math.max(0, drag.y0 + (Math.sin(a) * ry) / canvas.height)));
                 }
@@ -496,7 +496,7 @@
         if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT' || e.target.tagName === 'TEXTAREA') return;
         if (e.ctrlKey && e.key.toLowerCase() === 's') { e.preventDefault(); save(); return; }
         if (modeKelas()) {
-            // R/P/C/E, Del, dan Enter tidak punya arti kalau tidak ada yang digambar.
+            // R/P/C/E, Del, and Enter have no meaning if there's nothing to draw.
             if (e.key >= '1' && e.key <= '9') { const i = +e.key - 1; if (i < classes.length) setClass(i); }
             else if (e.key === 'ArrowLeft') prevImg();
             else if (e.key === 'ArrowRight') nextImg();
@@ -509,9 +509,8 @@
         else if (k === 'e') setTool('edit');
         else if (e.key >= '1' && e.key <= '9') { const i = +e.key - 1; if (i < classes.length) setClass(i); }
         else if (e.key === 'Escape') {
-            // Esc = batalkan, bukan menyelesaikan. Kalau ada poligon yang sedang
-            // digambar, titik-titiknya dibuang dulu; menekan lagi keluar dari
-            // mode gambar ke mode pilih.
+            // Esc = cancel, not finish. If a polygon is being drawn, its
+            // points are discarded first; pressing again exits drawing mode into select mode.
             if (polyPts.length) { polyPts = []; redraw(); }
             else if (drag) { drag = null; redraw(); }
             else if (tool !== 'edit') setTool('edit');

@@ -412,11 +412,11 @@ const modelName = param('model');
 let currentModel = null;
 document.getElementById('backLink').onclick = () => window.api.goTo(`project.html?name=${encodeURIComponent(projectName)}`);
 
-// ===================== Penunjuk alur =====================
-// Urutan kerjanya tetap: kumpulkan gambar, beri label, bagi, (augmentasi),
-// latih, uji. Rantai ini ditampilkan terus supaya penggunanya tidak perlu
-// menebak mana dulu - dan tanda centang datang dari keadaan dataset yang
-// sebenarnya, bukan dari tombol yang pernah ditekan.
+// ===================== Flow indicator =====================
+// The work order is fixed: gather images, label them, split, (augment),
+// train, test. This chain is shown at all times so the user doesn't have to
+// guess what's next - and the checkmark comes from the dataset's actual
+// state, not from a button ever pressed.
 const ALUR = [
     { n: 1, nama: 'Dataset',    tab: 'dataset',  kartu: 'cardDataset' },
     { n: 2, nama: 'Anotasi',    tab: 'annotate', kartu: 'cardAnotasi' },
@@ -431,19 +431,19 @@ let alurBeres = {};
 function hitungBeres(stats) {
     const total = (stats.train || 0) + (stats.val || 0) + (stats.test || 0);
     return {
-        1: total > 0,                               // ada gambar
-        2: (stats.annotated || 0) > 0,              // ada yang sudah dilabeli
-        3: (stats.val || 0) > 0 || (stats.test || 0) > 0,   // sudah dibagi
-        4: false,                                   // opsional, tidak pernah "wajib beres"
+        1: total > 0,                               // has images
+        2: (stats.annotated || 0) > 0,              // has labeled ones
+        3: (stats.val || 0) > 0 || (stats.test || 0) > 0,   // already split
+        4: false,                                   // optional, never "required done"
         5: !!(currentModel && currentModel.trained),
         6: !!lastEval,
     };
 }
 
-// Sorotan menunjuk posisi pengguna sekarang, bukan tebakan: langkah yang
-// tabnya sedang terbuka. Satu tab memuat tiga langkah (2-4), jadi di dalam
-// tab itu dipilih yang pertama belum beres - itulah yang sedang dikerjakan.
-// Pekerjaan berikutnya tetap terbaca sendiri: langkah pertama tanpa centang.
+// The highlight points at the user's actual current position, not a guess:
+// the step whose tab is currently open. One tab holds three steps (2-4), so
+// within that tab the first one not yet done is picked - that's what's
+// being worked on. The next task still reads clearly on its own: the first step with no checkmark.
 function langkahSekarang() {
     const tabAktif = (document.querySelector('.tab-content.active') || {}).id || '';
     const nama = tabAktif.replace('tab-', '');
@@ -467,8 +467,8 @@ function renderFlow() {
     el.querySelectorAll('.flow-step').forEach((b) => { b.onclick = () => bukaLangkah(+b.dataset.n); });
 }
 
-// Tiap tahap diakhiri ajakan ke tahap berikutnya, supaya alurnya bisa
-// diikuti lurus tanpa kembali ke rantai di atas.
+// Each stage ends with a nudge toward the next one, so the flow can be
+// followed straight through without going back to the chain above.
 const LANJUT = {
     cardDataset: { ke: 2, teks: 'Gambar sudah terkumpul? Lanjut beri label.' },
     cardAnotasi: { ke: 3, teks: 'Semua gambar sudah dilabeli? Lanjut bagi datasetnya.' },
@@ -490,7 +490,7 @@ function pasangLanjut() {
         (kartu.lastElementChild || kartu).appendChild(bar);
     }
 
-    // Ujung rantai: setelah model teruji, pekerjaan pindah ke tingkat project.
+    // End of the chain: once the model is tested, work moves to the project level.
     const test = document.getElementById('cardTest');
     if (test && !test.querySelector('.flow-next')) {
         const bar = document.createElement('div');
@@ -519,8 +519,8 @@ function bukaLangkah(n) {
 }
 
 function showTab(btn, id) {
-    // Pakai kelas, bukan style inline: dengan begitu tab pertama sudah
-    // tampil dari markup dan tidak bergantung skrip yang belum jalan.
+    // Use a class, not inline style: that way the first tab already shows
+    // from the markup and doesn't depend on a script that hasn't run yet.
     document.querySelectorAll('.tab-headers button').forEach(b => b.classList.remove('active'));
     btn.classList.add('active');
     document.querySelectorAll('.tab-content').forEach((t) => {
@@ -533,10 +533,10 @@ function showTab(btn, id) {
     try { renderFlow(); } catch (_) {}
 }
 
-// Anotasi menyatu dengan halaman ini, tapi baru dipasang saat tabnya dibuka:
-// memuat daftar gambar dan menggambar kanvas tidak perlu terjadi kalau
-// penggunanya sedang di tab lain. Sekali terpasang, dibiarkan hidup supaya
-// pekerjaan yang belum disimpan tidak hilang saat berpindah tab.
+// Annotation is embedded in this page, but only mounted once its tab is
+// opened: loading the image list and drawing the canvas doesn't need to
+// happen while the user is on another tab. Once mounted, it's left alive so
+// unsaved work isn't lost when switching tabs.
 let annotatorSiap = false;
 function mountAnnotator() {
     const host = document.getElementById('annotHost');
@@ -546,28 +546,28 @@ function mountAnnotator() {
     window.Annotator.mount(host, { project: projectName, model: modelName });
 }
 
-// Kanvas diukur dari lebar sebenarnya, jadi ia perlu tahu saat tabnya
-// baru saja tampil - sebelum itu lebarnya masih nol.
+// The canvas is measured from its actual width, so it needs to know when
+// its tab has just become visible - before that its width is still zero.
 window.addEventListener('resize', () => { try { window.Annotator.refit(); } catch (_) {} });
 
 window.addEventListener('beforeunload', (e) => {
     if (annotatorSiap && window.Annotator.isDirty()) { e.preventDefault(); e.returnValue = ''; }
 });
 
-// Penjaga perpindahan halaman - lihat catatan yang sama di workflow.html.
+// Page-navigation guard - see the same note in workflow.html.
 let abaikanAnotasi = false;
 window.bolehTinggalkanHalaman = async () => {
     if (abaikanAnotasi) return true;
     if (!annotatorSiap || !window.Annotator.isDirty()) return true;
     const lanjut = await tanya('Anotasi pada gambar ini belum disimpan.',
         { judul: 'Perubahan belum disimpan', ya: 'Tinggalkan tanpa menyimpan' });
-    // Annotator memegang penandanya sendiri dan tidak menyediakan cara
-    // melepasnya, jadi persetujuannya diingat di sini.
+    // The Annotator holds its own dirty flag and provides no way to clear
+    // it, so the approval is remembered here instead.
     if (lanjut) abaikanAnotasi = true;
     return lanjut;
 };
 
-// Auto-switch tab kalau ada query param ?tab=train
+// Auto-switch tab if there's a ?tab=train query param
 window.addEventListener('DOMContentLoaded', () => {
     const targetTab = param('tab');
     if (targetTab) {
@@ -619,14 +619,14 @@ async function render() {
     document.getElementById('imgCount').textContent = imgs.length;
     renderThumbs();
 
-    // Load sample untuk augment preview
+    // Load a sample for the augment preview
     await loadSampleImage();
 
-    // Refresh gallery grup yang lagi dibuka (auto-update sesudah split/generate)
+    // Refresh the gallery group currently open (auto-update after split/generate)
     if (document.getElementById('galleryGrid')) loadGallery(currentGalSplit);
 }
 
-// Sub-checkbox untuk Flip juga trigger preview
+// The Flip sub-checkbox also triggers the preview
 document.addEventListener('change', (e) => {
     if (['flipH', 'flipV'].includes(e.target?.id)) updatePreview();
 });
@@ -704,7 +704,7 @@ function cyclePreview() {
     showSample();
 }
 
-// Preview per-option — tiap thumbnail cuma menampilkan efek augmentasi-nya sendiri
+// Per-option preview — each thumbnail only shows its own augmentation effect
 function updatePreview() {
     // Rotate
     const rotEl = document.getElementById('prevRotate');
@@ -780,9 +780,9 @@ async function generateAug() {
         return;
     }
 
-    // Selalu hanya train. Mengaugmentasi val/test adalah kebocoran data:
-    // varian dari gambar yang sama muncul di sisi latih dan sisi uji, sehingga
-    // metriknya mengukur hafalan, bukan kemampuan menggeneralisasi.
+    // Always train only. Augmenting val/test is a data leak: variants of
+    // the same image would appear on both the training and evaluation
+    // sides, so the metrics would measure memorization, not generalization.
     const splits = ['train'];
 
     const bar = document.getElementById('augBar');
@@ -818,7 +818,7 @@ async function generateAug() {
     }
 }
 
-// Progress augmentasi realtime dari python (PROGRESS done/total)
+// Real-time augmentation progress from python (PROGRESS done/total)
 window.api.onAugmentProgress(data => {
     if (data.project !== projectName || data.model !== modelName) return;
     if (data.total) {
@@ -828,8 +828,8 @@ window.api.onAugmentProgress(data => {
     }
 });
 
-// ---- Split slider (2 titik → 3 segmen: train | val | test) ----
-// thumbA = batas train|val, thumbB = batas val|test. A selalu <= B.
+// ---- Split slider (2 points → 3 segments: train | val | test) ----
+// thumbA = train|val boundary, thumbB = val|test boundary. A is always <= B.
 function onSlide(which) {
     let a = parseInt(document.getElementById('thumbA').value);
     let b = parseInt(document.getElementById('thumbB').value);
@@ -853,11 +853,11 @@ function readRatios() {
     const a = parseInt(document.getElementById('thumbA').value);
     const b = parseInt(document.getElementById('thumbB').value);
     const train = a, val = b - a, test = 100 - b;
-    if (train <= 0) return null;   // train wajib > 0
+    if (train <= 0) return null;   // train must be > 0
     return { train: train / 100, val: val / 100, test: test / 100 };
 }
 
-// ---- Gallery: preview gambar + kotak anotasi per grup (train/val/test) ----
+// ---- Gallery: image preview + annotation boxes per group (train/val/test) ----
 let currentGalSplit = 'train';
 const CLASS_COLORS = ['#22c55e', '#ef4444', '#f59e0b', '#3b82f6', '#a855f7', '#ec4899', '#06b6d4', '#84cc16'];
 
@@ -895,7 +895,7 @@ async function loadGallery(split) {
             const nm = (classes[b.cls] != null) ? esc(classes[b.cls]) : ('#' + b.cls);
             const left = ((b.cx - b.w / 2) * 100).toFixed(2);
             const top = ((b.cy - b.h / 2) * 100).toFixed(2);
-            if (b.poly) {   // segmentasi → gambar poligon (SVG), bukan kotak
+            if (b.poly) {   // segmentation → draw a polygon (SVG), not a box
                 const pts = [];
                 for (let i = 0; i < b.poly.length; i += 2) pts.push(`${(b.poly[i] * 100).toFixed(2)},${(b.poly[i + 1] * 100).toFixed(2)}`);
                 return `<svg viewBox="0 0 100 100" preserveAspectRatio="none" style="position:absolute;inset:0;width:100%;height:100%;pointer-events:none">` +
@@ -954,7 +954,7 @@ async function runSplitOp(fn, isRebuild) {
     }
 }
 
-// Daftar versi model (v1, v2, …) + tombol set aktif.
+// List of model versions (v1, v2, …) + the set-active button.
 function renderVersions() {
     const el = document.getElementById('versionList');
     if (!el) return;
@@ -1009,8 +1009,8 @@ async function startTrain() {
 }
 function cancelTrain() { window.api.cancelTraining(); }
 
-// Lanjutkan training dari checkpoint terakhir. Grafik dari epoch sebelumnya
-// (dibaca dari results.csv) di-tampilkan dulu, lalu training menyambung live.
+// Resume training from the last checkpoint. The chart for previous epochs
+// (read from results.csv) is shown first, then training continues live.
 async function resumeTrain() {
     const status = document.getElementById('trainStatus');
     status.textContent = 'Resuming… memuat checkpoint & grafik terakhir';
@@ -1028,15 +1028,15 @@ async function resumeTrain() {
     }
 }
 
-// Isi grafik dari riwayat epoch (tanpa training) — dipakai saat resume & saat
-// membuka tab Training agar grafik terakhir langsung terlihat.
+// Fill the chart from epoch history (without training) — used on resume &
+// when opening the Training tab so the last chart is visible right away.
 function prefillDash(rows) {
     resetDash();
     rows.forEach(m => pushDash(m));
 }
 
-// Saat tab Training dibuka: tampilkan grafik terakhir, dan kalau ada run yang
-// terhenti di tengah (ada last.pt & epoch terakhir < target) munculkan tombol Resume.
+// When the Training tab is opened: show the last chart, and if there's a run
+// that stopped partway (last.pt exists & last epoch < target), show the Resume button.
 async function checkResumeState() {
     if (_training) return;
     const btn = document.getElementById('resumeBtn');
@@ -1045,7 +1045,7 @@ async function checkResumeState() {
         if (hist && hist.rows && hist.rows.length) {
             prefillDash(hist.rows);
             document.getElementById('trainDash').style.display = 'block';
-            // Gambar ulang setelah layout selesai supaya lebar canvas ke-baca benar.
+            // Redraw after layout finishes so the canvas width reads correctly.
             requestAnimationFrame(() => { try { renderDash(); } catch (_) {} });
             const interrupted = hist.hasCheckpoint && hist.totalEpochs && hist.lastEpoch < hist.totalEpochs;
             if (interrupted) {
@@ -1105,7 +1105,7 @@ function appendTrainLog(text) {
     el.scrollTop = el.scrollHeight;
 }
 
-// ==== Test / Evaluasi model (Test tab) ====
+// ==== Test / Model evaluation (Test tab) ====
 let lastEval = null;
 function _pe(v) { return (v == null) ? '—' : (v * 100).toFixed(1) + '%'; }
 
@@ -1168,7 +1168,7 @@ function renderEval(res) {
     }).join('') || '<p class="muted">Tidak ada gambar di split ini.</p>';
 }
 
-// Waktu inferensi per gambar -> kartu, tabel per tahap, dan info perangkat.
+// Per-image inference time -> card, per-stage table, and device info.
 function renderEvalTiming(t) {
     const card = document.getElementById('evMs');
     const devEl = document.getElementById('evDevice');
@@ -1245,7 +1245,7 @@ function exportEvalCsv() {
     setTimeout(() => URL.revokeObjectURL(a.href), 1000);
 }
 
-// ==== Manajemen gambar dataset (context menu: Preview / Select / Delete) ====
+// ==== Dataset image management (context menu: Preview / Select / Delete) ====
 let currentImages = [];
 let selectedImgs = new Set();
 let ctxIdx = -1;
@@ -1380,8 +1380,8 @@ function showCtxMenu(x, y) {
     window.addEventListener('scroll', hideCtxMenu, true);
 })();
 
-// ==== Dashboard training (gaya Roboflow) ====
-let _training = false;   // true selama training/resume berjalan (cegah reset grafik)
+// ==== Training dashboard (Roboflow-style) ====
+let _training = false;   // true while training/resume is running (prevents chart reset)
 let dash = { ep: [], map: [], map95: [], p: [], r: [], f1: [], box: [], cls: [], dfl: [], vbox: [], vcls: [], vdfl: [] };
 function resetDash() {
     dash = { ep: [], map: [], map95: [], p: [], r: [], f1: [], box: [], cls: [], dfl: [], vbox: [], vcls: [], vdfl: [] };
@@ -1390,11 +1390,11 @@ function resetDash() {
 }
 function _pct(v){ return (v == null) ? '—' : (v * 100).toFixed(1) + '%'; }
 
-// Klasifikasi memakai grafik yang sama, tapi angkanya bukan mAP/precision/recall
-// melainkan akurasi top-1 dan top-5. Yang diganti hanya NAMA-nya - membiarkan
-// akurasi tampil di bawah tulisan "mAP@50" jauh lebih buruk daripada tidak
-// menampilkannya sama sekali, karena angkanya terlihat masuk akal.
-let _dashCls = null;   // null = belum ditentukan
+// Classification uses the same chart, but its numbers aren't
+// mAP/precision/recall, they're top-1 and top-5 accuracy. Only the NAME is
+// swapped - leaving accuracy displayed under the label "mAP@50" would be far
+// worse than not showing it at all, because the number would look plausible.
+let _dashCls = null;   // null = not yet determined
 function _labelDash() {
     const cls = !!(currentModel && currentModel.type === 'AI Classification');
     if (_dashCls === cls) return;
@@ -1416,15 +1416,15 @@ function _labelDash() {
     if (cls) {
         setLabel('cardMap', 'Akurasi Top-1');
         setLabel('cardMap95', 'Akurasi Top-5');
-        // F1/Precision/Recall tidak dihitung untuk klasifikasi saat training —
-        // per-kelas-nya muncul di tab Test, dari confusion matrix.
+        // F1/Precision/Recall aren't computed for classification during
+        // training — the per-class values appear in the Test tab, from the confusion matrix.
         kartu('cardF1', false); kartu('cardP', false); kartu('cardR', false);
         const t = document.querySelector('#chartMap');
         const judul = t && t.closest('.chart-box') && t.closest('.chart-box').querySelector('.chart-title');
         if (judul) judul.innerHTML = '<span class="lg-dot" style="background:#7c3aed"></span>Akurasi Top-1'
             + '<span class="lg-dot" style="background:#c4b5fd; margin-left:10px"></span>'
             + '<span class="muted" style="font-weight:400">Top-5</span>';
-        // Klasifikasi hanya punya satu angka loss, bukan box/cls/dfl.
+        // Classification only has a single loss number, not box/cls/dfl.
         kotak('chartBox', false); kotak('chartDfl', false);
     } else {
         setLabel('cardMap', 'mAP@50');
@@ -1455,7 +1455,7 @@ function renderDash() {
         { color: '#7c3aed', name: 'mAP50', data: pts(dash.map) },
         { color: '#c4b5fd', name: 'mAP50-95', data: pts(dash.map95) },
     ], { yMin: 0, yMax: 1, xMax });
-    // Train vs Validation total loss (box+cls+dfl) → indikator overfitting
+    // Train vs Validation total loss (box+cls+dfl) → overfitting indicator
     drawChart('chartTVLoss', [
         { color: '#7c3aed', name: 'Train', data: sum3(dash.box, dash.cls, dash.dfl) },
         { color: '#f59e0b', name: 'Val', data: sum3(dash.vbox, dash.vcls, dash.vdfl) },
@@ -1465,7 +1465,7 @@ function renderDash() {
     drawChart('chartDfl', [{ color: '#7c3aed', name: 'DFL', data: pts(dash.dfl) }], { xMax });
     updateFitVerdict();
 }
-// Verdict overfitting / underfitting berdasarkan selisih & tren train vs val loss.
+// Overfitting / underfitting verdict based on the gap & trend between train vs val loss.
 function updateFitVerdict() {
     const badge = document.getElementById('fitVerdict');
     const detail = document.getElementById('fitDetail');
@@ -1484,7 +1484,7 @@ function updateFitVerdict() {
     const gapRatio = (vl - tl) / Math.max(tl, 1e-6);
     const riseFromMin = (vl - minVL) / Math.max(minVL, 1e-6);
     const lastMap = dash.map[dash.map.length - 1] || 0;
-    // val loss ≈ train loss di semua epoch → kemungkinan tidak ada set validasi terpisah
+    // val loss ≈ train loss across all epochs → likely no separate validation set
     const noSepVal = dash.ep.every((e, i) => Math.abs(VL[i] - TL[i]) / Math.max(TL[i], 1e-6) < 0.02);
     if (noSepVal) {
         set('⚠ Val = Train', '#f59e0b',
@@ -1506,9 +1506,9 @@ function updateFitVerdict() {
     set('✓ Fit seimbang', '#22c55e',
         `Train & val loss berdekatan (selisih ${(gapRatio * 100).toFixed(0)}%) dan stabil — indikasi model general dengan baik.`);
 }
-// ==== Aturan Inspeksi (Add-ons) ====
-// Hanya menampilkan add-on yang DIPILIH saat model dibuat (currentModel.addons).
-// Presence Check tanpa parameter; Count & GD&T punya parameter untuk diatur.
+// ==== Inspection Rules (Add-ons) ====
+// Only shows the add-ons SELECTED when the model was created (currentModel.addons).
+// Presence Check has no parameters; Count & GD&T have parameters to configure.
 function renderAddonRules() {
     const card = document.getElementById('addonRulesCard');
     const body = document.getElementById('addonRulesBody');

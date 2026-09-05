@@ -32,7 +32,7 @@
     </div>
     <div class="whoami" id="whoami"></div>
 
-    <!-- Langkah 1: otorisasi lewat browser (OAuth) -->
+    <!-- Step 1: authorize via the browser (OAuth) -->
     <div class="card" id="stepAuth">
         <div class="section-title">1 — Izinkan akses di GitHub</div>
         <div style="padding:14px">
@@ -45,7 +45,7 @@
         </div>
     </div>
 
-    <!-- Langkah 2: pilih repo tujuan -->
+    <!-- Step 2: choose the destination repo -->
     <div class="card" id="stepRepo" style="display:none; margin-top:14px">
         <div class="section-title">2 — Pilih repo penyimpanan</div>
         <div style="padding:14px">
@@ -86,9 +86,9 @@ async function init() {
     }
 }
 
-// Membuka browser ke OAuth GitHub lewat website. Hasilnya kembali lewat deep
-// link automaeye://github dan diterima oleh onGithubAuthorized di bawah —
-// tidak ada kode yang perlu diketik user.
+// Opens the browser to GitHub OAuth via the website. The result comes back
+// via the automaeye://github deep link and is received by onGithubAuthorized
+// below — no code for the user to type.
 async function start() {
     document.getElementById('startBtn').disabled = true;
     setStatus('authStatus', 'Menunggu izin diberikan di browser...', 'wait');

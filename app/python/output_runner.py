@@ -1,21 +1,21 @@
-"""Menjalankan skrip output buatan pengguna yang ditulis dalam Python.
+"""Runs a user-authored output script written in Python.
 
-Dipanggil lib/pyoutput.js. Masukan berupa satu baris JSON di stdin:
+Invoked by lib/pyoutput.js. The input is a single JSON line on stdin:
 
-    {"script": "<kode pengguna>", "result": { ... }}
+    {"script": "<user code>", "result": { ... }}
 
-Skrip pengguna wajib mendefinisikan on_result(result).
+The user's script must define on_result(result).
 
-Helper (serial_write, http_post, log, sleep_ms) TIDAK melakukan I/O-nya
-sendiri. Semuanya menuliskan perintah ke stdout, dan aplikasi yang
-mengerjakannya:
+The helpers (serial_write, http_post, log, sleep_ms) do NOT perform their own
+I/O. They all just write a command to stdout, and the app is what actually
+carries it out:
 
     @@CMD@@ {"jenis": "serial", "data": "S\\n"}
 
-Alasannya port serial dan sambungan Modbus dipegang oleh aplikasi, dan port
-serial hanya bisa dibuka satu proses. Kalau skrip Python membuka portnya
-sendiri, ia akan bentrok dengan aplikasi yang sedang memakainya - kegagalan
-yang muncul sebagai "port sedang dipakai" di tengah lini berjalan.
+The reason is that the serial port and Modbus connection are held by the app,
+and a serial port can only be opened by one process. If the Python script
+opened its own port, it would clash with the app that's already using it - a
+failure that shows up as "port already in use" in the middle of a running line.
 """
 
 import json
@@ -32,22 +32,22 @@ def _kirim(jenis, **isi):
 
 
 def serial_write(teks):
-    """Kirim teks mentah ke papan / PLC lewat sambungan milik aplikasi."""
+    """Send raw text to the board / PLC via the app's own connection."""
     _kirim("serial", data=str(teks))
 
 
 def http_post(url, body=None):
-    """Kirim JSON ke server. Tidak ditunggu, seperti versi JavaScript-nya."""
+    """Send JSON to a server. Not awaited, same as the JavaScript version."""
     _kirim("http", url=str(url), body=body if body is not None else {})
 
 
 def log(pesan):
-    """Muncul di panel hasil uji di aplikasi."""
+    """Shows up in the app's test result panel."""
     _kirim("log", pesan=str(pesan))
 
 
 def sleep_ms(n):
-    """Jeda, dibatasi 5 detik supaya siklus inspeksi tidak menggantung."""
+    """Pause, capped at 5 seconds so the inspection cycle doesn't hang."""
     try:
         ms = float(n)
     except (TypeError, ValueError):

@@ -1,4 +1,4 @@
-// Common helpers untuk semua page
+// Common helpers for every page
 
 // URL query param
 function param(k) {
@@ -29,17 +29,17 @@ function esc(s) {
     }[c]));
 }
 
-// ===================== Pesan di halaman =====================
-// Pengganti window.alert. alert menghentikan seluruh jendela sampai ditutup,
-// dan kotaknya menutupi hal yang baru saja dikerjakan - padahal justru itu
-// yang ingin dilihat. Pesan ini muncul di sudut, tidak menghalangi apa pun.
+// ===================== In-page messages =====================
+// Replacement for window.alert. alert halts the whole window until closed,
+// and its box covers up whatever was just done - which is exactly what you
+// want to see. This message appears in a corner, blocking nothing.
 //
 //   pesan('Tersimpan', 'ok');
 //   pesan('Gagal: ' + e.message, 'err');
 //
-// Jenis: 'ok' | 'err' | 'warn' | 'info' (bawaan). Pesan gagal tidak hilang
-// sendiri - pesan kesalahan yang ikut lenyap sama saja dengan tidak pernah
-// muncul; yang lain menghilang setelah beberapa detik.
+// Type: 'ok' | 'err' | 'warn' | 'info' (default). An error message doesn't
+// disappear on its own - an error message that vanishes on its own is the
+// same as never appearing; the others disappear after a few seconds.
 function pesan(teks, jenis, ms) {
     jenis = jenis || 'info';
     let kotak = document.getElementById('pesanBox');
@@ -55,7 +55,7 @@ function pesan(teks, jenis, ms) {
     p.setAttribute('role', jenis === 'err' ? 'alert' : 'status');
 
     const isi = document.createElement('span');
-    isi.textContent = teks;          // teks apa adanya, tidak pernah jadi HTML
+    isi.textContent = teks;          // text as-is, never becomes HTML
     p.appendChild(isi);
 
     const tutup = document.createElement('button');
@@ -73,18 +73,18 @@ function pesan(teks, jenis, ms) {
     return p;
 }
 
-// ===================== Pertanyaan ya / tidak =====================
-// Pengganti window.confirm. Berbeda dari pesan(), yang ini memang menuntut
-// jawaban, jadi tetap menghalangi - tapi tampil sebagai dialog aplikasi,
-// bukan kotak sistem, dan teksnya bisa lebih panjang tanpa terpotong.
+// ===================== Yes / no question =====================
+// Replacement for window.confirm. Unlike pesan(), this one really does
+// demand an answer, so it still blocks - but it appears as an in-app
+// dialog, not a system box, and its text can be longer without getting cut off.
 //
 //   if (!await tanya('Hapus project ini?', { bahaya: true })) return;
 //
-// Mengembalikan Promise<boolean>. Enter menjawab ya, Esc menjawab tidak,
-// dan mengklik latar di luar kotak juga berarti tidak.
+// Returns Promise<boolean>. Enter answers yes, Esc answers no, and clicking
+// the background outside the box also means no.
 //
-// Untuk tindakan yang merusak, fokus awal jatuh pada tombol Batal: menekan
-// Enter refleks tidak boleh berujung menghapus sesuatu.
+// For destructive actions, initial focus lands on the Cancel button: a
+// reflexive Enter press must not end up deleting something.
 function tanya(teks, opsi) {
     opsi = opsi || {};
     const labelYa = opsi.ya || 'Lanjutkan';
@@ -113,7 +113,7 @@ function tanya(teks, opsi) {
 
         const p = document.createElement('p');
         p.className = 'tanya-teks';
-        p.textContent = teks;          // teks apa adanya, tidak pernah jadi HTML
+        p.textContent = teks;          // text as-is, never becomes HTML
         kotak.appendChild(p);
 
         const baris = document.createElement('div');

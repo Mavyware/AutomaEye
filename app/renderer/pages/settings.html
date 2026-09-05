@@ -129,14 +129,14 @@ async function save() {
 
 load();
 
-// Status akun & koneksi GitHub, plus aksi keluar/putus koneksi.
+// Account status & GitHub connection, plus logout/disconnect actions.
 async function refreshAccount() {
     const st = await window.api.authStatus();
     const el = document.getElementById('acctStatus');
-    // Nama akun, alamat email, dan nama repo semuanya teks bebas yang tidak
-    // ditentukan aplikasi ini. Di Electron, satu celah XSS di halaman mana pun
-    // memberi akses ke seluruh window.api - jadi teks dari luar tidak pernah
-    // boleh masuk ke innerHTML mentah-mentah.
+    // The account name, email address, and repo name are all free-form text
+    // that this app doesn't control. In Electron, one XSS hole on any page
+    // grants access to the entire window.api - so text from outside must
+    // never go into innerHTML raw.
     const akun = st.session
         ? `Masuk sebagai <strong>${esc(st.session.user.name)}</strong> (${esc(st.session.user.email)})`
         : 'Belum login';

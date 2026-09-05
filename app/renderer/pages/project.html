@@ -43,9 +43,9 @@
 const projectName = param('name');
 let currentProject = null;
 
-// Alur tingkat project: siapkan model dulu, susun urutan pemeriksaannya,
-// tentukan cara hasilnya keluar, baru dijalankan di lini produksi. Tanda
-// centang dibaca dari keadaan project, bukan dari tombol yang pernah ditekan.
+// Project-level flow: prepare the model first, arrange the inspection
+// order, decide how the result goes out, then run it on the production
+// line. The checkmark is read from the project's actual state, not from a button ever pressed.
 const ALUR_PROJECT = [
     { n: 1, nama: 'Model',    ke: null },
     { n: 2, nama: 'Workflow', ke: 'workflow.html' },
@@ -127,9 +127,9 @@ async function render() {
             const arrow = i < currentProject.workflow.steps.length - 1 ? '<span class="chain-arrow">→</span>' : '';
             return `<span class="chain-step">[${s.stepIndex}] ${esc(s.modelName)} <small>(${esc(s.category || 'Inspection')})</small></span> ${arrow}`;
         }).join('');
-        // workflow.json ikut disinkronkan dari repo GitHub, jadi isinya belum
-        // tentu ditulis oleh pengguna ini. Nama step di atas sudah di-esc;
-        // nilai ini sempat terlewat.
+        // workflow.json is synced from the GitHub repo too, so its contents
+        // aren't necessarily written by this user. The step name above is
+        // already escaped; this value had once been missed.
         wf.innerHTML = `<div class="chain">${chain}</div><p class="muted" style="font-size:11px">Aksi saat NG pertama: <strong>${esc(currentProject.workflow.onFirstNG || '')}</strong></p>`;
     }
 }
@@ -137,7 +137,7 @@ async function render() {
 function newModel() { window.api.goTo(`new_model.html?project=${encodeURIComponent(projectName)}`); }
 function openModel(name) { window.api.goTo(`model.html?project=${encodeURIComponent(projectName)}&model=${encodeURIComponent(name)}`); }
 
-// ==== Menu klik-kanan pada baris model (Buka / Hapus) ====
+// ==== Right-click menu on a model row (Open / Delete) ====
 function showModelMenu(e, tr) {
     e.preventDefault();
     hideModelMenu();

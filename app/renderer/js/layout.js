@@ -1,22 +1,23 @@
-// Kerangka aplikasi: dipasang otomatis oleh setiap halaman yang memuat
-// berkas ini. Halaman gerbang (login, connect-github, setup, update)
-// sengaja TIDAK memuatnya - halaman itu tampil polos tanpa navigasi.
+// App shell: automatically installed by every page that loads this file.
+// Gate pages (login, connect-github, setup, update) deliberately do NOT
+// load it - those pages appear plain, with no navigation.
 //
 //   <body>
 //     <main>...</main>
 //     <script src="../js/layout.js"></script>
 //   </body>
 //
-// Opsi disetel sebelum memuat berkas ini:
+// Options are set before loading this file:
 //   window.LAYOUT_OPTS = { title: 'Model xyz', subtitle: '...', showTotalStatus: true };
 
-// Kerangka aplikasi: sidebar navigasi + satu topbar.
+// App shell: navigation sidebar + one topbar.
 //
-// Sebelumnya ada empat baris chrome bertumpuk (menu bar, toolbar, header,
-// status bar) yang memakan ~150 px sebelum konten muncul, dan navigasinya
-// tersebar: "Home" di menu File, mode Run di header, Settings di dua tempat.
-// Semua digabung ke satu sidebar supaya jelas "saya sedang di mana", dan
-// area kerja dapat ruang jauh lebih besar - layar inspeksi dipandangi lama.
+// There used to be four stacked rows of chrome (menu bar, toolbar, header,
+// status bar) eating ~150 px before content appeared, and navigation was
+// scattered: "Home" in the File menu, Run mode in the header, Settings in
+// two places. Everything was merged into one sidebar so it's clear "where
+// am I", and the work area gets a much bigger share of the screen - the
+// inspection view is what gets stared at for a long time.
 (function () {
     const opts = window.LAYOUT_OPTS || {};
     const title = opts.title || 'AutomaEyes';
@@ -35,8 +36,8 @@
     const go = (p) => `window.api.goTo('${p}')`;
     const withProject = (p) => project ? `${p}?project=${encodeURIComponent(project)}` : p;
 
-    // Menu project hanya muncul saat ada project terbuka - menampilkan
-    // "Workflow" atau "Run" tanpa project hanya akan berujung peringatan.
+    // The project menu only appears when a project is open - showing
+    // "Workflow" or "Run" with no project would just lead to a warning.
     const navItem = (id, ikon, label, target, aktif, nonaktif) => `
         <button class="nav-item ${aktif ? 'active' : ''}" ${nonaktif ? 'disabled' : `onclick="${go(target)}"`}>
             <span class="nav-ic">${ikon}</span><span class="nav-label">${esc(label)}</span>
@@ -102,7 +103,7 @@
             <span id="totalStatusValue">&mdash;</span>
         </div>` : '';
 
-    // Breadcrumb menggantikan judul polos: posisi terbaca tanpa menebak.
+    // Breadcrumbs replace a plain title: position is readable without guessing.
     const crumbs = [];
     if (project) crumbs.push(esc(project));
     if (model) crumbs.push(esc(model));
@@ -123,7 +124,7 @@
             </div>
         </header>`;
 
-    // Konten halaman dibungkus supaya bisa di-scroll terpisah dari sidebar.
+    // Page content is wrapped so it can scroll separately from the sidebar.
     document.body.classList.add('has-shell');
     document.body.insertAdjacentHTML('afterbegin', sidebarHTML + '<div class="workarea">' + topbarHTML + '</div>');
     const workarea = document.querySelector('.workarea');
@@ -131,8 +132,8 @@
     if (main && workarea) workarea.appendChild(main);
 })();
 
-// Vonis akhir satu part. Elemennya dirender oleh topbar hanya kalau
-// halaman meminta showTotalStatus, jadi ketidakhadirannya bukan kesalahan.
+// Final verdict for one part. The element is only rendered by the topbar if
+// the page requests showTotalStatus, so its absence isn't an error.
 window.setTotalStatus = function (verdict) {
     const box = document.getElementById('totalStatusBox');
     const value = document.getElementById('totalStatusValue');
@@ -144,7 +145,7 @@ window.setTotalStatus = function (verdict) {
 };
 
 window.switchToRunMode = function() {
-    // Nav to Run page for current project kalau ada
+    // Nav to Run page for current project, if there is one
     const p = new URLSearchParams(location.search).get('name')
         || new URLSearchParams(location.search).get('project');
     if (p) window.api.goTo(`run.html?project=${encodeURIComponent(p)}`);
@@ -154,13 +155,13 @@ window.switchToRunMode = function() {
 // ===================== GitHub Sync (Save / Load) =====================
 (function () {
 
-    // Tutup semua dropdown menubar saat klik di luar
+    // Close all menubar dropdowns when clicking outside
     document.addEventListener('click', (e) => {
         if (e.target.closest('.acct') || e.target.closest('.menu-item')) return;
         document.querySelectorAll('.util-menu').forEach(m => { m.style.display = 'none'; });
     });
 
-    // Auto-load versi terbaru sekali saat app pertama dibuka
+    // Auto-load the latest version once when the app first opens
     if (window.api && window.api.gitAutoPullOnce) {
         window.api.gitAutoPullOnce().then((r) => {
             if (!r || r.skipped || !r.result) return;
@@ -175,14 +176,14 @@ window.switchToRunMode = function() {
 function _syncShort(s) { s = String(s || ''); return s.length > 200 ? s.slice(-200) : s; }
 
 function _syncToast(msg, kind, ms) {
-    // Menumpang pesan() di common.js: satu tampilan, satu tempat perbaikan.
-    // Gaya .sync-toast sendiri sempat hilang saat stylesheet ditulis ulang,
-    // sehingga pesan sinkronisasi tampil sebagai teks polos tanpa bingkai.
+    // Piggybacks on pesan() in common.js: one display, one place to fix.
+    // The .sync-toast style itself was briefly lost when the stylesheet was
+    // rewritten, causing sync messages to show as plain text with no frame.
     return pesan(msg, kind === 'ok' ? 'ok' : (kind === 'err' ? 'err' : 'info'), ms);
 }
 
 
-// Buka/tutup satu dropdown menubar; tutup yang lain.
+// Open/close one menubar dropdown; close the others.
 function toggleMenu(e, id) {
     if (e) e.stopPropagation();
     const target = document.getElementById(id);
@@ -191,14 +192,14 @@ function toggleMenu(e, id) {
 }
 function _closeUtilMenu() { document.querySelectorAll('.util-menu').forEach(m => { m.style.display = 'none'; }); }
 
-// File → Keluar
+// File → Exit
 function appExit() {
     _closeUtilMenu();
     if (window.api && window.api.quitApp) window.api.quitApp();
     else window.close();
 }
 
-// Help → Tentang AutomaEyes (nama + versi dari config)
+// Help → About AutomaEyes (name + version from config)
 async function showAbout() {
     _closeUtilMenu();
     try {
@@ -219,7 +220,7 @@ async function syncSaveToCloud(e) {
         const r = await window.api.gitPush();
         t.remove();
         if (r.ok) _syncToast(r.nothing ? '✓ Sudah terbaru — tidak ada perubahan untuk diunggah.' : '✓ Tersimpan & terunggah ke GitHub.', 'ok', 5000);
-        else if (r.rejected) showConflictDialog();   // versi GitHub lebih baru: biarkan user memilih
+        else if (r.rejected) showConflictDialog();   // GitHub's version is newer: let the user choose
         else _syncToast('⚠️ ' + _syncShort(r.log), 'err', 9000);
     } catch (err) { t.remove(); _syncToast('⚠️ Error: ' + err.message, 'err', 9000); }
 }
@@ -232,7 +233,7 @@ async function syncLoadFromCloud(e) {
         const r = await window.api.gitPull();
         t.remove();
         if (r.ok) _syncToast(r.upToDate ? '✓ Sudah versi terbaru.' : '✓ Versi terbaru dimuat. Refresh halaman bila perlu.', 'ok', 6000);
-        else if (r.diverged) showConflictDialog();   // riwayat bercabang: biarkan user memilih
+        else if (r.diverged) showConflictDialog();   // history has diverged: let the user choose
         else _syncToast('⚠️ ' + _syncShort(r.log), 'err', 9000);
     } catch (err) { t.remove(); _syncToast('⚠️ Error: ' + err.message, 'err', 9000); }
 }
@@ -249,9 +250,10 @@ async function showSyncStatus(e) {
 }
 
 
-// ==== Menu Akun ====
-// Identitas user + repo tujuan sengaja ditaruh di menu bar, bukan hanya di
-// Settings: user perlu tahu "menyimpan ke repo siapa" tanpa berpindah halaman.
+// ==== Account Menu ====
+// The user's identity + destination repo are deliberately placed in the menu
+// bar, not just in Settings: the user needs to know "whose repo am I saving
+// to" without navigating to another page.
 async function _loadAccount() {
     if (!window.api || !window.api.authStatus) return;
     try {
@@ -278,7 +280,7 @@ async function _loadAccount() {
             if (repo) repo.textContent = '\u2014';
             info.textContent = 'Belum login';
         }
-    } catch (_) { /* halaman gate tidak punya sidebar */ }
+    } catch (_) { /* gate pages have no sidebar */ }
 }
 
 function _esc(s) {
@@ -293,7 +295,7 @@ async function doLogout(e) {
     await window.api.authLogout();
 }
 
-// Ganti repo tanpa Authorize ulang: token yang tersimpan dipakai lagi.
+// Change repos without re-Authorizing: the stored token is reused.
 async function changeRepo(e) {
     if (e) e.stopPropagation();
     _closeUtilMenu();
@@ -348,12 +350,12 @@ async function changeRepo(e) {
 _loadAccount();
 
 
-// ==== Penyelesaian konflik GitHub ====
+// ==== GitHub conflict resolution ====
 //
-// Muncul saat riwayat lokal dan GitHub sudah bercabang - dua device
-// sama-sama menyimpan sejak titik yang sama. Untuk gambar dan bobot model,
-// menggabungkan isi berkas tidak masuk akal, jadi user memilih satu sisi.
-// Sisi yang dibuang selalu dicadangkan lebih dulu.
+// Appears when local and GitHub history have diverged - two devices both
+// saved from the same starting point. For images and model weights, merging
+// file contents makes no sense, so the user picks one side. The discarded
+// side is always backed up first.
 async function showConflictDialog() {
     const info = await window.api.gitConflictInfo();
     if (!info.ok) { _syncToast('&#9888;&#65039; ' + info.log, 'err', 8000); return; }
@@ -434,14 +436,14 @@ async function showConflictDialog() {
         'Pekerjaan Anda disimpan ke cabang baru di GitHub, lalu komputer ini mengikuti versi GitHub.\nTidak ada yang ditimpa maupun dibuang.');
 }
 
-// ===================== Laporan (XLSX) =====================
-// Dulu tombolnya ada di halaman Ringkasan dan memakai window.prompt untuk
-// menanyakan tanggal. Electron tidak mendukung prompt() - ia melempar
-// "prompt() is not supported", jadi kedua ekspor itu tidak pernah sekali pun
-// berjalan. Diganti dialog tanggal di dalam aplikasi.
+// ===================== Reports (XLSX) =====================
+// The button used to be on the Summary page and used window.prompt to ask
+// for a date. Electron doesn't support prompt() - it throws
+// "prompt() is not supported", so neither export ever ran even once.
+// Replaced with an in-app date dialog.
 //
-// Laporan dihitung dari outputs/ project (CSV harian + JSON per-frame).
-// Murni statistik, tidak ada model bahasa di jalur ini.
+// Reports are computed from the project's outputs/ (daily CSV + per-frame JSON).
+// Pure statistics, no language model anywhere in this path.
 function _tanggalHariIni() {
     const d = new Date();
     const p = (n) => String(n).padStart(2, '0');
@@ -453,8 +455,8 @@ function _tanyaTanggal(judul) {
         const bekas = document.getElementById('dlgTanggal');
         if (bekas) bekas.remove();
 
-        // Gaya inline, mengikuti dialog lain di aplikasi ini - stylesheet
-        // belum punya kelas modal, jadi kelas saja tidak akan tampil benar.
+        // Inline styles, following the other dialogs in this app - the
+        // stylesheet has no modal class yet, so a class alone wouldn't render correctly.
         const bungkus = document.createElement('div');
         bungkus.id = 'dlgTanggal';
         bungkus.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:3100;'
@@ -505,8 +507,8 @@ async function _buatLaporan(judul, panggil, ringkas) {
         if (!r || !r.ok) { pesan('Gagal membuat laporan: ' + ((r && r.error) || 'tidak diketahui'), 'err'); return; }
         if (await tanya(`${ringkas(r)}\n${r.xlsxPath}`,
             { judul: 'Laporan siap', ya: 'Buka berkas', tidak: 'Nanti saja' })) {
-        // openPath kini bisa menolak (lihat lib/keamanan.js). Penolakan yang
-        // tidak ditampilkan terasa seperti tombol yang rusak.
+        // openPath can now refuse (see lib/keamanan.js). A refusal that
+        // isn't shown feels like a broken button.
         const b = await window.api.openPath(r.xlsxPath);
         if (b && b.ok === false) pesan(b.error || 'Berkas tidak bisa dibuka.', 'err');
     }

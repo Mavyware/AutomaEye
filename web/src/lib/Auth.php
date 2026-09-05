@@ -146,13 +146,13 @@ final class Auth
     }
 
     /**
-     * Bungkus access token GitHub untuk diserahkan ke aplikasi desktop.
+     * Wraps a GitHub access token for handoff to the desktop app.
      *
-     * Token GitHub ber-scope repo terlalu berharga untuk dilewatkan mentah di
-     * URL (bisa tersimpan di riwayat browser). Jadi dienkripsi dengan kunci
-     * server, ditandatangani, dan hanya berlaku 5 menit — aplikasi menukarnya
-     * lewat /api/github-token.php. Server tidak menyimpan token ini sama
-     * sekali; ia hanya numpang lewat.
+     * A repo-scoped GitHub token is too valuable to pass raw in a URL (it
+     * could end up stored in browser history). So it's encrypted with a
+     * server key, signed, and only valid for 5 minutes — the app exchanges
+     * it via /api/github-token.php. The server never stores this token at
+     * all; it only passes through.
      */
     public static function issueGithubHandoff(string $ghToken, string $login): string
     {

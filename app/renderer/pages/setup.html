@@ -80,9 +80,9 @@ async function periksa() {
     document.getElementById('reqList').innerHTML = html;
 
     const perluPython = !p.found || p.tooOld;
-    // Pemasangan otomatis kini mengurus Python juga, jadi tombolnya muncul
-    // untuk apa pun yang kurang. Unduhan manual disisakan sebagai jalan
-    // cadangan kalau jaringannya memblokir unduhan dari aplikasi.
+    // Automatic install now handles Python too, so the button appears for
+    // whatever is missing. The manual download is left as a fallback path
+    // in case the network blocks downloads from the app.
     document.getElementById('btnInstall').style.display = info.ok ? 'none' : '';
     document.getElementById('btnPython').style.display = perluPython ? '' : 'none';
 

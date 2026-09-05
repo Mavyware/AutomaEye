@@ -1,25 +1,25 @@
-// Kirim keadaan pin ke papan berdasarkan kelas yang terdeteksi.
+// Send pin states to the board based on the detected class.
 //
-// Halaman Output memetakan tiap kelas model ke satu pin. Di sini pemetaan itu
-// dipakai: setelah satu siklus inspeksi selesai, tiap pin yang terpetakan
-// dihitung nyala atau padam, lalu dikirim sekaligus dalam satu baris.
+// The Output page maps each model class to one pin. That mapping is used
+// here: once one inspection cycle finishes, every mapped pin is computed as
+// on or off, then sent all at once in a single line.
 //
-// Kenapa satu baris untuk semua pin, bukan satu perintah per pin:
-//   - satu penulisan serial per siklus, bukan sepuluh - penting di lini yang
-//     berjalan cepat;
-//   - papan menerapkan seluruh keadaan sekaligus, jadi tidak ada momen
-//     setengah-jadi di mana dua pin menyala bersamaan padahal seharusnya
-//     bergantian.
+// Why one line for all pins, instead of one command per pin:
+//   - a single serial write per cycle, not ten - important on a fast-moving
+//     line;
+//   - the board applies the whole state at once, so there's no half-done
+//     moment where two pins that should alternate end up on at the same time.
 //
-// Format yang dikirim:  PINS 7=1,8=0,9=0,10=1\n
-// Papan membalas       :  OK\n   (tidak ditunggu; balasan hanya untuk diagnosa)
+// Format sent:   PINS 7=1,8=0,9=0,10=1\n
+// Board replies:  OK\n   (not waited on; the reply is only for diagnostics)
 //
-// Pin yang kelasnya TIDAK terdeteksi selalu dikirim padam. Tanpa itu keadaan
-// siklus sebelumnya menempel, dan mesin membaca kelas yang sudah tidak ada.
+// A pin whose class is NOT detected is always sent as off. Without that, the
+// previous cycle's state would stick, and the machine would read a class
+// that's no longer there.
 
-// Kumpulkan nama kelas yang terdeteksi per model dari hasil satu siklus.
+// Collect the detected class names per model from one cycle's result.
 function kelasTerdeteksi(result) {
-    const peta = new Map();   // modelName -> Set(kelas)
+    const peta = new Map();   // modelName -> Set(class)
     for (const sr of (result.steps || [])) {
         if (!sr.modelName) continue;
         const set = peta.get(sr.modelName) || new Set();
@@ -32,8 +32,8 @@ function kelasTerdeteksi(result) {
     return peta;
 }
 
-// Hitung keadaan tiap pin yang terpetakan.
-// Mengembalikan [{ pin, nyala, aktif, model, kelas }]
+// Compute the state of every mapped pin.
+// Returns [{ pin, nyala, aktif, model, kelas }]
 exports.hitung = (outputCfg, result) => {
     const daftar = (outputCfg && outputCfg.pinKelas) || [];
     const terdeteksi = kelasTerdeteksi(result);
@@ -51,8 +51,8 @@ exports.hitung = (outputCfg, result) => {
         });
 };
 
-// Susun baris perintah. Nilai di kawat memperhitungkan level aktif: pada
-// pin "aktif LOW", nyala berarti menarik pin ke 0.
+// Build the command line. The value on the wire accounts for the active
+// level: for an "active LOW" pin, on means pulling the pin to 0.
 exports.baris = (keadaan) => {
     if (!keadaan.length) return null;
     const bagian = keadaan.map((k) => {
@@ -62,14 +62,14 @@ exports.baris = (keadaan) => {
     return 'PINS ' + bagian.join(',') + '\n';
 };
 
-// Kirim ke papan. Tidak melempar: kegagalan output tidak boleh menghentikan
-// siklus inspeksi yang sudah selesai - hasilnya tetap dicatat dan ditampilkan.
+// Send to the board. Does not throw: an output failure must not stop an
+// inspection cycle that already finished - the result is still logged and shown.
 exports.kirim = async (arduino, outputCfg, result) => {
     const keadaan = exports.hitung(outputCfg, result);
     if (!keadaan.length) return { ok: false, alasan: 'tidak ada keluaran yang dipetakan' };
 
-    // PLC bicara Modbus, bukan baris teks ke papan. Yang dihitung sama -
-    // kelas mana menyala - hanya cara mengirimnya yang berbeda.
+    // A PLC speaks Modbus, not a text line to a board. What's computed is the
+    // same - which class is on - only the way it's sent differs.
     const dev = (outputCfg && outputCfg.device) || {};
     if (dev.jenis === 'plc') {
         const modbus = require('./modbus');
@@ -86,10 +86,11 @@ exports.kirim = async (arduino, outputCfg, result) => {
     const baris = exports.baris(keadaan);
     if (!baris) return { ok: false, alasan: 'tidak ada pin yang dipetakan' };
     try {
-        // arduino.send TIDAK melempar saat port belum terbuka - ia menjawab
-        // { ok:false, reason:'not connected' }. Kalau jawabannya diabaikan,
-        // aplikasi melapor pin menyala padahal tidak ada yang tersambung, dan
-        // itu baru ketahuan saat mesin di ujung lini diam saja.
+        // arduino.send does NOT throw when the port isn't open yet - it
+        // replies { ok:false, reason:'not connected' }. If that reply is
+        // ignored, the app reports a pin as on even though nothing is
+        // connected, and that's only noticed when the machine at the end of
+        // the line just sits there doing nothing.
         const r = await arduino.send(baris);
         if (r && r.ok === false) {
             return { ok: false, alasan: r.reason === 'not connected' ? 'papan belum tersambung' : String(r.reason || 'gagal') };
