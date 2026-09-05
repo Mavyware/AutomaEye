@@ -58,5 +58,5 @@ storage, or the output/execution paths, since those are the parts covered by
 
 - [Code8Byte](https://github.com/Code8Byte) — CEO, Mavyware
 - [CodeVouz](https://github.com/CodeVouz) — Founder, AutomaEyes
-- Claude — AI Development Team, code changes and PR fixes
-- Dependabot — automated dependency updates and PR review
+- [Claude](https://github.com/claude) — AI Development Team, code changes and PR fixes
+- [Dependabot](https://github.com/dependabot[bot]) — automated dependency updates and PR review
